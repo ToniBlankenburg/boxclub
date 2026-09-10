@@ -9,9 +9,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 	_ "modernc.org/sqlite"
 )
 
@@ -357,6 +360,102 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 	}
 
 	return alle, rows.Err()
+}
+
+// Listeneintrag ist eine Zeile der Mitgliederliste. Er trägt bewusst nur die
+// Angaben, die die Liste anzeigt — samt aufgelöster Beitragsklasse und dem
+// Eintritt der laufenden Mitgliedschaft, damit die Adapter-Schicht die Zeile
+// ohne weitere Abfragen rendern kann. Das vollständige Mitglied mit seiner
+// Mitgliedschafts-Historie liefert Get.
+type Listeneintrag struct {
+	MitgliedID     int64
+	Vorname        string
+	Nachname       string
+	Beitragsklasse Beitragsklasse
+	BezahltBis     *time.Time
+	Eintritt       time.Time
+}
+
+// List liefert alle aktiven Mitglieder, sortiert nach Nachname und Vorname.
+// Aktiv heißt: es existiert eine Mitgliedschaft ohne Austrittsdatum. Wer nur
+// beendete Mitgliedschaften hat, taucht hier nicht auf.
+func (s *MemberService) List() ([]Listeneintrag, error) {
+	// Die Unterabfrage wählt genau eine laufende Mitgliedschaft je Mitglied aus.
+	// Regulär gibt es nie mehr als eine; sollte doch einmal eine zweite
+	// entstehen, erscheint das Mitglied trotzdem nur einmal in der Liste.
+	//
+	// Sortiert wird nicht hier, sondern in Go: siehe nachNamenSortieren.
+	rows, err := s.db.Query(
+		`SELECT m.id, m.vorname, m.nachname, m.bezahlt_bis,
+		 	k.id, k.name, k.preis_monatlich_cents, k.aktiv,
+		 	ms.eintritt
+		 FROM mitglied m
+		 JOIN beitragsklasse k ON k.id = m.beitragsklasse_id
+		 JOIN mitgliedschaft ms ON ms.id = (
+		 	SELECT id FROM mitgliedschaft
+		 	WHERE mitglied_id = m.id AND austritt IS NULL
+		 	ORDER BY eintritt DESC, id DESC
+		 	LIMIT 1
+		 )`)
+	if err != nil {
+		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
+	}
+	defer rows.Close()
+
+	var liste []Listeneintrag
+	for rows.Next() {
+		var (
+			e          Listeneintrag
+			bezahltBis sql.NullString
+			eintritt   string
+		)
+		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &bezahltBis,
+			&e.Beitragsklasse.ID, &e.Beitragsklasse.Name,
+			&e.Beitragsklasse.PreisMonatlichCents, &e.Beitragsklasse.Aktiv,
+			&eintritt); err != nil {
+			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
+		}
+
+		if e.BezahltBis, err = ausDatumsText(bezahltBis); err != nil {
+			return nil, fmt.Errorf("bezahlt_bis von mitglied %d: %w", e.MitgliedID, err)
+		}
+		if e.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
+			return nil, fmt.Errorf("eintritt von mitglied %d: %w", e.MitgliedID, err)
+		}
+
+		liste = append(liste, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
+	}
+
+	nachNamenSortieren(liste)
+
+	return liste, nil
+}
+
+// nachNamenSortieren ordnet die Liste nach Nachname, dann Vorname — nach
+// deutschen Regeln, in denen Umlaute wie ihr Grundbuchstabe zählen ("Ärmel"
+// zwischen "Adler" und "Berger") und Groß-/Kleinschreibung nicht entscheidet.
+//
+// Das muss Go erledigen: SQLite kennt nur binäre Sortierung und COLLATE NOCASE,
+// das ausschließlich ASCII faltet — dort landeten Umlaute hinter "Z". Bei der
+// Größenordnung dieses Vereins (200 Mitglieder) ist Sortieren im Speicher
+// ohnehin unmerklich.
+func nachNamenSortieren(liste []Listeneintrag) {
+	// Ein Collator ist nicht nebenläufigkeitssicher, deshalb einer pro Aufruf.
+	sortierung := collate.New(language.German)
+
+	slices.SortStableFunc(liste, func(a, b Listeneintrag) int {
+		if c := sortierung.CompareString(a.Nachname, b.Nachname); c != 0 {
+			return c
+		}
+		if c := sortierung.CompareString(a.Vorname, b.Vorname); c != 0 {
+			return c
+		}
+
+		return int(a.MitgliedID - b.MitgliedID)
+	})
 }
 
 // alsDatumsText bereitet ein optionales Datum für die Ablage in SQLite auf.

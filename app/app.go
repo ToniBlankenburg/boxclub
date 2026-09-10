@@ -1,7 +1,7 @@
 // Package app ist die Adapter-Schicht zwischen dem htmx-Frontend im WebView und
-// dem MemberService. Die Handler sind bewusst dünn: Formularwerte parsen,
-// genau einen Service-Aufruf absetzen, das Ergebnis als HTML-Fragment rendern.
-// Fachlogik gehört ausschließlich in service/.
+// dem MemberService. Die Handler sind bewusst dünn: Formularwerte parsen, an den
+// Service delegieren, das Ergebnis als HTML-Fragment rendern. Fachlogik gehört
+// ausschließlich in service/ (siehe ADR-0002).
 package app
 
 import (
@@ -42,6 +42,7 @@ func New(svc *service.MemberService) (*App, error) {
 // keine statische Datei treffen, an diesen Handler durch.
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/mitglieder", a.mitgliederListe)
 	mux.HandleFunc("GET /api/mitglied/formular", a.mitgliedFormular)
 	mux.HandleFunc("POST /api/mitglied", a.mitgliedAnlegen)
 
@@ -67,9 +68,27 @@ type formularDaten struct {
 	Fehler          []string
 }
 
-type karteDaten struct {
-	Mitglied       service.Mitglied
-	Beitragsklasse service.Beitragsklasse
+// listeDaten trägt die Mitgliederliste und optional eine Rückmeldung über eine
+// gerade abgeschlossene Aktion.
+type listeDaten struct {
+	Eintraege []service.Listeneintrag
+	Hinweis   string
+}
+
+func (a *App) mitgliederListe(w http.ResponseWriter, r *http.Request) {
+	a.listeRendern(w, "")
+}
+
+// listeRendern ist die Rückkehr-Ansicht nach jeder Aktion: htmx tauscht das
+// Listen-Fragment ein, ohne die Seite neu zu laden.
+func (a *App) listeRendern(w http.ResponseWriter, hinweis string) {
+	eintraege, err := a.svc.List()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.rendern(w, "mitglieder-liste", listeDaten{Eintraege: eintraege, Hinweis: hinweis})
 }
 
 func (a *App) mitgliedFormular(w http.ResponseWriter, r *http.Request) {
@@ -107,9 +126,9 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 	// Nur wenn die Rohwerte überhaupt parsebar waren, lohnt der Service-Aufruf.
 	// Die Pflichtfeld-Regeln selbst liegen im Service; hier werden sie nur angezeigt.
 	if len(fehler) == 0 {
-		id, err := a.svc.Create(neu)
+		_, err := a.svc.Create(neu)
 		if err == nil {
-			a.karteRendern(w, id)
+			a.listeRendern(w, fmt.Sprintf("%s %s wurde angelegt.", neu.Vorname, neu.Nachname))
 			return
 		}
 
@@ -134,22 +153,6 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 		Eingabe:         eingabe,
 		Fehler:          fehler,
 	})
-}
-
-func (a *App) karteRendern(w http.ResponseWriter, id int64) {
-	m, err := a.svc.Get(id)
-	if err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
-	klasse, err := a.svc.Beitragsklasse(m.BeitragsklasseID)
-	if err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
-	a.rendern(w, "mitglied-karte", karteDaten{Mitglied: m, Beitragsklasse: klasse})
 }
 
 // alsNeuesMitglied übersetzt die Rohwerte in die Service-Eingabe und sammelt
@@ -237,13 +240,6 @@ var templateFunktionen = template.FuncMap{
 		default:
 			return "—"
 		}
-	},
-	// oderStrich ersetzt leere Felder durch "—", damit die Karte nicht löchrig wirkt.
-	"oderStrich": func(s string) string {
-		if s == "" {
-			return "—"
-		}
-		return s
 	},
 	// feld bündelt die Argumente für das Teil-Template "feld"; html/template
 	// kennt keine benannten Parameter.

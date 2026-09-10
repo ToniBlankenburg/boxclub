@@ -1,0 +1,48 @@
+{{define "mitglieder-liste"}}
+<div>
+    <div class="mb-5 flex items-center justify-between gap-4">
+        <h2 class="text-base font-semibold">
+            Mitglieder
+            <span class="ml-1 font-normal text-neutral-500">{{len .Eintraege}}</span>
+        </h2>
+        <button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
+            Neues Mitglied
+        </button>
+    </div>
+
+    {{if .Hinweis}}
+        <p class="mb-5 rounded-md border border-green-700 bg-green-50 px-3 py-2 text-sm text-green-800"
+           role="status">{{.Hinweis}}</p>
+    {{end}}
+
+    {{if .Eintraege}}
+        <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="border-b border-neutral-200 text-sm text-neutral-600">
+                        <th class="px-4 py-2 font-medium">Name</th>
+                        <th class="px-4 py-2 font-medium">Beitragsklasse</th>
+                        <th class="px-4 py-2 font-medium">Bezahlt bis</th>
+                        <th class="px-4 py-2 font-medium">Eintritt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Eintraege}}
+                        <tr class="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
+                            <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
+                            <td class="px-4 py-2">{{.Beitragsklasse.Name}}</td>
+                            <td class="px-4 py-2 tabular-nums">{{datum .BezahltBis}}</td>
+                            <td class="px-4 py-2 tabular-nums">{{datum .Eintritt}}</td>
+                        </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    {{else}}
+        <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500">
+            Keine Mitglieder erfasst.
+        </p>
+    {{end}}
+</div>
+{{end}}
