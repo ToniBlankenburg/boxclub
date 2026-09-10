@@ -1,0 +1,78 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+Boxclub Mitgliederverwaltung — a local macOS desktop app replacing an Excel spreadsheet for managing ~50–200 club members, built as a learning project in Go. Production target: macOS only. Development runs on Windows and Linux.
+
+## Commands
+
+```bash
+# Install Wails CLI (once)
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# Run in dev mode (hot reload, opens WebView)
+wails dev
+
+# Production build
+wails build
+
+# Run Go tests only (no Wails required)
+go test ./...
+
+# Run a single package's tests
+go test ./service/...
+
+# Run a single test function
+go test ./service/... -run TestMemberService_Create
+```
+
+## Architecture
+
+**Stack:** Go backend + Wails v2 (native WebView bridge) + Vanilla HTML/htmx/Tailwind frontend. No SPA framework, no custom npm pipeline beyond Wails' built-in step. SQLite via `modernc.org/sqlite` (pure Go, no CGo — keeps cross-compilation trivial).
+
+**Two primary seams:**
+
+- `service/` — `MemberService`: all business logic (CRUD, search/filter, payment status, membership lifecycle). Talks directly to `database/sql` — no repository interface, no separate domain/persistence models.
+- `importer/` — `ExcelImporter`: parses `.xlsx` files via `excelize/v2`, returns rows + error report. Does **not** call `MemberService` itself; a thin orchestrator in the Wails layer wires them together.
+
+**Adapter layers (not primary seams):**
+
+- `app/` — Wails bindings: thin 1:1 wrappers over `MemberService`/`ExcelImporter` that return HTML fragments for htmx.
+- `templates/` — Go `html/template` files rendering htmx fragments (member rows, forms, error lists).
+
+**SQLite schema (three tables):**
+
+- `beitragsklasse(id, name, preis_monatlich_cents, aktiv)` — seeded on first start with two classes (60 €/mo and 80 €/mo, stored in cents)
+- `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, beitragsklasse_id, bezahlt_bis)` — person master data; one row per person even across re-entries
+- `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL)` — time-bound membership period; `austritt IS NULL` means currently active
+
+Payment status is derived on the fly: `bezahlt` if `bezahlt_bis >= today`, `nicht bezahlt` otherwise. Never stored.
+
+## Testing
+
+Tests hit a real SQLite database (`t.TempDir()`-based temp file per test) — **no mocking**. Test via the service/importer API only; never reach into SQL directly.
+
+- `service/member_service_test.go` is the reference test file — all subsequent tests mirror its setup pattern.
+- Wails bindings and htmx templates are not unit-tested; manual smoke test suffices.
+- After any significant change: verify `wails dev` and `wails build` succeed on both Windows and Linux. A build failure on a dev platform blocks the ticket just like a failing test.
+
+## Domain vocabulary
+
+Use terms exactly as defined in `CONTEXT.md`. Key distinction: **Mitglied** (the person, permanent record) vs. **Mitgliedschaft** (a time-bounded active period). See `CONTEXT.md` for the full glossary.
+
+Before working in an area, read the relevant ADR(s) in `docs/adr/`.
+
+## Issue tracker
+
+Issues and specs are local markdown files in `.scratch/<feature-slug>/`:
+
+- Spec: `.scratch/<feature-slug>/spec.md`
+- Tickets: `.scratch/<feature-slug>/issues/<NN>-<slug>.md` (numbered from `01`, one file per ticket)
+- Each ticket has a `Status:` line near the top (`needs-triage`, `ready-for-agent`, `ready-for-human`, `wontfix`, etc.)
+- Comments append under a `## Comments` heading at the bottom of the file
+
+## Out of scope for v1
+
+MoneyMoney CSV import/auto-matching, multi-user/login, cloud/web deployment, Windows/Linux release builds, UI test automation, attendance tracking, boxing-specific fields (license, weight class).

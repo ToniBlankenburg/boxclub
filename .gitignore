@@ -1,0 +1,19 @@
+# Wails / Go build artifacts
+build/bin/
+
+# Frontend
+frontend/node_modules/
+# Wails writes this hash to decide whether npm install must re-run.
+frontend/package.json.md5
+frontend/dist/*
+!frontend/dist/gitkeep
+node_modules/
+
+# SQLite database (local data, never committed)
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS
+.DS_Store
+*.swp

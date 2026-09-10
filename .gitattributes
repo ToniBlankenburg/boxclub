@@ -1,0 +1,8 @@
+# Normalise line endings: this project is developed on Windows and Linux,
+# so without this every checkout on the other platform rewrites every file.
+* text=auto eol=lf
+
+# Binary assets git must never touch.
+*.png   -text
+*.ico   -text
+*.woff2 -text

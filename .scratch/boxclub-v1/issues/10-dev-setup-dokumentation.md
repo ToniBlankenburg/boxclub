@@ -14,3 +14,19 @@ Status: ready-for-agent
 - [ ] Troubleshooting-Sektion listet mindestens die zwei häufigsten Startfehler pro Plattform mit Lösungshinweis
 - [ ] Verweise auf [CONTEXT.md](CONTEXT.md), [ADR-0001](docs/adr/0001-go-wails-fuer-desktop-gui.md) und [spec.md](.scratch/boxclub-v1/spec.md) sind vorhanden
 - [ ] Klarstellung: **macOS-Nutzung ist Produktions-Ziel, Windows/Linux sind Entwicklungs-Plattformen ohne Auslieferungs-Anspruch**
+
+## Comments
+
+### Linux-Prereq ist 4.1, nicht 4.0 (aus Ticket 01)
+
+Die Acceptance Criteria oben nennen `libwebkit2gtk-4.0-dev`. Ubuntu 24.04 und
+Linux Mint 22 liefern dieses Paket nicht mehr — dort gilt:
+
+```
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+Dazu passend setzt `wails.json` `"build:tags": "webkit2_41"`. Ticket 01 hat als
+Zwischenstand bereits eine knappe `README.md` angelegt; dieses Ticket baut sie zur
+vollständigen Doku inklusive Troubleshooting aus.
+
