@@ -70,8 +70,8 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen.
 	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", b.ZweiMalWoche)
 	bezahltBis(b.Klein, -20)
-	if err := svc.AustrittFuerTest(b.Klein, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("AustrittFuerTest: %v", err)
+	if err := svc.MarkExit(b.Klein, datum(t, "2026-06-30")); err != nil {
+		t.Fatalf("MarkExit: %v", err)
 	}
 
 	return b

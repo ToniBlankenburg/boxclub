@@ -75,6 +75,27 @@ func (m Mitglied) LaufendeMitgliedschaft() *Mitgliedschaft {
 	return nil
 }
 
+// LetzteMitgliedschaft liefert den Zeitraum, der für das Mitglied gerade
+// maßgeblich ist: den laufenden, und wenn keiner läuft, den zuletzt begonnenen.
+// Das ist die Angabe, die eine Ansicht zeigt, wenn sie nach dem Eintritt fragt —
+// bei einem Ehemaligen wäre "kein Eintritt" die falsche Auskunft, denn
+// eingetreten war er ja.
+//
+// nil liefert nur ein Mitglied ganz ohne Mitgliedschaft; regulär gibt es das
+// nicht, weil Create beides zusammen anlegt.
+func (m Mitglied) LetzteMitgliedschaft() *Mitgliedschaft {
+	if laufend := m.LaufendeMitgliedschaft(); laufend != nil {
+		return laufend
+	}
+
+	if len(m.Mitgliedschaften) == 0 {
+		return nil
+	}
+
+	// Mitgliedschaften liegen aufsteigend nach Eintritt vor.
+	return &m.Mitgliedschaften[len(m.Mitgliedschaften)-1]
+}
+
 // Zahlungsstatus ist die Aussage darüber, ob der Beitrag eines Mitglieds als
 // gezahlt gilt. Er wird nie gespeichert, sondern jedes Mal aus bezahlt_bis und
 // dem heutigen Tag abgeleitet (siehe CONTEXT.md → Statusanzeige).
@@ -161,6 +182,14 @@ type NeuesMitglied struct {
 
 // ErrNichtGefunden meldet, dass zu einer ID kein Datensatz existiert.
 var ErrNichtGefunden = errors.New("nicht gefunden")
+
+// ErrNichtAktiv meldet, dass das Mitglied derzeit keine laufende Mitgliedschaft
+// hat — ein Austritt braucht aber einen Zeitraum, den er beenden kann.
+var ErrNichtAktiv = errors.New("keine laufende mitgliedschaft")
+
+// ErrBereitsAktiv meldet, dass das Mitglied bereits eine laufende Mitgliedschaft
+// hat — ein Wiedereintritt setzt einen Austritt voraus.
+var ErrBereitsAktiv = errors.New("bereits aktives mitglied")
 
 // ValidierungsFehler bündelt alle Regelverstöße einer Eingabe. Bewusst als
 // Liste: das Formular soll alle fehlenden Pflichtangaben auf einmal anzeigen
@@ -408,7 +437,7 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 	if len(zuweisungen) == 0 {
 		// Nichts zu schreiben. Die ID wird trotzdem geprüft, damit ein Aufruf auf
 		// ein nicht existierendes Mitglied auch dann auffällt.
-		return s.mitgliedPruefen(id)
+		return mitgliedPruefen(s.db, id)
 	}
 
 	// Die Spaltennamen stammen ausschließlich aus zuweisungen und sind dort
@@ -489,12 +518,19 @@ func (p MitgliedPatch) zuweisungen() ([]string, []any) {
 	return fragmente, werte
 }
 
+// abfrager ist die Teilmenge von *sql.DB und *sql.Tx, die die Prüfungen unten
+// brauchen — so laufen dieselben Abfragen innerhalb wie außerhalb einer
+// Transaktion.
+type abfrager interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+
 // mitgliedPruefen meldet ErrNichtGefunden, wenn zu der ID kein Mitglied
 // vorliegt.
-func (s *MemberService) mitgliedPruefen(id int64) error {
+func mitgliedPruefen(q abfrager, id int64) error {
 	var vorhanden int
 
-	err := s.db.QueryRow(`SELECT 1 FROM mitglied WHERE id = ?`, id).Scan(&vorhanden)
+	err := q.QueryRow(`SELECT 1 FROM mitglied WHERE id = ?`, id).Scan(&vorhanden)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
 	}
@@ -573,6 +609,147 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 	}
 
 	return alle, rows.Err()
+}
+
+// MarkExit beendet die laufende Mitgliedschaft eines Mitglieds zum angegebenen
+// Datum. Der Mitglied-Datensatz bleibt unangetastet — ausgetreten ist die
+// Mitgliedschaft, nicht die Person.
+func (s *MemberService) MarkExit(id int64, austritt time.Time) error {
+	// Geprüft wird vor der Transaktion — wie in Create liegt die Pflichtangabe
+	// vor allem, was die Datenbank dazu zu sagen hätte.
+	if austritt.IsZero() {
+		return &ValidierungsFehler{Meldungen: []string{"Austrittsdatum darf nicht leer sein."}}
+	}
+
+	// Der laufende Zeitraum wird gelesen, geprüft und beendet — das gehört in
+	// eine Transaktion, damit dazwischen keine andere Änderung dazwischenfunkt.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("transaktion starten: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := mitgliedPruefen(tx, id); err != nil {
+		return err
+	}
+
+	mitgliedschaftID, eintritt, err := laufendeMitgliedschaftLesen(tx, id)
+	if err != nil {
+		return err
+	}
+
+	austrittsText := austritt.Format(isoDatum)
+	if austrittsText < eintritt {
+		return &ValidierungsFehler{Meldungen: []string{
+			"Das Austrittsdatum darf nicht vor dem Eintrittsdatum liegen.",
+		}}
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE mitgliedschaft SET austritt = ? WHERE id = ?`,
+		austrittsText, mitgliedschaftID); err != nil {
+		return fmt.Errorf("austritt von mitglied %d eintragen: %w", id, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("transaktion abschließen: %w", err)
+	}
+
+	return nil
+}
+
+// Rejoin lässt ein ehemaliges Mitglied wieder eintreten: es entsteht eine neue
+// Mitgliedschaft, kein neues Mitglied. Stammdaten, ID und die bisherigen
+// Zeiträume bleiben dabei unberührt.
+func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
+	if eintritt.IsZero() {
+		return &ValidierungsFehler{Meldungen: []string{"Eintrittsdatum darf nicht leer sein."}}
+	}
+
+	// Prüfen und Einfügen gehören zusammen: sonst könnten zwischen beiden zwei
+	// laufende Zeiträume entstehen.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("transaktion starten: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := mitgliedPruefen(tx, id); err != nil {
+		return err
+	}
+
+	if _, _, err := laufendeMitgliedschaftLesen(tx, id); err == nil {
+		return fmt.Errorf("mitglied %d: %w", id, ErrBereitsAktiv)
+	} else if !errors.Is(err, ErrNichtAktiv) {
+		return err
+	}
+
+	eintrittsText := eintritt.Format(isoDatum)
+
+	letzterAustritt, err := letztenAustrittLesen(tx, id)
+	if err != nil {
+		return err
+	}
+	if eintrittsText < letzterAustritt {
+		return &ValidierungsFehler{Meldungen: []string{
+			"Das Eintrittsdatum darf nicht vor dem letzten Austritt liegen.",
+		}}
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO mitgliedschaft (mitglied_id, eintritt) VALUES (?, ?)`,
+		id, eintrittsText); err != nil {
+		return fmt.Errorf("wiedereintritt von mitglied %d eintragen: %w", id, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("transaktion abschließen: %w", err)
+	}
+
+	return nil
+}
+
+// letztenAustrittLesen liefert den spätesten Austritt des Mitglieds als
+// ISO-Text, oder den leeren Text, wenn es noch keinen gibt. Aufgerufen wird das
+// nur, wenn kein Zeitraum mehr läuft — dann sind alle Austritte gesetzt und das
+// Maximum ist der Rand, hinter dem ein Wiedereintritt liegen muss.
+func letztenAustrittLesen(q abfrager, mitgliedID int64) (string, error) {
+	var austritt sql.NullString
+
+	if err := q.QueryRow(
+		`SELECT MAX(austritt) FROM mitgliedschaft WHERE mitglied_id = ?`,
+		mitgliedID).Scan(&austritt); err != nil {
+		return "", fmt.Errorf("letzten austritt von mitglied %d lesen: %w", mitgliedID, err)
+	}
+
+	return austritt.String, nil
+}
+
+// laufendeMitgliedschaftLesen liefert ID und Eintritt des Zeitraums, in dem das
+// Mitglied gerade aktiv ist; gibt es keinen, ist der Fehler ErrNichtAktiv.
+//
+// Der Eintritt kommt als ISO-Text zurück und nicht als time.Time: verglichen
+// wird er ohnehin nur mit anderen Kalendertagen in derselben Form — aus
+// demselben Grund, aus dem zahlungsstatusAm über Text vergleicht.
+func laufendeMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, string, error) {
+	var (
+		id       int64
+		eintritt string
+	)
+
+	err := q.QueryRow(
+		`SELECT id, eintritt FROM mitgliedschaft
+		 WHERE mitglied_id = ? AND austritt IS NULL
+		 ORDER BY eintritt DESC, id DESC
+		 LIMIT 1`, mitgliedID).Scan(&id, &eintritt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", fmt.Errorf("mitglied %d: %w", mitgliedID, ErrNichtAktiv)
+	}
+	if err != nil {
+		return 0, "", fmt.Errorf("laufende mitgliedschaft von mitglied %d lesen: %w", mitgliedID, err)
+	}
+
+	return id, eintritt, nil
 }
 
 // Listeneintrag ist eine Zeile der Mitgliederliste. Er trägt bewusst nur die

@@ -53,6 +53,10 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/mitglied/{id}/zeile", a.mitgliedZeile)
 	mux.HandleFunc("GET /api/mitglied/{id}/zahlung", a.zahlungFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/zahlung", a.zahlungSpeichern)
+	mux.HandleFunc("GET /api/mitglied/{id}/austritt", a.austrittFormular)
+	mux.HandleFunc("POST /api/mitglied/{id}/austritt", a.austrittEintragen)
+	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
+	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
 
 	return mux
 }
@@ -408,11 +412,11 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		}
 	}
 
-	// Angezeigt wird der Eintritt des Zeitraums, in dem das Mitglied gerade
-	// aktiv ist; hat es keinen, bleibt das Feld leer.
+	// Welcher Zeitraum maßgeblich ist, entscheidet der Service — auch bei einem
+	// ausgetretenen Mitglied, dessen letzter Eintritt hier stehen soll.
 	var eintritt *time.Time
-	if laufend := m.LaufendeMitgliedschaft(); laufend != nil {
-		eintritt = &laufend.Eintritt
+	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
+		eintritt = &letzte.Eintritt
 	}
 
 	a.rendern(w, "mitglied-formular", formularDaten{
@@ -524,18 +528,168 @@ func (a *App) zahlungSpeichern(w http.ResponseWriter, r *http.Request) {
 	a.rendern(w, "mitglied-zeile", eintrag)
 }
 
+// mitgliedschaftDaten speist die Zeile, in der ein Aus- oder Wiedereintritt
+// datiert wird. Beide teilen sich Formular und Handler; welche der beiden
+// Aktionen gemeint ist, entscheidet allein Wiedereintritt.
+type mitgliedschaftDaten struct {
+	Eintrag        service.Listeneintrag
+	Wiedereintritt bool
+	Datum          string
+	Fehler         []string
+}
+
+// Die Aktion steht in der Route und nicht im abgeschickten Formular: so trifft
+// ein Klick aus einer veralteten Ansicht auf den Fehler des Service
+// (ErrNichtAktiv bzw. ErrBereitsAktiv), statt still das Gegenteil zu tun.
+func (a *App) austrittFormular(w http.ResponseWriter, r *http.Request) {
+	a.mitgliedschaftFormular(w, r, false)
+}
+
+func (a *App) wiedereintrittFormular(w http.ResponseWriter, r *http.Request) {
+	a.mitgliedschaftFormular(w, r, true)
+}
+
+func (a *App) austrittEintragen(w http.ResponseWriter, r *http.Request) {
+	a.mitgliedschaftAendern(w, r, false)
+}
+
+func (a *App) wiedereintrittEintragen(w http.ResponseWriter, r *http.Request) {
+	a.mitgliedschaftAendern(w, r, true)
+}
+
+// mitgliedschaftFormular tauscht die Zeile gegen die Datumseingabe. Vorbelegt
+// ist der heutige Tag — der häufigste Fall ist "ab sofort".
+func (a *App) mitgliedschaftFormular(w http.ResponseWriter, r *http.Request, wiedereintritt bool) {
+	eintrag, ok := a.zeileLesen(w, r)
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglied-mitgliedschaft-formular", mitgliedschaftDaten{
+		Eintrag:        eintrag,
+		Wiedereintritt: wiedereintritt,
+		Datum:          time.Now().Format(isoDatum),
+	})
+}
+
+// mitgliedschaftAendern trägt den Aus- bzw. Wiedereintritt ein. Ob das Datum
+// fachlich zulässig ist, entscheidet der Service; hier wird es nur geparst.
+func (a *App) mitgliedschaftAendern(w http.ResponseWriter, r *http.Request, wiedereintritt bool) {
+	id, ok := mitgliedID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	roh := r.FormValue("datum")
+
+	d, err := time.Parse(isoDatum, roh)
+	if err != nil {
+		a.mitgliedschaftFormularMitFehler(w, id, wiedereintritt, []string{"Das ist kein gültiges Datum."})
+		return
+	}
+
+	if wiedereintritt {
+		err = a.svc.Rejoin(id, d)
+	} else {
+		err = a.svc.MarkExit(id, d)
+	}
+	if err != nil {
+		var validierung *service.ValidierungsFehler
+		if errors.As(err, &validierung) {
+			a.mitgliedschaftFormularMitFehler(w, id, wiedereintritt, validierung.Meldungen)
+			return
+		}
+
+		a.veralteteAnsichtOderFehler(w, err)
+		return
+	}
+
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.veralteteAnsichtOderFehler(w, err)
+		return
+	}
+
+	// Nach dem Austritt ist die Zeile nicht mehr der richtige Platz für die
+	// Antwort: in der Standardansicht gibt es sie gar nicht mehr. Deshalb kommt
+	// die ganze Liste zurück — und sagt zugleich, wo das Mitglied jetzt steht.
+	text := fmt.Sprintf("%s %s ist zum %s ausgetreten und steht jetzt unter »Auch Ehemalige«.",
+		eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))
+	if wiedereintritt {
+		text = fmt.Sprintf("%s %s ist zum %s wieder eingetreten.",
+			eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))
+	}
+
+	aufListeUmleiten(w)
+	a.listeRendern(w, meldung{Text: text})
+}
+
+// mitgliedschaftFormularMitFehler zeigt die Datumseingabe erneut, mitsamt den
+// Meldungen des Service.
+//
+// Der abgelehnte Rohwert wird bewusst nicht zurückgereicht: <input type="date">
+// zeigt einen Wert, der kein Datum ist, ohnehin nicht an — das Feld beginnt
+// deshalb wieder beim heutigen Tag.
+func (a *App) mitgliedschaftFormularMitFehler(w http.ResponseWriter, id int64, wiedereintritt bool, fehler []string) {
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.zeileNichtGefundenOderFehler(w, err)
+		return
+	}
+
+	a.rendern(w, "mitglied-mitgliedschaft-formular", mitgliedschaftDaten{
+		Eintrag:        eintrag,
+		Wiedereintritt: wiedereintritt,
+		Datum:          time.Now().Format(isoDatum),
+		Fehler:         fehler,
+	})
+}
+
+// veralteteAnsichtOderFehler beantwortet einen Fehler, der keine Frage des
+// Datums ist: die Ansicht, aus der geklickt wurde, kannte den Lebenszyklus des
+// Mitglieds nicht mehr richtig. Zurück geht es dann in die Liste, die den
+// aktuellen Stand zeigt und sagt, was los war.
+func (a *App) veralteteAnsichtOderFehler(w http.ResponseWriter, err error) {
+	var text string
+
+	switch {
+	case errors.Is(err, service.ErrNichtGefunden):
+		text = "Dieses Mitglied gibt es nicht mehr."
+	case errors.Is(err, service.ErrNichtAktiv):
+		text = "Dieses Mitglied ist bereits ausgetreten."
+	case errors.Is(err, service.ErrBereitsAktiv):
+		text = "Dieses Mitglied ist bereits aktiv."
+	default:
+		fehlerAntwort(w, err)
+		return
+	}
+
+	aufListeUmleiten(w)
+	a.listeRendern(w, meldung{Text: text, Warnung: true})
+}
+
 // zeileNichtGefundenOderFehler beantwortet einen Service-Fehler im
 // Zeilen-Kontext. Gibt es die Zeile nicht mehr, wäre es falsch, ausgerechnet an
-// ihrer Stelle etwas einzuwechseln: die Antwort bekommt per HX-Retarget ein
-// neues Ziel und ersetzt die ganze Liste — sonst landete eine Liste im
-// Tabellenzeilen-Element.
+// ihrer Stelle etwas einzuwechseln.
 func (a *App) zeileNichtGefundenOderFehler(w http.ResponseWriter, err error) {
 	if errors.Is(err, service.ErrNichtGefunden) {
-		w.Header().Set("HX-Retarget", "#inhalt")
-		w.Header().Set("HX-Reswap", "innerHTML")
+		aufListeUmleiten(w)
 	}
 
 	a.nichtGefundenOderFehler(w, err)
+}
+
+// aufListeUmleiten gibt der Antwort ein neues Ziel: statt der Zeile, aus der die
+// Aktion kam, ersetzt sie die ganze Liste. Nötig, wo die Zeile danach nicht mehr
+// existiert — sonst landete eine ganze Liste im Tabellenzeilen-Element.
+func aufListeUmleiten(w http.ResponseWriter) {
+	w.Header().Set("HX-Retarget", "#inhalt")
+	w.Header().Set("HX-Reswap", "innerHTML")
 }
 
 // formularEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
