@@ -760,3 +760,259 @@ func TestLaufendeMitgliedschaft_LiefertDenOffenenZeitraumUndNachAustrittNil(t *t
 		t.Errorf("LaufendeMitgliedschaft = %+v, erwartet nil nach dem Austritt", laufend)
 	}
 }
+
+// heuteVersetzt liefert ein Datum relativ zum heutigen Tag — die Status-Ableitung
+// vergleicht gegen "heute", also müssen die Fixtures mitwandern statt feste
+// Kalendertage zu setzen.
+func heuteVersetzt(tage int) time.Time {
+	// Kalendertag von heute, in UTC wie alle aus der Datenbank gelesenen Daten —
+	// so lassen sich die Werte direkt mit Equal vergleichen.
+	jetzt := time.Now()
+	return time.Date(jetzt.Year(), jetzt.Month(), jetzt.Day(), 0, 0, 0, 0, time.UTC).
+		AddDate(0, 0, tage)
+}
+
+// mitgliedAnlegen legt ein Mitglied mit Minimalangaben an und liefert dessen ID.
+func mitgliedAnlegen(t *testing.T, svc *service.MemberService, vorname, nachname string) int64 {
+	t.Helper()
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          vorname,
+		Nachname:         nachname,
+		BeitragsklasseID: beitragsklassen(t, svc)[0].ID,
+		Eintritt:         datum(t, "2026-01-05"),
+	})
+	if err != nil {
+		t.Fatalf("Create(%s %s): %v", vorname, nachname, err)
+	}
+
+	return id
+}
+
+func TestZahlungsstatus_LeitetSichAusBezahltBisUndHeuteAb(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Ravi", "Kumar")
+
+	// Ohne jede Zahlungsangabe ist der Status weder bezahlt noch nicht bezahlt.
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag: %v", err)
+	}
+	if eintrag.Zahlungsstatus != service.ZahlungsstatusNichtGesetzt {
+		t.Errorf("Zahlungsstatus ohne bezahlt_bis = %v, erwartet %v",
+			eintrag.Zahlungsstatus, service.ZahlungsstatusNichtGesetzt)
+	}
+
+	faelle := []struct {
+		name     string
+		tage     int
+		erwartet service.Zahlungsstatus
+	}{
+		{"gestern", -1, service.ZahlungsstatusNichtBezahlt},
+		{"heute", 0, service.ZahlungsstatusBezahlt},
+		{"morgen", 1, service.ZahlungsstatusBezahlt},
+	}
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			bezahltBis := heuteVersetzt(f.tage)
+			if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
+				t.Fatalf("SetBezahltBis: %v", err)
+			}
+
+			eintrag, err := svc.Eintrag(id)
+			if err != nil {
+				t.Fatalf("Eintrag: %v", err)
+			}
+			if eintrag.Zahlungsstatus != f.erwartet {
+				t.Errorf("Zahlungsstatus bei bezahlt_bis = %s = %v, erwartet %v",
+					f.name, eintrag.Zahlungsstatus, f.erwartet)
+			}
+			if eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(bezahltBis) {
+				t.Errorf("BezahltBis = %v, erwartet %v", eintrag.BezahltBis, bezahltBis)
+			}
+		})
+	}
+
+	// Zurücksetzen führt in den neutralen Zustand, nicht in "nicht bezahlt".
+	if err := svc.SetBezahltBis(id, nil); err != nil {
+		t.Fatalf("SetBezahltBis(nil): %v", err)
+	}
+
+	eintrag, err = svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag nach dem Zurücksetzen: %v", err)
+	}
+	if eintrag.BezahltBis != nil {
+		t.Errorf("BezahltBis = %v, erwartet nil nach dem Zurücksetzen", eintrag.BezahltBis)
+	}
+	if eintrag.Zahlungsstatus != service.ZahlungsstatusNichtGesetzt {
+		t.Errorf("Zahlungsstatus nach dem Zurücksetzen = %v, erwartet %v",
+			eintrag.Zahlungsstatus, service.ZahlungsstatusNichtGesetzt)
+	}
+}
+
+func TestSetBezahltBis_IstBeiWiederholungIdempotent(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Sina", "Petrov")
+	bezahltBis := heuteVersetzt(30)
+
+	for versuch := 1; versuch <= 3; versuch++ {
+		if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
+			t.Fatalf("SetBezahltBis (Versuch %d): %v", versuch, err)
+		}
+
+		eintrag, err := svc.Eintrag(id)
+		if err != nil {
+			t.Fatalf("Eintrag (Versuch %d): %v", versuch, err)
+		}
+		if eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(bezahltBis) {
+			t.Fatalf("BezahltBis nach Versuch %d = %v, erwartet %v",
+				versuch, eintrag.BezahltBis, bezahltBis)
+		}
+		if eintrag.Zahlungsstatus != service.ZahlungsstatusBezahlt {
+			t.Fatalf("Zahlungsstatus nach Versuch %d = %v, erwartet %v",
+				versuch, eintrag.Zahlungsstatus, service.ZahlungsstatusBezahlt)
+		}
+	}
+
+	// Auch die Liste kennt das Mitglied danach genau einmal.
+	liste, err := svc.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(liste) != 1 {
+		t.Errorf("List = %d Einträge, erwartet 1: %+v", len(liste), liste)
+	}
+}
+
+func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+	geburtsdatum := datum(t, "1994-07-19")
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Lina",
+		Nachname:         "Fischer",
+		Geburtsdatum:     &geburtsdatum,
+		Adresse:          "Hauptstraße 3, 10115 Berlin",
+		Email:            "lina@example.org",
+		Telefon:          "030 123456",
+		BeitragsklasseID: klassen[1].ID,
+		Eintritt:         datum(t, "2026-02-01"),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	vorher, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get (vorher): %v", err)
+	}
+
+	bezahltBis := heuteVersetzt(14)
+	if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
+		t.Fatalf("SetBezahltBis: %v", err)
+	}
+
+	nachher, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get (nachher): %v", err)
+	}
+
+	if nachher.BezahltBis == nil || !nachher.BezahltBis.Equal(bezahltBis) {
+		t.Errorf("BezahltBis = %v, erwartet %v", nachher.BezahltBis, bezahltBis)
+	}
+
+	// Alles außer bezahlt_bis muss identisch geblieben sein — inklusive der
+	// Mitgliedschaft, die von einer Zahlungsangabe nichts wissen darf.
+	erwartet := vorher
+	erwartet.BezahltBis = nachher.BezahltBis
+	if nachher.ID != erwartet.ID || nachher.Vorname != erwartet.Vorname ||
+		nachher.Nachname != erwartet.Nachname || nachher.Adresse != erwartet.Adresse ||
+		nachher.Email != erwartet.Email || nachher.Telefon != erwartet.Telefon ||
+		nachher.BeitragsklasseID != erwartet.BeitragsklasseID {
+		t.Errorf("Stammdaten = %+v, erwartet unverändert %+v", nachher, erwartet)
+	}
+	if nachher.Geburtsdatum == nil || !nachher.Geburtsdatum.Equal(geburtsdatum) {
+		t.Errorf("Geburtsdatum = %v, erwartet %v", nachher.Geburtsdatum, geburtsdatum)
+	}
+	if len(nachher.Mitgliedschaften) != len(vorher.Mitgliedschaften) {
+		t.Fatalf("Mitgliedschaften = %+v, erwartet unverändert %+v",
+			nachher.Mitgliedschaften, vorher.Mitgliedschaften)
+	}
+	for i, ms := range nachher.Mitgliedschaften {
+		if ms != vorher.Mitgliedschaften[i] {
+			t.Errorf("Mitgliedschaft %d = %+v, erwartet unverändert %+v",
+				i, ms, vorher.Mitgliedschaften[i])
+		}
+	}
+}
+
+func TestSetBezahltBis_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
+	svc := neuerService(t)
+
+	bezahltBis := heuteVersetzt(7)
+	if err := svc.SetBezahltBis(4711, &bezahltBis); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Fatalf("SetBezahltBis(4711, …) = %v, erwartet ErrNichtGefunden", err)
+	}
+
+	liste, err := svc.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(liste) != 0 {
+		t.Errorf("List = %+v, erwartet leer — es darf nichts angelegt worden sein", liste)
+	}
+}
+
+func TestEintrag_LiefertDieselbeZeileWieDieListe(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Mara", "Delgado")
+	bezahltBis := heuteVersetzt(3)
+	if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
+		t.Fatalf("SetBezahltBis: %v", err)
+	}
+
+	liste, err := svc.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(liste) != 1 {
+		t.Fatalf("List = %d Einträge, erwartet 1", len(liste))
+	}
+
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag: %v", err)
+	}
+	if eintrag.MitgliedID != liste[0].MitgliedID || eintrag.Vorname != liste[0].Vorname ||
+		eintrag.Nachname != liste[0].Nachname || eintrag.Beitragsklasse != liste[0].Beitragsklasse ||
+		eintrag.Zahlungsstatus != liste[0].Zahlungsstatus ||
+		!eintrag.Eintritt.Equal(liste[0].Eintritt) ||
+		eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(*liste[0].BezahltBis) {
+		t.Errorf("Eintrag = %+v, erwartet dieselbe Zeile wie List: %+v", eintrag, liste[0])
+	}
+}
+
+func TestEintrag_OhneLaufendeMitgliedschaftUndUnbekannteIDMeldenNichtGefunden(t *testing.T) {
+	svc := neuerService(t)
+
+	if _, err := svc.Eintrag(4711); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Fatalf("Eintrag(4711) = %v, erwartet ErrNichtGefunden", err)
+	}
+
+	id := mitgliedAnlegen(t, svc, "Timo", "Vogel")
+	if err := svc.AustrittFuerTest(id, heuteVersetzt(-10)); err != nil {
+		t.Fatalf("AustrittFuerTest: %v", err)
+	}
+
+	// Die Liste führt ausgetretene Mitglieder nicht — dann gibt es für sie auch
+	// keine Zeile.
+	if _, err := svc.Eintrag(id); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Fatalf("Eintrag nach Austritt = %v, erwartet ErrNichtGefunden", err)
+	}
+}

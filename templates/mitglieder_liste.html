@@ -23,25 +23,14 @@
                     <tr class="border-b border-neutral-200 text-sm text-neutral-600">
                         <th class="px-4 py-2 font-medium">Name</th>
                         <th class="px-4 py-2 font-medium">Beitragsklasse</th>
+                        <th class="px-4 py-2 font-medium">Status</th>
                         <th class="px-4 py-2 font-medium">Bezahlt bis</th>
                         <th class="px-4 py-2 font-medium">Eintritt</th>
                     </tr>
                 </thead>
                 <tbody>
                     {{range .Eintraege}}
-                        {{/* Die ganze Zeile ist die Schaltfläche zum Bearbeiten —
-                             per Maus und, dank tabindex, auch per Tastatur. */}}
-                        <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-red-700"
-                            tabindex="0" title="Bearbeiten"
-                            aria-label="{{.Vorname}} {{.Nachname}} bearbeiten"
-                            hx-get="/api/mitglied/{{.MitgliedID}}/formular"
-                            hx-target="#inhalt" hx-swap="innerHTML"
-                            hx-trigger="click, keyup[key=='Enter']">
-                            <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
-                            <td class="px-4 py-2">{{.Beitragsklasse.Name}}</td>
-                            <td class="px-4 py-2 tabular-nums">{{datum .BezahltBis}}</td>
-                            <td class="px-4 py-2 tabular-nums">{{datum .Eintritt}}</td>
-                        </tr>
+                        {{template "mitglied-zeile" .}}
                     {{end}}
                 </tbody>
             </table>
@@ -52,4 +41,86 @@
         </p>
     {{end}}
 </div>
+{{end}}
+
+{{/* mitglied-zeile ist eine Zeile der Mitgliederliste — und zugleich das
+     Fragment, das nach dem Pflegen der Zahlung allein zurückkommt. Die Daten
+     sind ein service.Listeneintrag. */}}
+{{define "mitglied-zeile"}}
+<tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-red-700"
+    tabindex="0" title="Bearbeiten"
+    aria-label="{{.Vorname}} {{.Nachname}} bearbeiten"
+    hx-get="/api/mitglied/{{.MitgliedID}}/formular"
+    hx-target="#inhalt" hx-swap="innerHTML"
+    hx-trigger="click, keyup[key=='Enter']">
+    <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
+    <td class="px-4 py-2">{{.Beitragsklasse.Name}}</td>
+    <td class="px-4 py-2">{{template "zahlungsstatus" .Zahlungsstatus}}</td>
+    <td class="px-4 py-2 tabular-nums">
+        {{/* Die Schaltfläche steht bei dem Wert, den sie ändert. Die ganze Zeile
+             öffnet sonst das Bearbeitungsformular; diese Schaltfläche ist die
+             Ausnahme davon und hält ihr Ereignis deshalb bei sich. */}}
+        <div class="flex items-center justify-between gap-3">
+            {{datum .BezahltBis}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    aria-label="Bezahlt bis für {{.Vorname}} {{.Nachname}} ändern"
+                    hx-get="/api/mitglied/{{.MitgliedID}}/zahlung"
+                    hx-target="closest tr" hx-swap="outerHTML"
+                    hx-on:click="event.stopPropagation()"
+                    hx-on:keyup="event.stopPropagation()">
+                Ändern
+            </button>
+        </div>
+    </td>
+    <td class="px-4 py-2 tabular-nums">{{datum .Eintritt}}</td>
+</tr>
+{{end}}
+
+{{/* zahlungsstatus rendert die Statusmarkierung. Die Farbklassen stehen bewusst
+     hier und nicht im Go-Code: Tailwind findet nur, was im Template steht. */}}
+{{define "zahlungsstatus"}}
+<span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium
+             {{if .Bezahlt}}border-green-700/30 bg-green-50 text-green-800
+             {{else if .NichtBezahlt}}border-red-700/30 bg-red-50 text-red-800
+             {{else}}border-neutral-300 bg-neutral-50 text-neutral-600{{end}}">
+    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>{{.}}
+</span>
+{{end}}
+
+{{/* mitglied-zahlung-formular ersetzt eine Zeile durch die Eingabe von
+     bezahlt_bis. Gespeichert wird gegen dieselbe Zeile, die dadurch mit neuem
+     Status zurückkommt. Die Daten sind zahlungDaten. */}}
+{{define "mitglied-zahlung-formular"}}
+<tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
+    hx-on::load="this.querySelector('input').focus()">
+    <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
+    <td class="px-4 py-2" colspan="4">
+        <form class="flex flex-wrap items-center gap-2"
+              hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/zahlung"
+              hx-target="closest tr" hx-swap="outerHTML">
+            <label class="flex items-center gap-2">
+                <span class="text-sm text-neutral-600">Bezahlt bis</span>
+                <input name="bezahlt_bis" type="date" value="{{isodatum .Eintrag.BezahltBis}}"
+                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            </label>
+            <button type="submit"
+                    class="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                Speichern
+            </button>
+            <button type="button"
+                    class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
+                    hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/zeile"
+                    hx-target="closest tr" hx-swap="outerHTML">
+                Abbrechen
+            </button>
+            {{/* Ein leeres Feld setzt die Angabe zurück — das ist der Weg zurück
+                 in den neutralen Zustand, ohne ein falsches Datum zu erfinden. */}}
+            <span class="text-sm text-neutral-500">Leer lassen setzt die Angabe zurück.</span>
+            {{if .Fehler}}
+                <span class="text-sm text-red-800" role="alert">{{.Fehler}}</span>
+            {{end}}
+        </form>
+    </td>
+</tr>
 {{end}}

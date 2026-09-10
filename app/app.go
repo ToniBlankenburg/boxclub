@@ -47,6 +47,9 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied", a.mitgliedAnlegen)
 	mux.HandleFunc("GET /api/mitglied/{id}/formular", a.mitgliedBearbeitenFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}", a.mitgliedAktualisieren)
+	mux.HandleFunc("GET /api/mitglied/{id}/zeile", a.mitgliedZeile)
+	mux.HandleFunc("GET /api/mitglied/{id}/zahlung", a.zahlungFormular)
+	mux.HandleFunc("POST /api/mitglied/{id}/zahlung", a.zahlungSpeichern)
 
 	return mux
 }
@@ -173,9 +176,8 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 // mitgliedBearbeitenFormular liefert das mit den aktuellen Stammdaten
 // vorbefüllte Formular für ein bestehendes Mitglied.
 func (a *App) mitgliedBearbeitenFormular(w http.ResponseWriter, r *http.Request) {
-	id, err := pfadID(r)
-	if err != nil {
-		http.Error(w, "ungültige Mitglied-ID", http.StatusBadRequest)
+	id, ok := mitgliedID(w, r)
+	if !ok {
 		return
 	}
 
@@ -183,9 +185,8 @@ func (a *App) mitgliedBearbeitenFormular(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) mitgliedAktualisieren(w http.ResponseWriter, r *http.Request) {
-	id, err := pfadID(r)
-	if err != nil {
-		http.Error(w, "ungültige Mitglied-ID", http.StatusBadRequest)
+	id, ok := mitgliedID(w, r)
+	if !ok {
 		return
 	}
 
@@ -261,6 +262,118 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 	})
 }
 
+// zahlungDaten speist die Zeile, in der bezahlt_bis eingetragen wird.
+type zahlungDaten struct {
+	Eintrag service.Listeneintrag
+	Fehler  string
+}
+
+// mitgliedZeile liefert eine einzelne Listenzeile — der Rückweg aus der
+// Zahlungseingabe, wenn der Nutzer abbricht.
+func (a *App) mitgliedZeile(w http.ResponseWriter, r *http.Request) {
+	eintrag, ok := a.zeileLesen(w, r)
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglied-zeile", eintrag)
+}
+
+// zahlungFormular tauscht die Zeile gegen die Eingabe von bezahlt_bis.
+func (a *App) zahlungFormular(w http.ResponseWriter, r *http.Request) {
+	eintrag, ok := a.zeileLesen(w, r)
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglied-zahlung-formular", zahlungDaten{Eintrag: eintrag})
+}
+
+// zahlungFormularMitFehler zeigt die Eingabe erneut, mitsamt der Meldung.
+//
+// Der abgelehnte Rohwert wird bewusst nicht zurückgereicht: <input type="date">
+// zeigt einen Wert, der kein Datum ist, ohnehin nicht an. Hierher kommt nur, wer
+// den Request selbst gebaut hat — das Feld beginnt dann wieder beim
+// gespeicherten Stand.
+func (a *App) zahlungFormularMitFehler(w http.ResponseWriter, id int64, fehler string) {
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.zeileNichtGefundenOderFehler(w, err)
+		return
+	}
+
+	a.rendern(w, "mitglied-zahlung-formular", zahlungDaten{Eintrag: eintrag, Fehler: fehler})
+}
+
+// zeileLesen holt die Zeile zur ID aus dem Pfad. Ist das Ergebnis nicht ok,
+// wurde die Antwort bereits geschrieben.
+func (a *App) zeileLesen(w http.ResponseWriter, r *http.Request) (service.Listeneintrag, bool) {
+	id, ok := mitgliedID(w, r)
+	if !ok {
+		return service.Listeneintrag{}, false
+	}
+
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.zeileNichtGefundenOderFehler(w, err)
+		return service.Listeneintrag{}, false
+	}
+
+	return eintrag, true
+}
+
+// zahlungSpeichern schreibt bezahlt_bis und antwortet mit der aktualisierten
+// Zeile, die htmx an Ort und Stelle einwechselt.
+func (a *App) zahlungSpeichern(w http.ResponseWriter, r *http.Request) {
+	id, ok := mitgliedID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	// Ein leeres Feld ist kein Fehler, sondern die Rücknahme der Angabe.
+	var bezahltBis *time.Time
+	if roh := r.FormValue("bezahlt_bis"); roh != "" {
+		d, err := time.Parse(isoDatum, roh)
+		if err != nil {
+			a.zahlungFormularMitFehler(w, id, "Das ist kein gültiges Datum.")
+			return
+		}
+		bezahltBis = &d
+	}
+
+	if err := a.svc.SetBezahltBis(id, bezahltBis); err != nil {
+		a.zeileNichtGefundenOderFehler(w, err)
+		return
+	}
+
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.zeileNichtGefundenOderFehler(w, err)
+		return
+	}
+
+	a.rendern(w, "mitglied-zeile", eintrag)
+}
+
+// zeileNichtGefundenOderFehler beantwortet einen Service-Fehler im
+// Zeilen-Kontext. Gibt es die Zeile nicht mehr, wäre es falsch, ausgerechnet an
+// ihrer Stelle etwas einzuwechseln: die Antwort bekommt per HX-Retarget ein
+// neues Ziel und ersetzt die ganze Liste — sonst landete eine Liste im
+// Tabellenzeilen-Element.
+func (a *App) zeileNichtGefundenOderFehler(w http.ResponseWriter, err error) {
+	if errors.Is(err, service.ErrNichtGefunden) {
+		w.Header().Set("HX-Retarget", "#inhalt")
+		w.Header().Set("HX-Reswap", "innerHTML")
+	}
+
+	a.nichtGefundenOderFehler(w, err)
+}
+
 // formularEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
 func formularEingabeLesen(r *http.Request) formularEingabe {
 	return formularEingabe{
@@ -275,9 +388,18 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 	}
 }
 
-// pfadID liest die Mitglied-ID aus dem Routen-Platzhalter.
-func pfadID(r *http.Request) (int64, error) {
-	return strconv.ParseInt(r.PathValue("id"), 10, 64)
+// mitgliedID liest die Mitglied-ID aus dem Routen-Platzhalter. Ist das Ergebnis
+// nicht ok, wurde die Antwort bereits geschrieben — eine ID, die keine Zahl ist,
+// kann nur aus einem selbstgebauten Request stammen und ist deshalb, anders als
+// eine unbekannte ID, tatsächlich ein Fehlerstatus wert.
+func mitgliedID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "ungültige Mitglied-ID", http.StatusBadRequest)
+		return 0, false
+	}
+
+	return id, true
 }
 
 // alsNeuesMitglied übersetzt die Rohwerte in die Service-Eingabe und sammelt
@@ -416,6 +538,14 @@ var templateFunktionen = template.FuncMap{
 		return fmt.Sprintf("%d,%02d €", cents/100, cents%100)
 	},
 	"datum": datumAnzeige,
+	// isodatum liefert den Wert für ein <input type="date">; nil wird zu "".
+	"isodatum": func(d *time.Time) string {
+		if d == nil {
+			return ""
+		}
+
+		return d.Format(isoDatum)
+	},
 	// feld bündelt die Argumente für das Teil-Template "feld"; html/template
 	// kennt keine benannten Parameter.
 	"feld": func(beschriftung, name, typ, wert string, pflicht, breit bool) feldDaten {

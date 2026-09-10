@@ -48,7 +48,7 @@ go test ./service/... -run TestMemberService_Create
 - `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, beitragsklasse_id, bezahlt_bis)` — person master data; one row per person even across re-entries
 - `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL)` — time-bound membership period; `austritt IS NULL` means currently active
 
-Payment status is derived on the fly: `bezahlt` if `bezahlt_bis >= today`, `nicht bezahlt` otherwise. Never stored.
+Payment status is derived on the fly: `bezahlt` if `bezahlt_bis >= today`, `nicht bezahlt` otherwise, and `nicht gesetzt` while `bezahlt_bis` is NULL. Never stored.
 
 The database file lives in the user config dir (`~/Library/Application Support/Boxclub/boxclub.db` on macOS); `BOXCLUB_DB` overrides the path for development.
 

@@ -75,6 +75,8 @@ Der Zahlungsstatus wird **nicht gespeichert**, sondern jedes Mal aus `bezahlt_bi
 
 Bewusst zweistufig, keine gelbe Vorwarnstufe (Entscheidung aus Runde 3).
 
+**Präzisierung aus Ticket 05:** Ist `bezahlt_bis` leer, gilt **nicht gesetzt** — ein neutraler Zustand, keine dritte Stufe. Die Zweistufigkeit betrifft die Bewertung eines vorhandenen Datums; ein Mitglied ohne jede Angabe darf weder grün noch rot erscheinen.
+
 ### Suche und Filter
 
 `MemberService.Search(query, filter)` implementiert Suche über SQL `LIKE` gegen Vorname, Nachname, E-Mail, Telefon (Story 17). Der `filter`-Parameter kombiniert:

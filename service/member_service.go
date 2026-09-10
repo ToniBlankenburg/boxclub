@@ -75,6 +75,77 @@ func (m Mitglied) LaufendeMitgliedschaft() *Mitgliedschaft {
 	return nil
 }
 
+// Zahlungsstatus ist die Aussage darüber, ob der Beitrag eines Mitglieds als
+// gezahlt gilt. Er wird nie gespeichert, sondern jedes Mal aus bezahlt_bis und
+// dem heutigen Tag abgeleitet (siehe CONTEXT.md → Statusanzeige).
+//
+// Fachlich ist die Anzeige zweistufig — bezahlt oder nicht bezahlt, keine
+// Vorwarnstufe. Der dritte Zustand ist keine dritte Stufe, sondern das
+// Eingeständnis, dass zu diesem Mitglied noch gar keine Angabe vorliegt: das
+// darf nicht als "nicht bezahlt" durchgehen, sonst mahnt der Verein jemanden,
+// über den er nichts weiß.
+type Zahlungsstatus int
+
+const (
+	// ZahlungsstatusNichtGesetzt: bezahlt_bis ist leer, es liegt keine Angabe vor.
+	ZahlungsstatusNichtGesetzt Zahlungsstatus = iota
+	// ZahlungsstatusBezahlt: bezahlt_bis liegt heute oder in der Zukunft.
+	ZahlungsstatusBezahlt
+	// ZahlungsstatusNichtBezahlt: bezahlt_bis liegt vor dem heutigen Tag.
+	ZahlungsstatusNichtBezahlt
+)
+
+// String liefert die Bezeichnung, die auch dem Nutzer angezeigt wird.
+func (z Zahlungsstatus) String() string {
+	switch z {
+	case ZahlungsstatusBezahlt:
+		return "bezahlt"
+	case ZahlungsstatusNichtBezahlt:
+		return "nicht bezahlt"
+	default:
+		return "nicht gesetzt"
+	}
+}
+
+// Bezahlt und NichtBezahlt sind die beiden Stufen der Anzeige, als Prädikate für
+// die Templates: html/template kann Konstanten dieses Package nicht benennen,
+// und die Farbgebung braucht die Unterscheidung an der Stelle, an der sie
+// gerendert wird. Sind beide false, liegt keine Angabe vor.
+func (z Zahlungsstatus) Bezahlt() bool {
+	return z == ZahlungsstatusBezahlt
+}
+
+func (z Zahlungsstatus) NichtBezahlt() bool {
+	return z == ZahlungsstatusNichtBezahlt
+}
+
+// zahlungsstatusAm leitet den Status eines Mitglieds für einen Stichtag ab.
+//
+// Verglichen wird über die ISO-Textform und nicht über die Zeitpunkte selbst:
+// beide Werte sind Kalendertage ohne Uhrzeit, können aber in unterschiedlichen
+// Zonen vorliegen (aus der Datenbank gelesene Daten in UTC, "heute" aus der
+// lokalen Uhr). Ein Zeitpunktvergleich würde je nach Zonenversatz um einen Tag
+// danebenliegen; die ISO-Form sortiert lexikografisch genau wie kalendarisch.
+func zahlungsstatusAm(bezahltBis *time.Time, stichtag time.Time) Zahlungsstatus {
+	if bezahltBis == nil {
+		return ZahlungsstatusNichtGesetzt
+	}
+
+	if bezahltBis.Format(isoDatum) < stichtag.Format(isoDatum) {
+		return ZahlungsstatusNichtBezahlt
+	}
+
+	return ZahlungsstatusBezahlt
+}
+
+// heute ist der Kalendertag der lokalen Uhr — der Stichtag, gegen den der
+// Zahlungsstatus abgeleitet wird.
+func heute() time.Time {
+	jetzt := time.Now()
+
+	return time.Date(jetzt.Year(), jetzt.Month(), jetzt.Day(), 0, 0, 0, 0, time.Local)
+}
+
 // NeuesMitglied sind die Stammdaten, die beim Anlegen eines Mitglieds erfasst
 // werden. Eintritt eröffnet zugleich die erste Mitgliedschaft.
 type NeuesMitglied struct {
@@ -515,6 +586,7 @@ type Listeneintrag struct {
 	Nachname       string
 	Beitragsklasse Beitragsklasse
 	BezahltBis     *time.Time
+	Zahlungsstatus Zahlungsstatus
 	Eintritt       time.Time
 }
 
@@ -522,27 +594,65 @@ type Listeneintrag struct {
 // Aktiv heißt: es existiert eine Mitgliedschaft ohne Austrittsdatum. Wer nur
 // beendete Mitgliedschaften hat, taucht hier nicht auf.
 func (s *MemberService) List() ([]Listeneintrag, error) {
-	// Die Unterabfrage wählt genau eine laufende Mitgliedschaft je Mitglied aus.
-	// Regulär gibt es nie mehr als eine; sollte doch einmal eine zweite
-	// entstehen, erscheint das Mitglied trotzdem nur einmal in der Liste.
-	//
-	// Sortiert wird nicht hier, sondern in Go: siehe nachNamenSortieren.
-	rows, err := s.db.Query(
-		`SELECT m.id, m.vorname, m.nachname, m.bezahlt_bis,
-		 	k.id, k.name, k.preis_monatlich_cents, k.aktiv,
-		 	ms.eintritt
-		 FROM mitglied m
-		 JOIN beitragsklasse k ON k.id = m.beitragsklasse_id
-		 JOIN mitgliedschaft ms ON ms.id = (
-		 	SELECT id FROM mitgliedschaft
-		 	WHERE mitglied_id = m.id AND austritt IS NULL
-		 	ORDER BY eintritt DESC, id DESC
-		 	LIMIT 1
-		 )`)
+	liste, err := s.eintraegeLesen("")
+	if err != nil {
+		return nil, err
+	}
+
+	// Sortiert wird nicht in SQL, sondern in Go: siehe nachNamenSortieren.
+	nachNamenSortieren(liste)
+
+	return liste, nil
+}
+
+// Eintrag liefert die Listenzeile eines einzelnen Mitglieds — dieselbe Zeile,
+// die auch List liefert. Damit kann die Adapter-Schicht nach einer Änderung
+// genau eine Zeile neu rendern, statt die ganze Liste auszutauschen.
+//
+// Wer nicht in der Liste steht, hat auch keine Zeile: für ein unbekanntes oder
+// ausgetretenes Mitglied ist der Fehler ErrNichtGefunden.
+func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
+	liste, err := s.eintraegeLesen(" WHERE m.id = ?", id)
+	if err != nil {
+		return Listeneintrag{}, err
+	}
+	if len(liste) == 0 {
+		return Listeneintrag{}, fmt.Errorf("listeneintrag zu mitglied %d: %w", id, ErrNichtGefunden)
+	}
+
+	return liste[0], nil
+}
+
+// eintraegeAbfrage liest die Zeilen der Mitgliederliste. Die Unterabfrage wählt
+// genau eine laufende Mitgliedschaft je Mitglied aus. Regulär gibt es nie mehr
+// als eine; sollte doch einmal eine zweite entstehen, erscheint das Mitglied
+// trotzdem nur einmal in der Liste.
+const eintraegeAbfrage = `
+	SELECT m.id, m.vorname, m.nachname, m.bezahlt_bis,
+		k.id, k.name, k.preis_monatlich_cents, k.aktiv,
+		ms.eintritt
+	FROM mitglied m
+	JOIN beitragsklasse k ON k.id = m.beitragsklasse_id
+	JOIN mitgliedschaft ms ON ms.id = (
+		SELECT id FROM mitgliedschaft
+		WHERE mitglied_id = m.id AND austritt IS NULL
+		ORDER BY eintritt DESC, id DESC
+		LIMIT 1
+	)`
+
+// eintraegeLesen führt die Zeilenabfrage aus, optional um eine Bedingung
+// ergänzt. Die Bedingung ist immer ein Literal aus diesem Package; die Werte
+// gehen als Parameter in die Anweisung.
+func (s *MemberService) eintraegeLesen(bedingung string, werte ...any) ([]Listeneintrag, error) {
+	rows, err := s.db.Query(eintraegeAbfrage+bedingung, werte...)
 	if err != nil {
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
 	}
 	defer rows.Close()
+
+	// Alle Zeilen einer Abfrage werden gegen denselben Stichtag bewertet, damit
+	// die Liste in sich stimmig ist.
+	stichtag := heute()
 
 	var liste []Listeneintrag
 	for rows.Next() {
@@ -565,15 +675,42 @@ func (s *MemberService) List() ([]Listeneintrag, error) {
 			return nil, fmt.Errorf("eintritt von mitglied %d: %w", e.MitgliedID, err)
 		}
 
+		e.Zahlungsstatus = zahlungsstatusAm(e.BezahltBis, stichtag)
+
 		liste = append(liste, e)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
 	}
 
-	nachNamenSortieren(liste)
-
 	return liste, nil
+}
+
+// SetBezahltBis setzt das Datum, bis zu dem die Beiträge des Mitglieds als
+// bezahlt gelten — in v1 die einzige Art, den Zahlungsstand zu pflegen: der
+// Nutzer sieht in MoneyMoney nach und trägt das Ergebnis hier ein. Ein nil-Datum
+// setzt die Angabe zurück auf "nicht gesetzt".
+//
+// Der Aufruf ist idempotent: derselbe Wert noch einmal geschrieben ändert
+// nichts und ist kein Fehler. Andere Felder des Mitglieds bleiben unberührt,
+// insbesondere seine Mitgliedschaften. Existiert die ID nicht, ist der Fehler
+// ErrNichtGefunden.
+func (s *MemberService) SetBezahltBis(id int64, datum *time.Time) error {
+	res, err := s.db.Exec(
+		`UPDATE mitglied SET bezahlt_bis = ? WHERE id = ?`, alsDatumsText(datum), id)
+	if err != nil {
+		return fmt.Errorf("bezahlt_bis von mitglied %d setzen: %w", id, err)
+	}
+
+	betroffen, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("betroffene zeilen lesen: %w", err)
+	}
+	if betroffen == 0 {
+		return fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
+	}
+
+	return nil
 }
 
 // nachNamenSortieren ordnet die Liste nach Nachname, dann Vorname — nach

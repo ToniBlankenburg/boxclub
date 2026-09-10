@@ -32,3 +32,5 @@ Datum, bis zu dem die Beiträge des Mitglieds als bezahlt gelten. In v1 pro Mitg
 ## Statusanzeige
 
 Zweistufig: **bezahlt** (`bezahlt_bis >= heute`) oder **nicht bezahlt** (`bezahlt_bis < heute`). Keine gelbe Vorwarnstufe.
+
+Dazu kommt **nicht gesetzt** für ein Mitglied, dessen `bezahlt_bis` leer ist. Das ist keine dritte Stufe, sondern die Aussage, dass noch gar keine Angabe vorliegt — es darf nicht als "nicht bezahlt" gelten, sonst mahnt der Verein jemanden, über den er nichts weiß.
