@@ -1,10 +1,7 @@
 {{define "mitglieder-liste"}}
 <div>
     <div class="mb-5 flex items-center justify-between gap-4">
-        <h2 class="text-base font-semibold">
-            Mitglieder
-            <span class="ml-1 font-normal text-neutral-500">{{len .Eintraege}}</span>
-        </h2>
+        <h2 class="text-base font-semibold">Mitglieder</h2>
         <button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
                 hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
             Neues Mitglied
@@ -16,31 +13,99 @@
            role="status">{{.Meldung.Text}}</p>
     {{end}}
 
-    {{if .Eintraege}}
-        <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="border-b border-neutral-200 text-sm text-neutral-600">
-                        <th class="px-4 py-2 font-medium">Name</th>
-                        <th class="px-4 py-2 font-medium">Beitragsklasse</th>
-                        <th class="px-4 py-2 font-medium">Status</th>
-                        <th class="px-4 py-2 font-medium">Bezahlt bis</th>
-                        <th class="px-4 py-2 font-medium">Eintritt</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range .Eintraege}}
-                        {{template "mitglied-zeile" .}}
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
-    {{else}}
-        <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500">
-            Keine Mitglieder erfasst.
-        </p>
-    {{end}}
+    {{template "mitglieder-filterleiste" .}}
+
+    {{/* Nur dieser Bereich wird bei Suche und Filter ausgetauscht — die
+         Filterleiste bleibt stehen, damit das Suchfeld den Fokus behält. */}}
+    <div id="mitglieder-ergebnis">
+        {{template "mitglieder-ergebnis" .}}
+    </div>
 </div>
+{{end}}
+
+{{/* mitglieder-filterleiste ist die Steuerung über der Liste. Jede Änderung
+     holt das Ergebnis neu; gesucht und gefiltert wird ausschließlich im
+     Service, hier verlassen nur die Rohwerte das Formular. Die Daten sind
+     listeDaten. */}}
+{{define "mitglieder-filterleiste"}}
+<div class="mb-4 flex flex-wrap items-end gap-2">
+    <form class="flex flex-1 flex-wrap items-center gap-2"
+          hx-get="/api/mitglieder/ergebnis"
+          hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
+          hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-status, change from:#filter-klasse, change from:#filter-ehemalige">
+        <input id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
+               placeholder="Name, E-Mail oder Telefon" autocomplete="off"
+               aria-label="Mitglieder durchsuchen"
+               class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+
+        <select id="filter-status" name="status" aria-label="Nach Zahlungsstatus filtern"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            {{range .Statusoptionen}}
+                <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+            {{end}}
+        </select>
+
+        <select id="filter-klasse" name="klasse" aria-label="Nach Beitragsklasse filtern"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            {{range .Klassenoptionen}}
+                <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+            {{end}}
+        </select>
+
+        <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700">
+            {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt
+                 ist — genau das macht "nur aktive" zum Standard. */}}
+            <input id="filter-ehemalige" name="ehemalige" type="checkbox" value="1"
+                   class="accent-red-700" {{if .Suche.Ehemalige}}checked{{end}}>
+            Auch Ehemalige
+        </label>
+    </form>
+
+    {{/* Zurücksetzen steht außerhalb des Formulars: es soll dessen Werte nicht
+         mitschicken, sondern die ganze Ansicht in den Standard zurückholen. */}}
+    <button type="button"
+            class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+            hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
+        Zurücksetzen
+    </button>
+</div>
+{{end}}
+
+{{/* mitglieder-ergebnis ist der Teil, den Suche und Filter austauschen. Die
+     Daten sind listeDaten. */}}
+{{define "mitglieder-ergebnis"}}
+{{if .Eintraege}}
+    <p class="mb-2 text-sm text-neutral-500" role="status" aria-live="polite">
+        {{len .Eintraege}} {{if eq (len .Eintraege) 1}}Mitglied{{else}}Mitglieder{{end}}
+    </p>
+    <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="border-b border-neutral-200 text-sm text-neutral-600">
+                    <th class="px-4 py-2 font-medium">Name</th>
+                    <th class="px-4 py-2 font-medium">Beitragsklasse</th>
+                    <th class="px-4 py-2 font-medium">Status</th>
+                    <th class="px-4 py-2 font-medium">Bezahlt bis</th>
+                    <th class="px-4 py-2 font-medium">Eintritt</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Eintraege}}
+                    {{template "mitglied-zeile" .}}
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+{{else}}
+    <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500"
+       role="status" aria-live="polite">
+        {{if .Gefiltert}}
+            Kein Mitglied passt zu Suche und Filter.
+        {{else}}
+            Keine Mitglieder erfasst.
+        {{end}}
+    </p>
+{{end}}
 {{end}}
 
 {{/* mitglied-zeile ist eine Zeile der Mitgliederliste — und zugleich das
@@ -53,7 +118,16 @@
     hx-get="/api/mitglied/{{.MitgliedID}}/formular"
     hx-target="#inhalt" hx-swap="innerHTML"
     hx-trigger="click, keyup[key=='Enter']">
-    <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
+    <td class="px-4 py-2">
+        {{.Nachname}}, {{.Vorname}}
+        {{/* Ein Austrittsdatum steht nur in Ergebnissen, die Ehemalige
+             einschließen — dann muss die Zeile sich als solche zu erkennen geben. */}}
+        {{if .Austritt}}
+            <span class="ml-1.5 rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                ausgetreten {{datum .Austritt}}
+            </span>
+        {{end}}
+    </td>
     <td class="px-4 py-2">{{.Beitragsklasse.Name}}</td>
     <td class="px-4 py-2">{{template "zahlungsstatus" .Zahlungsstatus}}</td>
     <td class="px-4 py-2 tabular-nums">

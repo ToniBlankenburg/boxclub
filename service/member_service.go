@@ -588,63 +588,186 @@ type Listeneintrag struct {
 	BezahltBis     *time.Time
 	Zahlungsstatus Zahlungsstatus
 	Eintritt       time.Time
+
+	// Austritt ist nil, solange die Mitgliedschaft läuft. Gesetzt ist er nur in
+	// Ergebnissen, die Ehemalige einschließen — dort ist er die einzige Angabe,
+	// an der die Zeile als ehemalig erkennbar ist.
+	Austritt *time.Time
 }
 
 // List liefert alle aktiven Mitglieder, sortiert nach Nachname und Vorname.
 // Aktiv heißt: es existiert eine Mitgliedschaft ohne Austrittsdatum. Wer nur
 // beendete Mitgliedschaften hat, taucht hier nicht auf.
+//
+// Das ist die Standardansicht — dieselbe, die Search ohne Suchbegriff und mit
+// dem Nullwert des Filters liefert.
 func (s *MemberService) List() ([]Listeneintrag, error) {
-	liste, err := s.eintraegeLesen("")
+	return s.Search("", Suchfilter{})
+}
+
+// Zahlungsfilter grenzt die Ergebnisliste nach dem Zahlungsstatus ein.
+//
+// "nicht bezahlt" bedeutet dabei genau das und schließt Mitglieder ohne jede
+// Zahlungsangabe aus: wer im Mahn-Filter steht, soll auch wirklich im Rückstand
+// sein (CONTEXT.md → Statusanzeige).
+type Zahlungsfilter int
+
+const (
+	// ZahlungsfilterAlle ist der Nullwert und grenzt nicht ein.
+	ZahlungsfilterAlle Zahlungsfilter = iota
+	// ZahlungsfilterBezahlt: nur Mitglieder mit ZahlungsstatusBezahlt.
+	ZahlungsfilterBezahlt
+	// ZahlungsfilterNichtBezahlt: nur Mitglieder mit ZahlungsstatusNichtBezahlt.
+	ZahlungsfilterNichtBezahlt
+)
+
+// trifft entscheidet, ob ein Status durch diesen Filter kommt.
+func (f Zahlungsfilter) trifft(status Zahlungsstatus) bool {
+	switch f {
+	case ZahlungsfilterBezahlt:
+		return status == ZahlungsstatusBezahlt
+	case ZahlungsfilterNichtBezahlt:
+		return status == ZahlungsstatusNichtBezahlt
+	default:
+		return true
+	}
+}
+
+// Suchfilter grenzt die Mitgliederliste entlang dreier Dimensionen ein. Der
+// Nullwert ist bewusst die Standardansicht: alle Zahlungsstatus, alle
+// Beitragsklassen, nur aktive Mitglieder. Damit ist "Filter zurücksetzen"
+// nichts anderes als ein Suchfilter{}.
+type Suchfilter struct {
+	Zahlungsstatus Zahlungsfilter
+	// BeitragsklasseID 0 bedeutet: alle Klassen. Eine unbekannte ID ist kein
+	// Fehler, sondern liefert schlicht keine Treffer.
+	BeitragsklasseID int64
+	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf.
+	AuchEhemalige bool
+}
+
+// Search liefert die Mitglieder, auf die Suchbegriff und Filter gemeinsam
+// zutreffen — sortiert wie List. Der Suchbegriff trifft als Teilzeichenkette in
+// Vorname, Nachname, E-Mail oder Telefon; Groß-/Kleinschreibung entscheidet
+// nicht. Ein leerer Begriff (auch einer aus lauter Leerraum) grenzt nichts ein,
+// das Ergebnis ist dann das der Filter allein.
+//
+// Gesucht und gefiltert wird vollständig hier im Service — die Oberfläche
+// bekommt bereits das fertige Ergebnis und siebt nichts nach.
+func (s *MemberService) Search(query string, filter Suchfilter) ([]Listeneintrag, error) {
+	// Die Aktivität entscheidet, welche Mitgliedschaft eine Zeile überhaupt
+	// hat, und gehört deshalb in die Abfrage. Die übrigen Dimensionen sind
+	// reine Auswahl auf den gelesenen Zeilen (siehe ADR-0004).
+	zeilen, err := s.eintraegeLesen(filter.AuchEhemalige, "")
 	if err != nil {
 		return nil, err
 	}
 
-	// Sortiert wird nicht in SQL, sondern in Go: siehe nachNamenSortieren.
-	nachNamenSortieren(liste)
+	begriff := strings.ToLower(strings.TrimSpace(query))
 
-	return liste, nil
+	var treffer []Listeneintrag
+	for _, z := range zeilen {
+		if z.passtZu(begriff, filter) {
+			treffer = append(treffer, z.eintrag)
+		}
+	}
+
+	// Sortiert wird nicht in SQL, sondern in Go: siehe nachNamenSortieren.
+	nachNamenSortieren(treffer)
+
+	return treffer, nil
 }
 
 // Eintrag liefert die Listenzeile eines einzelnen Mitglieds — dieselbe Zeile,
-// die auch List liefert. Damit kann die Adapter-Schicht nach einer Änderung
+// die auch Search liefert. Damit kann die Adapter-Schicht nach einer Änderung
 // genau eine Zeile neu rendern, statt die ganze Liste auszutauschen.
 //
-// Wer nicht in der Liste steht, hat auch keine Zeile: für ein unbekanntes oder
-// ausgetretenes Mitglied ist der Fehler ErrNichtGefunden.
+// Auch ein ausgetretenes Mitglied hat eine Zeile: seit Search Ehemalige
+// einschließen kann, stehen sie in der Liste, und was in der Liste steht, muss
+// sich auch einzeln neu rendern lassen. Nur zu einer unbekannten ID — oder zu
+// einem Mitglied ganz ohne Mitgliedschaft — gibt es keine Zeile; dann ist der
+// Fehler ErrNichtGefunden.
 func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
-	liste, err := s.eintraegeLesen(" WHERE m.id = ?", id)
+	zeilen, err := s.eintraegeLesen(true, " WHERE m.id = ?", id)
 	if err != nil {
 		return Listeneintrag{}, err
 	}
-	if len(liste) == 0 {
+	if len(zeilen) == 0 {
 		return Listeneintrag{}, fmt.Errorf("listeneintrag zu mitglied %d: %w", id, ErrNichtGefunden)
 	}
 
-	return liste[0], nil
+	return zeilen[0].eintrag, nil
 }
 
 // eintraegeAbfrage liest die Zeilen der Mitgliederliste. Die Unterabfrage wählt
-// genau eine laufende Mitgliedschaft je Mitglied aus. Regulär gibt es nie mehr
-// als eine; sollte doch einmal eine zweite entstehen, erscheint das Mitglied
+// genau eine Mitgliedschaft je Mitglied aus. Regulär gibt es nie mehr als eine
+// laufende; sollte doch einmal eine zweite entstehen, erscheint das Mitglied
 // trotzdem nur einmal in der Liste.
+//
+// Der erste Parameter entscheidet über die Aktivität: ist er falsch, bleiben
+// nur laufende Mitgliedschaften übrig und Ausgetretene fallen mangels
+// Verbundpartner ganz aus der Liste. Ist er wahr, kommen sie mit ihrem zuletzt
+// beendeten Zeitraum dazu — die Sortierung stellt eine laufende Mitgliedschaft
+// dabei immer vor eine beendete, damit ein Wiedereintritt als aktiv erscheint.
 const eintraegeAbfrage = `
-	SELECT m.id, m.vorname, m.nachname, m.bezahlt_bis,
+	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon, m.bezahlt_bis,
 		k.id, k.name, k.preis_monatlich_cents, k.aktiv,
-		ms.eintritt
+		ms.eintritt, ms.austritt
 	FROM mitglied m
 	JOIN beitragsklasse k ON k.id = m.beitragsklasse_id
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
-		WHERE mitglied_id = m.id AND austritt IS NULL
-		ORDER BY eintritt DESC, id DESC
+		WHERE mitglied_id = m.id AND (? OR austritt IS NULL)
+		ORDER BY austritt IS NULL DESC, eintritt DESC, id DESC
 		LIMIT 1
 	)`
+
+// suchzeile ist eine Listenzeile samt der Felder, gegen die gesucht wird.
+//
+// E-Mail und Telefon gehören nicht in den Listeneintrag: die Liste zeigt sie
+// nicht an, und was sie nicht anzeigt, soll sie auch nicht mitschleppen. Für
+// die Suche braucht es sie trotzdem — hier liegen sie klein geschrieben bereit.
+type suchzeile struct {
+	eintrag    Listeneintrag
+	suchfelder []string
+}
+
+// passtZu entscheidet, ob die Zeile ins Ergebnis gehört. Die Aktivität steht
+// hier nicht zur Debatte: über die entscheidet bereits die Abfrage.
+func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
+	if filter.BeitragsklasseID != 0 && z.eintrag.Beitragsklasse.ID != filter.BeitragsklasseID {
+		return false
+	}
+	if !filter.Zahlungsstatus.trifft(z.eintrag.Zahlungsstatus) {
+		return false
+	}
+
+	return z.enthaelt(begriff)
+}
+
+// enthaelt prüft den bereits klein geschriebenen Suchbegriff gegen alle
+// Suchfelder. Ein leerer Begriff trifft jede Zeile.
+func (z suchzeile) enthaelt(begriff string) bool {
+	if begriff == "" {
+		return true
+	}
+
+	for _, feld := range z.suchfelder {
+		if strings.Contains(feld, begriff) {
+			return true
+		}
+	}
+
+	return false
+}
 
 // eintraegeLesen führt die Zeilenabfrage aus, optional um eine Bedingung
 // ergänzt. Die Bedingung ist immer ein Literal aus diesem Package; die Werte
 // gehen als Parameter in die Anweisung.
-func (s *MemberService) eintraegeLesen(bedingung string, werte ...any) ([]Listeneintrag, error) {
-	rows, err := s.db.Query(eintraegeAbfrage+bedingung, werte...)
+func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, werte ...any) ([]suchzeile, error) {
+	// Der Aktivitäts-Parameter steht in der Abfrage vor der Bedingung und
+	// gehört deshalb auch in der Parameterliste nach vorn.
+	rows, err := s.db.Query(eintraegeAbfrage+bedingung, append([]any{auchEhemalige}, werte...)...)
 	if err != nil {
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
 	}
@@ -654,17 +777,19 @@ func (s *MemberService) eintraegeLesen(bedingung string, werte ...any) ([]Listen
 	// die Liste in sich stimmig ist.
 	stichtag := heute()
 
-	var liste []Listeneintrag
+	var zeilen []suchzeile
 	for rows.Next() {
 		var (
-			e          Listeneintrag
-			bezahltBis sql.NullString
-			eintritt   string
+			e              Listeneintrag
+			email, telefon string
+			bezahltBis     sql.NullString
+			eintritt       string
+			austritt       sql.NullString
 		)
-		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &bezahltBis,
+		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon, &bezahltBis,
 			&e.Beitragsklasse.ID, &e.Beitragsklasse.Name,
 			&e.Beitragsklasse.PreisMonatlichCents, &e.Beitragsklasse.Aktiv,
-			&eintritt); err != nil {
+			&eintritt, &austritt); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 
@@ -674,16 +799,27 @@ func (s *MemberService) eintraegeLesen(bedingung string, werte ...any) ([]Listen
 		if e.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
 			return nil, fmt.Errorf("eintritt von mitglied %d: %w", e.MitgliedID, err)
 		}
+		if e.Austritt, err = ausDatumsText(austritt); err != nil {
+			return nil, fmt.Errorf("austritt von mitglied %d: %w", e.MitgliedID, err)
+		}
 
 		e.Zahlungsstatus = zahlungsstatusAm(e.BezahltBis, stichtag)
 
-		liste = append(liste, e)
+		zeilen = append(zeilen, suchzeile{
+			eintrag: e,
+			suchfelder: []string{
+				strings.ToLower(e.Vorname),
+				strings.ToLower(e.Nachname),
+				strings.ToLower(email),
+				strings.ToLower(telefon),
+			},
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
 	}
 
-	return liste, nil
+	return zeilen, nil
 }
 
 // SetBezahltBis setzt das Datum, bis zu dem die Beiträge des Mitglieds als

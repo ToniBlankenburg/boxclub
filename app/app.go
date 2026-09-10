@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -43,6 +45,7 @@ func New(svc *service.MemberService) (*App, error) {
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/mitglieder", a.mitgliederListe)
+	mux.HandleFunc("GET /api/mitglieder/ergebnis", a.mitgliederErgebnis)
 	mux.HandleFunc("GET /api/mitglied/formular", a.mitgliedFormular)
 	mux.HandleFunc("POST /api/mitglied", a.mitgliedAnlegen)
 	mux.HandleFunc("GET /api/mitglied/{id}/formular", a.mitgliedBearbeitenFormular)
@@ -96,26 +99,187 @@ type meldung struct {
 	Warnung bool
 }
 
-// listeDaten trägt die Mitgliederliste und optional eine Rückmeldung.
-type listeDaten struct {
-	Eintraege []service.Listeneintrag
-	Meldung   meldung
+// Werte des Zahlungsstatus-Filters, wie sie über die Adresszeile laufen. Sie
+// stehen hier als Konstanten, damit Auswahlliste und Auswertung nicht
+// auseinanderlaufen können.
+const (
+	statusAlle         = ""
+	statusBezahlt      = "bezahlt"
+	statusNichtBezahlt = "nicht-bezahlt"
+)
+
+// suchEingabe hält die Rohwerte der Filterleiste. Der Nullwert ist die
+// Standardansicht — dieselbe, die service.Suchfilter{} beschreibt.
+type suchEingabe struct {
+	Query     string
+	Status    string
+	Klasse    string
+	Ehemalige bool
 }
 
+// suchEingabeLesen sammelt Suchbegriff und Filter aus der Adresszeile ein.
+func suchEingabeLesen(r *http.Request) suchEingabe {
+	werte := r.URL.Query()
+
+	return suchEingabe{
+		Query: werte.Get("q"),
+		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
+		Ehemalige: werte.Get("ehemalige") != "",
+		Status:    werte.Get("status"),
+		Klasse:    werte.Get("klasse"),
+	}
+}
+
+// alsSuchfilter übersetzt die Rohwerte in die Service-Eingabe. Was sich nicht
+// zuordnen lässt, fällt auf den Standard zurück: solche Werte können nur aus
+// einem selbstgebauten Request stammen, und eine Filterleiste ist kein Ort für
+// Fehlermeldungen.
+func (e suchEingabe) alsSuchfilter() service.Suchfilter {
+	filter := service.Suchfilter{AuchEhemalige: e.Ehemalige}
+
+	switch e.Status {
+	case statusBezahlt:
+		filter.Zahlungsstatus = service.ZahlungsfilterBezahlt
+	case statusNichtBezahlt:
+		filter.Zahlungsstatus = service.ZahlungsfilterNichtBezahlt
+	}
+
+	if id, err := strconv.ParseInt(e.Klasse, 10, 64); err == nil {
+		filter.BeitragsklasseID = id
+	}
+
+	return filter
+}
+
+// filteroption ist ein Eintrag einer Auswahlliste. Die Liste wird in Go
+// gebaut, damit die Wert-Konstanten nicht als Textliterale ins Template wandern.
+type filteroption struct {
+	Wert         string
+	Beschriftung string
+	Gewaehlt     bool
+}
+
+// zahlungsstatusoptionen sind die Stufen des Zahlungsstatus-Filters in der
+// Reihenfolge, in der die Auswahlliste sie zeigt. Der erste Eintrag ist der
+// Standard, auf den auch ein unbekannter Wert zurückfällt.
+var zahlungsstatusoptionen = []filteroption{
+	{Wert: statusAlle, Beschriftung: "Alle Zahlungsstatus"},
+	{Wert: statusBezahlt, Beschriftung: "Bezahlt"},
+	{Wert: statusNichtBezahlt, Beschriftung: "Nicht bezahlt"},
+}
+
+// listeDaten trägt das Suchergebnis, die Werte der Filterleiste und optional
+// eine Rückmeldung.
+type listeDaten struct {
+	Eintraege       []service.Listeneintrag
+	Meldung         meldung
+	Suche           suchEingabe
+	Beitragsklassen []service.Beitragsklasse
+}
+
+// Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
+// sich dann anders: "nichts gefunden" statt "noch nichts erfasst".
+//
+// Ein Suchbegriff aus lauter Leerraum zählt nicht — er grenzt auch im Service
+// nichts ein.
+func (d listeDaten) Gefiltert() bool {
+	eingabe := d.Suche
+	eingabe.Query = strings.TrimSpace(eingabe.Query)
+
+	return eingabe != (suchEingabe{})
+}
+
+// Statusoptionen sind die Stufen des Zahlungsstatus-Filters, die gewählte
+// darunter markiert.
+func (d listeDaten) Statusoptionen() []filteroption {
+	optionen := slices.Clone(zahlungsstatusoptionen)
+
+	// Was sich nicht zuordnen lässt, steht auf dem Standard — dieselbe Regel,
+	// nach der alsSuchfilter den Wert auswertet.
+	gewaehlt := 0
+	for i, o := range optionen {
+		if o.Wert == d.Suche.Status {
+			gewaehlt = i
+		}
+	}
+	optionen[gewaehlt].Gewaehlt = true
+
+	return optionen
+}
+
+// Klassenoptionen listet die Beitragsklassen so, wie die Datenbank sie führt —
+// die Auswahl wächst also mit, wenn eine Klasse dazukommt.
+func (d listeDaten) Klassenoptionen() []filteroption {
+	optionen := []filteroption{{Beschriftung: "Alle Beitragsklassen", Gewaehlt: d.Suche.Klasse == ""}}
+
+	for _, k := range d.Beitragsklassen {
+		wert := strconv.FormatInt(k.ID, 10)
+		optionen = append(optionen, filteroption{
+			Wert:         wert,
+			Beschriftung: k.Name,
+			Gewaehlt:     d.Suche.Klasse == wert,
+		})
+	}
+
+	return optionen
+}
+
+// mitgliederListe liefert die vollständige Listenansicht samt Filterleiste.
 func (a *App) mitgliederListe(w http.ResponseWriter, r *http.Request) {
-	a.listeRendern(w, meldung{})
+	a.listeMitFilterRendern(w, suchEingabeLesen(r), meldung{})
+}
+
+// mitgliederErgebnis liefert nur den Ergebnisteil. Suche und Filter tauschen
+// ihn allein aus — die Filterleiste selbst bleibt stehen, sonst verlöre das
+// Suchfeld bei jedem Tastendruck den Fokus.
+func (a *App) mitgliederErgebnis(w http.ResponseWriter, r *http.Request) {
+	daten, ok := a.listeDatenLesen(w, suchEingabeLesen(r), meldung{})
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglieder-ergebnis", daten)
 }
 
 // listeRendern ist die Rückkehr-Ansicht nach jeder Aktion: htmx tauscht das
 // Listen-Fragment ein, ohne die Seite neu zu laden.
+//
+// Zurück geht es bewusst in die Standardansicht: das gerade geänderte Mitglied
+// soll sichtbar sein und nicht hinter einem noch gesetzten Filter verschwinden.
 func (a *App) listeRendern(w http.ResponseWriter, m meldung) {
-	eintraege, err := a.svc.List()
-	if err != nil {
-		fehlerAntwort(w, err)
+	a.listeMitFilterRendern(w, suchEingabe{}, m)
+}
+
+func (a *App) listeMitFilterRendern(w http.ResponseWriter, eingabe suchEingabe, m meldung) {
+	daten, ok := a.listeDatenLesen(w, eingabe, m)
+	if !ok {
 		return
 	}
 
-	a.rendern(w, "mitglieder-liste", listeDaten{Eintraege: eintraege, Meldung: m})
+	a.rendern(w, "mitglieder-liste", daten)
+}
+
+// listeDatenLesen holt Ergebnis und Auswahllisten. Ist das Ergebnis nicht ok,
+// wurde die Antwort bereits geschrieben.
+func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meldung) (listeDaten, bool) {
+	eintraege, err := a.svc.Search(eingabe.Query, eingabe.alsSuchfilter())
+	if err != nil {
+		fehlerAntwort(w, err)
+		return listeDaten{}, false
+	}
+
+	klassen, err := a.svc.AktiveBeitragsklassen()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return listeDaten{}, false
+	}
+
+	return listeDaten{
+		Eintraege:       eintraege,
+		Meldung:         m,
+		Suche:           eingabe,
+		Beitragsklassen: klassen,
+	}, true
 }
 
 func (a *App) mitgliedFormular(w http.ResponseWriter, r *http.Request) {

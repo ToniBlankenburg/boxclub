@@ -79,11 +79,15 @@ Bewusst zweistufig, keine gelbe Vorwarnstufe (Entscheidung aus Runde 3).
 
 ### Suche und Filter
 
-`MemberService.Search(query, filter)` implementiert Suche über SQL `LIKE` gegen Vorname, Nachname, E-Mail, Telefon (Story 17). Der `filter`-Parameter kombiniert:
+`MemberService.Search(query, filter)` sucht gegen Vorname, Nachname, E-Mail, Telefon (Story 17). Der `filter`-Parameter kombiniert:
 
 - Zahlungsstatus: alle / nur bezahlt / nur nicht bezahlt
 - Beitragsklasse: alle / bestimmte
 - Aktivitätsstatus: nur aktive Mitglieder (Standard) / alle inkl. ausgetretene
+
+> **Präzisiert durch [ADR-0004](../../docs/adr/0004-suche-und-filter-im-speicher.md).** Die ursprüngliche Festlegung "Suche über SQL `LIKE`" trägt nicht: SQLite faltet Groß-/Kleinschreibung nur im ASCII-Bereich, "öztürk" fände "Öztürk" also nicht. Suchbegriff, Zahlungsstatus- und Klassenfilter werden deshalb in Go ausgewertet; in SQL bleibt allein die Aktivität. Gesucht und gefiltert wird weiterhin vollständig im `MemberService`.
+
+> **Präzisierung aus Ticket 06:** Der Filter "nicht bezahlt" schließt Mitglieder ohne jede Zahlungsangabe aus — wer im Mahn-Filter steht, soll auch wirklich im Rückstand sein.
 
 ### Excel-Import
 

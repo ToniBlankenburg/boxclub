@@ -998,21 +998,43 @@ func TestEintrag_LiefertDieselbeZeileWieDieListe(t *testing.T) {
 	}
 }
 
-func TestEintrag_OhneLaufendeMitgliedschaftUndUnbekannteIDMeldenNichtGefunden(t *testing.T) {
+func TestEintrag_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
 	svc := neuerService(t)
 
 	if _, err := svc.Eintrag(4711); !errors.Is(err, service.ErrNichtGefunden) {
 		t.Fatalf("Eintrag(4711) = %v, erwartet ErrNichtGefunden", err)
 	}
+}
+
+// Seit die Liste auf Wunsch auch Ehemalige zeigt, muss sich deren Zeile auch
+// einzeln neu rendern lassen — sonst liefe jede Aktion in einer solchen Zeile
+// ins Leere.
+func TestEintrag_LiefertAuchDieZeileEinesAusgetretenenMitglieds(t *testing.T) {
+	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Timo", "Vogel")
-	if err := svc.AustrittFuerTest(id, heuteVersetzt(-10)); err != nil {
+	austritt := heuteVersetzt(-10)
+	if err := svc.AustrittFuerTest(id, austritt); err != nil {
 		t.Fatalf("AustrittFuerTest: %v", err)
 	}
 
-	// Die Liste führt ausgetretene Mitglieder nicht — dann gibt es für sie auch
-	// keine Zeile.
-	if _, err := svc.Eintrag(id); !errors.Is(err, service.ErrNichtGefunden) {
-		t.Fatalf("Eintrag nach Austritt = %v, erwartet ErrNichtGefunden", err)
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag nach Austritt: %v", err)
+	}
+	if eintrag.MitgliedID != id {
+		t.Errorf("MitgliedID = %d, erwartet %d", eintrag.MitgliedID, id)
+	}
+	if eintrag.Austritt == nil || !eintrag.Austritt.Equal(austritt) {
+		t.Errorf("Austritt = %v, erwartet %v", eintrag.Austritt, austritt)
+	}
+
+	// In der Standardansicht taucht das Mitglied trotzdem nicht auf.
+	liste, err := svc.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(liste) != 0 {
+		t.Errorf("List = %+v, erwartet leer — Ausgetretene gehören nicht in die Standardansicht", liste)
 	}
 }
