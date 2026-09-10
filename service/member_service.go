@@ -59,6 +59,22 @@ type Mitgliedschaft struct {
 	Austritt   *time.Time
 }
 
+// LaufendeMitgliedschaft liefert den Zeitraum, in dem das Mitglied aktuell aktiv
+// ist, oder nil, wenn es derzeit keinem angehört. Gibt es — regulär
+// ausgeschlossen — mehrere offene Zeiträume, gilt der zuletzt begonnene; das ist
+// dieselbe Regel, nach der List ein Mitglied als aktiv führt.
+func (m Mitglied) LaufendeMitgliedschaft() *Mitgliedschaft {
+	// Mitgliedschaften liegen aufsteigend nach Eintritt vor, der zuletzt
+	// begonnene offene Zeitraum ist also der letzte passende.
+	for i := len(m.Mitgliedschaften) - 1; i >= 0; i-- {
+		if m.Mitgliedschaften[i].Austritt == nil {
+			return &m.Mitgliedschaften[i]
+		}
+	}
+
+	return nil
+}
+
 // NeuesMitglied sind die Stammdaten, die beim Anlegen eines Mitglieds erfasst
 // werden. Eintritt eröffnet zugleich die erste Mitgliedschaft.
 type NeuesMitglied struct {
@@ -287,6 +303,132 @@ func (n NeuesMitglied) validieren() error {
 
 	if len(fehler) > 0 {
 		return &ValidierungsFehler{Meldungen: fehler}
+	}
+
+	return nil
+}
+
+// MitgliedPatch beschreibt eine Änderung an den Stammdaten eines Mitglieds. Ein
+// Feld, das nil ist, bleibt unangetastet — nur gesetzte Felder werden
+// geschrieben. Das erlaubt es, einzelne Angaben zu korrigieren, ohne den Rest
+// des Datensatzes vorher lesen und wieder mitschicken zu müssen.
+//
+// Geburtsdatum und Eintrittsdatum fehlen bewusst: sie sind in v1 nach der
+// Anlage nicht mehr änderbar (Tippfehler-Schutz). Der Eintritt gehört ohnehin
+// zur Mitgliedschaft, nicht zu den Stammdaten.
+type MitgliedPatch struct {
+	Vorname          *string
+	Nachname         *string
+	Adresse          *string
+	Email            *string
+	Telefon          *string
+	BeitragsklasseID *int64
+}
+
+// Update schreibt die im Patch gesetzten Felder auf das Mitglied mit dieser ID.
+// Existiert die ID nicht, ist der Fehler ErrNichtGefunden — es wird in keinem
+// Fall ein neuer Datensatz angelegt.
+func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
+	if err := patch.validieren(); err != nil {
+		return err
+	}
+
+	zuweisungen, werte := patch.zuweisungen()
+	if len(zuweisungen) == 0 {
+		// Nichts zu schreiben. Die ID wird trotzdem geprüft, damit ein Aufruf auf
+		// ein nicht existierendes Mitglied auch dann auffällt.
+		return s.mitgliedPruefen(id)
+	}
+
+	// Die Spaltennamen stammen ausschließlich aus zuweisungen und sind dort
+	// Literale; die Werte gehen als Parameter in die Anweisung.
+	res, err := s.db.Exec(
+		`UPDATE mitglied SET `+strings.Join(zuweisungen, ", ")+` WHERE id = ?`,
+		append(werte, id)...)
+	if err != nil {
+		return fmt.Errorf("mitglied %d aktualisieren: %w", id, err)
+	}
+
+	betroffen, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("betroffene zeilen lesen: %w", err)
+	}
+	if betroffen == 0 {
+		return fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
+	}
+
+	return nil
+}
+
+// validieren prüft die gesetzten Felder gegen dieselben Pflichtfeld-Regeln, die
+// auch bei der Neuanlage gelten: ein Pflichtfeld darf nachträglich nicht leer
+// gemacht werden. Nicht gesetzte Felder sind keine Aussage und damit auch kein
+// Regelverstoß.
+func (p MitgliedPatch) validieren() error {
+	var fehler []string
+
+	if p.Vorname != nil && *p.Vorname == "" {
+		fehler = append(fehler, "Vorname darf nicht leer sein.")
+	}
+	if p.Nachname != nil && *p.Nachname == "" {
+		fehler = append(fehler, "Nachname darf nicht leer sein.")
+	}
+	if p.BeitragsklasseID != nil && *p.BeitragsklasseID == 0 {
+		fehler = append(fehler, "Bitte eine Beitragsklasse wählen.")
+	}
+
+	if len(fehler) > 0 {
+		return &ValidierungsFehler{Meldungen: fehler}
+	}
+
+	return nil
+}
+
+// zuweisungen übersetzt die gesetzten Felder in SET-Fragmente samt ihrer Werte.
+func (p MitgliedPatch) zuweisungen() ([]string, []any) {
+	var (
+		fragmente []string
+		werte     []any
+	)
+
+	setze := func(spalte string, wert any) {
+		fragmente = append(fragmente, spalte+" = ?")
+		werte = append(werte, wert)
+	}
+
+	if p.Vorname != nil {
+		setze("vorname", *p.Vorname)
+	}
+	if p.Nachname != nil {
+		setze("nachname", *p.Nachname)
+	}
+	if p.Adresse != nil {
+		setze("adresse", *p.Adresse)
+	}
+	if p.Email != nil {
+		setze("email", *p.Email)
+	}
+	if p.Telefon != nil {
+		setze("telefon", *p.Telefon)
+	}
+	if p.BeitragsklasseID != nil {
+		setze("beitragsklasse_id", *p.BeitragsklasseID)
+	}
+
+	return fragmente, werte
+}
+
+// mitgliedPruefen meldet ErrNichtGefunden, wenn zu der ID kein Mitglied
+// vorliegt.
+func (s *MemberService) mitgliedPruefen(id int64) error {
+	var vorhanden int
+
+	err := s.db.QueryRow(`SELECT 1 FROM mitglied WHERE id = ?`, id).Scan(&vorhanden)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
+	}
+	if err != nil {
+		return fmt.Errorf("mitglied lesen: %w", err)
 	}
 
 	return nil

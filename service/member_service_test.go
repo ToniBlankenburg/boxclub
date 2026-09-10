@@ -472,3 +472,291 @@ func TestList_SortiertUmlauteNachDeutschenRegeln(t *testing.T) {
 		}
 	}
 }
+
+// zeiger liefert einen Zeiger auf einen Wert — im Patch bedeutet "gesetzt"
+// genau das: ein Feld, das nicht nil ist, wird geschrieben.
+func zeiger[T any](v T) *T {
+	return &v
+}
+
+func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+	geburtsdatum := datum(t, "1988-11-02")
+	eintritt := datum(t, "2026-01-15")
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Jonas",
+		Nachname:         "Krüger",
+		Geburtsdatum:     &geburtsdatum,
+		Adresse:          "Hauptstraße 1, 10115 Berlin",
+		Email:            "jonas@example.org",
+		Telefon:          "030 111111",
+		BeitragsklasseID: klassen[0].ID,
+		Eintritt:         eintritt,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Nur zwei der sechs bearbeitbaren Felder werden gesetzt.
+	if err := svc.Update(id, service.MitgliedPatch{
+		Nachname: zeiger("Krüger-Wolf"),
+		Email:    zeiger("jonas.krueger-wolf@example.org"),
+	}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	if m.Nachname != "Krüger-Wolf" {
+		t.Errorf("Nachname = %q, erwartet %q", m.Nachname, "Krüger-Wolf")
+	}
+	if m.Email != "jonas.krueger-wolf@example.org" {
+		t.Errorf("Email = %q, erwartet %q", m.Email, "jonas.krueger-wolf@example.org")
+	}
+
+	// Alles, was nicht im Patch stand, bleibt unangetastet.
+	if m.Vorname != "Jonas" {
+		t.Errorf("Vorname = %q, erwartet unverändert %q", m.Vorname, "Jonas")
+	}
+	if m.Adresse != "Hauptstraße 1, 10115 Berlin" {
+		t.Errorf("Adresse = %q, erwartet unverändert", m.Adresse)
+	}
+	if m.Telefon != "030 111111" {
+		t.Errorf("Telefon = %q, erwartet unverändert %q", m.Telefon, "030 111111")
+	}
+	if m.BeitragsklasseID != klassen[0].ID {
+		t.Errorf("BeitragsklasseID = %d, erwartet unverändert %d", m.BeitragsklasseID, klassen[0].ID)
+	}
+	if m.Geburtsdatum == nil || !m.Geburtsdatum.Equal(geburtsdatum) {
+		t.Errorf("Geburtsdatum = %v, erwartet unverändert %v", m.Geburtsdatum, geburtsdatum)
+	}
+	if m.BezahltBis != nil {
+		t.Errorf("BezahltBis = %v, erwartet unverändert nil", m.BezahltBis)
+	}
+
+	// Die Mitgliedschaft ist von einer Stammdaten-Änderung nicht betroffen.
+	if len(m.Mitgliedschaften) != 1 {
+		t.Fatalf("Mitgliedschaften = %d, erwartet 1", len(m.Mitgliedschaften))
+	}
+	if !m.Mitgliedschaften[0].Eintritt.Equal(eintritt) {
+		t.Errorf("Eintritt = %v, erwartet unverändert %v", m.Mitgliedschaften[0].Eintritt, eintritt)
+	}
+	if m.Mitgliedschaften[0].Austritt != nil {
+		t.Errorf("Austritt = %v, erwartet unverändert nil", m.Mitgliedschaften[0].Austritt)
+	}
+}
+
+func TestUpdate_UnbekannteIDMeldetNichtGefundenUndLegtNichtsAn(t *testing.T) {
+	svc := neuerService(t)
+
+	err := svc.Update(4711, service.MitgliedPatch{Vorname: zeiger("Niemand")})
+	if !errors.Is(err, service.ErrNichtGefunden) {
+		t.Fatalf("Update(4711, …) = %v, erwartet ErrNichtGefunden", err)
+	}
+
+	// Kein Silent-Fail heißt auch: kein heimliches Neuanlegen.
+	liste, err := svc.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(liste) != 0 {
+		t.Fatalf("List = %+v, erwartet leer — Update darf kein Mitglied anlegen", liste)
+	}
+}
+
+func TestUpdate_WechseltBeitragsklasseUndListeZeigtSie(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+	einMalWoche, zweiMalWoche := klassen[0], klassen[1]
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Lena",
+		Nachname:         "Hoffmann",
+		BeitragsklasseID: einMalWoche.ID,
+		Eintritt:         datum(t, "2026-02-01"),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := svc.Update(id, service.MitgliedPatch{BeitragsklasseID: &zweiMalWoche.ID}); err != nil {
+		t.Fatalf("Update (Klassenwechsel): %v", err)
+	}
+
+	liste, err := svc.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(liste) != 1 {
+		t.Fatalf("List = %d Einträge, erwartet 1", len(liste))
+	}
+	if liste[0].Beitragsklasse != zweiMalWoche {
+		t.Errorf("Beitragsklasse in der Liste = %+v, erwartet %+v", liste[0].Beitragsklasse, zweiMalWoche)
+	}
+}
+
+func TestUpdate_LehntUnbekannteBeitragsklasseAbUndLaesstDieAlteStehen(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Timo",
+		Nachname:         "Ludwig",
+		BeitragsklasseID: klassen[0].ID,
+		Eintritt:         datum(t, "2026-02-01"),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := svc.Update(id, service.MitgliedPatch{BeitragsklasseID: zeiger(int64(999))}); err == nil {
+		t.Fatal("Update mit unbekannter BeitragsklasseID muss fehlschlagen")
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.BeitragsklasseID != klassen[0].ID {
+		t.Errorf("BeitragsklasseID = %d, erwartet unverändert %d", m.BeitragsklasseID, klassen[0].ID)
+	}
+}
+
+func TestUpdate_MeldetLeeregemachtePflichtfelderAufEinmal(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Sara",
+		Nachname:         "Neumann",
+		BeitragsklasseID: klassen[0].ID,
+		Eintritt:         datum(t, "2026-02-01"),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	err = svc.Update(id, service.MitgliedPatch{
+		Vorname:          zeiger(""),
+		Nachname:         zeiger(""),
+		BeitragsklasseID: zeiger(int64(0)),
+	})
+
+	var validierung *service.ValidierungsFehler
+	if !errors.As(err, &validierung) {
+		t.Fatalf("Update mit leeren Pflichtfeldern = %v, erwartet *service.ValidierungsFehler", err)
+	}
+
+	erwartet := []string{
+		"Vorname darf nicht leer sein.",
+		"Nachname darf nicht leer sein.",
+		"Bitte eine Beitragsklasse wählen.",
+	}
+	if len(validierung.Meldungen) != len(erwartet) {
+		t.Fatalf("Meldungen = %q, erwartet %d Stück", validierung.Meldungen, len(erwartet))
+	}
+	for i, meldung := range erwartet {
+		if validierung.Meldungen[i] != meldung {
+			t.Errorf("Meldung %d = %q, erwartet %q", i, validierung.Meldungen[i], meldung)
+		}
+	}
+
+	// Abgelehnt heißt: nichts davon ist in der Datenbank gelandet.
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.Vorname != "Sara" || m.Nachname != "Neumann" {
+		t.Errorf("Name = %q %q, erwartet unverändert %q %q", m.Vorname, m.Nachname, "Sara", "Neumann")
+	}
+}
+
+func TestUpdate_LeererPatchAendertNichtsUndPrueftTrotzdemDieID(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Pia",
+		Nachname:         "Roth",
+		BeitragsklasseID: klassen[0].ID,
+		Eintritt:         datum(t, "2026-02-01"),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	vorher, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get (vorher): %v", err)
+	}
+
+	if err := svc.Update(id, service.MitgliedPatch{}); err != nil {
+		t.Fatalf("Update mit leerem Patch: %v", err)
+	}
+
+	nachher, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get (nachher): %v", err)
+	}
+	if nachher.Vorname != vorher.Vorname || nachher.Nachname != vorher.Nachname ||
+		nachher.BeitragsklasseID != vorher.BeitragsklasseID {
+		t.Errorf("Mitglied = %+v, erwartet unverändert %+v", nachher, vorher)
+	}
+
+	// Auch ohne zu schreibende Felder darf eine unbekannte ID nicht durchgehen.
+	if err := svc.Update(4711, service.MitgliedPatch{}); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Fatalf("Update(4711, {}) = %v, erwartet ErrNichtGefunden", err)
+	}
+}
+
+func TestLaufendeMitgliedschaft_LiefertDenOffenenZeitraumUndNachAustrittNil(t *testing.T) {
+	svc := neuerService(t)
+
+	klassen := beitragsklassen(t, svc)
+	eintritt := datum(t, "2026-01-15")
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:          "Ida",
+		Nachname:         "Sommer",
+		BeitragsklasseID: klassen[0].ID,
+		Eintritt:         eintritt,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	laufend := m.LaufendeMitgliedschaft()
+	if laufend == nil {
+		t.Fatal("LaufendeMitgliedschaft = nil, erwartet den offenen Zeitraum")
+	}
+	if !laufend.Eintritt.Equal(eintritt) {
+		t.Errorf("Eintritt = %v, erwartet %v", laufend.Eintritt, eintritt)
+	}
+
+	if err := svc.AustrittFuerTest(id, datum(t, "2026-06-30")); err != nil {
+		t.Fatalf("AustrittFuerTest: %v", err)
+	}
+
+	m, err = svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get nach Austritt: %v", err)
+	}
+	if laufend := m.LaufendeMitgliedschaft(); laufend != nil {
+		t.Errorf("LaufendeMitgliedschaft = %+v, erwartet nil nach dem Austritt", laufend)
+	}
+}
