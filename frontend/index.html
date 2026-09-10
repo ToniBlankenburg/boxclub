@@ -1,12 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Boxclub Mitgliederverwaltung</title>
 </head>
-<body>
-<div id="app"></div>
+<body class="bg-neutral-50 text-neutral-900 antialiased">
+<header class="border-b border-neutral-200 bg-white px-6 py-4">
+    <h1 class="text-base font-semibold">Boxclub Mitgliederverwaltung</h1>
+</header>
+
+<!-- Der gesamte Inhalt kommt als HTML-Fragment aus dem Go-Backend. -->
+<main id="inhalt" class="mx-auto max-w-3xl px-6 py-6"
+      hx-get="/api/mitglied/formular" hx-trigger="load" hx-swap="innerHTML">
+    <p class="text-sm text-neutral-500">Laden …</p>
+</main>
+
 <script src="./src/main.js" type="module"></script>
 </body>
 </html>

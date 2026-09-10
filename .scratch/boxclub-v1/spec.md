@@ -39,7 +39,7 @@ Datenhaltung ist eine lokale SQLite-Datei auf dem Mac des Nutzers, geschützt du
 ### Stack & Deployment
 
 - Sprache: **Go**. UI-Framework: **Wails v2**. Frontend im nativen WebView: **Vanilla HTML + htmx + Tailwind CSS**. Kein SPA-Framework, kein npm-Build außer dem von Wails eingebautem Schritt. Begründung: siehe [ADR-0001](../../docs/adr/0001-go-wails-fuer-desktop-gui.md).
-- Datenbank: **SQLite**, Datei `boxclub.db` neben der Anwendung. Treiber: **`modernc.org/sqlite`** (pure-Go, kein CGo, damit Cross-Compilation trivial bleibt).
+- Datenbank: **SQLite**, Datei `boxclub.db` im Benutzer-Konfigurationsordner (macOS: `~/Library/Application Support/Boxclub/`). Ursprünglich war "neben der Anwendung" vorgesehen; das verträgt sich nicht mit dem macOS-`.app`-Bundle — siehe [ADR-0003](../../docs/adr/0003-datenbank-im-benutzer-konfigurationsordner.md). Treiber: **`modernc.org/sqlite`** (pure-Go, kein CGo, damit Cross-Compilation trivial bleibt).
 - **Ziel-Plattform in Produktion**: ausschließlich **macOS** — der Rechner, auf dem MoneyMoney läuft und der Vereinsadmin die App benutzt.
 - **Entwicklungs-Plattformen**: **Windows + Linux**. `wails dev` und `wails build` müssen auf beiden nativ funktionieren, damit tägliche Iteration ohne Mac-Zugriff möglich ist. Voraussetzungen: unter Windows die WebView2-Runtime (auf Win10/11 Standard), unter Linux `libwebkit2gtk-4.0-dev` (bzw. distro-Äquivalent).
 - **Mac-Release-Build**: auf einem realen Mac gebaut, **nicht** cross-kompiliert von Windows/Linux aus — Wails' native WebView-Bindung unterscheidet sich pro Plattform, und Cross-Compilation nach Darwin ist mit Wails praktisch fragil. In v1 pragmatisch entweder auf einem gelegentlich zugänglichen Mac oder über einen `macos-latest`-Runner auf GitHub Actions; die konkrete Wahl fällt im Release-Ticket.
@@ -53,7 +53,7 @@ Zwei primäre Go-Packages, jeweils an einem Seam:
 
 Adapter-Schichten (nicht Teil der Seams):
 
-- **`app`** / Wails-Bindings — dünne Methoden, die Frontend-Aufrufe an `MemberService` bzw. `ExcelImporter` weiterleiten und Ergebnisse als JSON zurückgeben (bzw. bei htmx als HTML-Fragmente).
+- **`app`** — dünne HTTP-Handler, die Frontend-Aufrufe an `MemberService` bzw. `ExcelImporter` weiterleiten und das Ergebnis als HTML-Fragment zurückgeben. Transport siehe [ADR-0002](../../docs/adr/0002-htmx-ueber-den-wails-assetserver.md).
 - **`templates`** — Go-`html/template`-Dateien, die htmx-Fragmente rendern (Mitgliederzeilen, Formulare, Fehlerlisten).
 
 ### Schema
@@ -91,7 +91,9 @@ Bewusst zweistufig, keine gelbe Vorwarnstufe (Entscheidung aus Runde 3).
 
 ### Wails-API-Kontrakt (Frontend ↔ Backend)
 
-Wails-Bindings exponieren pro User-Story eine Methode und liefern HTML-Fragmente zurück (htmx-Muster), z. B.:
+> **Überholt durch [ADR-0002](../../docs/adr/0002-htmx-ueber-den-wails-assetserver.md).** Wails-Bindings werden nicht verwendet; htmx spricht per HTTP gegen `/api/...`-Routen, die über `assetserver.Options.Handler` im Wails-Assetserver hängen. Die untenstehende Auflistung beschreibt weiterhin korrekt, *welche* Operationen es gibt und dass sie HTML-Fragmente liefern — nur als Routen statt als Binding-Methoden.
+
+Pro User-Story eine Operation, die ein HTML-Fragment zurückliefert (htmx-Muster), z. B.:
 
 - `ListMembers(filter) → HTML-Fragment einer Mitgliederliste`
 - `MemberForm(id?) → HTML-Fragment eines Bearbeitungsformulars`

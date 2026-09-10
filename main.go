@@ -2,35 +2,75 @@ package main
 
 import (
 	"embed"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+
+	"github.com/ToniBlankenburg/boxclub/app"
+	"github.com/ToniBlankenburg/boxclub/service"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
-	app := NewApp()
+	pfad, err := datenbankPfad()
+	if err != nil {
+		log.Fatalf("Datenbankpfad bestimmen: %v", err)
+	}
 
-	// Create application with options
-	err := wails.Run(&options.App{
+	svc, err := service.Open(pfad)
+	if err != nil {
+		log.Fatalf("Datenbank %s öffnen: %v", pfad, err)
+	}
+	defer svc.Close()
+
+	anwendung, err := app.New(svc)
+	if err != nil {
+		log.Fatalf("Anwendung initialisieren: %v", err)
+	}
+
+	err = wails.Run(&options.App{
 		Title:  "Boxclub Mitgliederverwaltung",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+			// Der Assetserver reicht alle Nicht-GET-Requests und alle GET-Requests,
+			// die keine statische Datei treffen, an diesen Handler durch — darüber
+			// spricht htmx mit dem Go-Backend.
+			Handler: anwendung.Handler(),
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
-		Bind: []interface{}{
-			app,
-		},
+		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 250, A: 1},
 	})
-
 	if err != nil {
-		println("Error:", err.Error())
+		log.Fatalf("Wails starten: %v", err)
 	}
+}
+
+// datenbankPfad liefert den Ort der SQLite-Datei. Standard ist ein eigenes
+// Verzeichnis im Benutzer-Konfigurationsordner (macOS:
+// ~/Library/Application Support/Boxclub); BOXCLUB_DB überschreibt ihn, was für
+// Entwicklung und manuelle Tests praktisch ist.
+func datenbankPfad() (string, error) {
+	if pfad := os.Getenv("BOXCLUB_DB"); pfad != "" {
+		return pfad, nil
+	}
+
+	basis, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	verzeichnis := filepath.Join(basis, "Boxclub")
+	// 0700: die Datei enthält personenbezogene Daten und geht niemanden sonst an.
+	if err := os.MkdirAll(verzeichnis, 0o700); err != nil {
+		return "", err
+	}
+
+	return filepath.Join(verzeichnis, "boxclub.db"), nil
 }

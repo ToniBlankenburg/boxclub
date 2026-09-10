@@ -1,0 +1,53 @@
+{{define "mitglied-formular"}}
+<form class="rounded-lg border border-neutral-200 bg-white p-6"
+      hx-post="/api/mitglied" hx-target="#inhalt" hx-swap="innerHTML">
+    <h2 class="mb-5 text-base font-semibold">Neues Mitglied anlegen</h2>
+
+    {{if .Fehler}}
+        <ul class="mb-5 list-disc rounded-md border border-red-700 bg-red-50 py-3 pr-3 pl-8 text-sm text-red-800"
+            role="alert">
+            {{range .Fehler}}
+                <li>{{.}}</li>
+            {{end}}
+        </ul>
+    {{end}}
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        {{template "feld" feld "Vorname" "vorname" "text" .Eingabe.Vorname true false}}
+        {{template "feld" feld "Nachname" "nachname" "text" .Eingabe.Nachname true false}}
+        {{template "feld" feld "Geburtsdatum" "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
+        {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
+        {{template "feld" feld "Adresse" "adresse" "text" .Eingabe.Adresse false true}}
+        {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
+        {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
+
+        <label class="flex flex-col gap-1.5 sm:col-span-2">
+            <span class="text-sm text-neutral-600">Beitragsklasse<span class="text-red-700">*</span></span>
+            <select name="beitragsklasse_id" required
+                    class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                <option value="" disabled {{if not .Eingabe.BeitragsklasseID}}selected{{end}}>Bitte wählen …</option>
+                {{range .Beitragsklassen}}
+                    <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Eingabe.BeitragsklasseID}}selected{{end}}>
+                        {{.Name}} — {{euro .PreisMonatlichCents}}/Monat
+                    </option>
+                {{end}}
+            </select>
+        </label>
+    </div>
+
+    <button type="submit"
+            class="mt-6 rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+        Speichern
+    </button>
+</form>
+{{end}}
+
+{{/* feld rendert ein beschriftetes Eingabefeld. Die Argumente kommen als
+     feldDaten aus der Template-Funktion "feld". */}}
+{{define "feld"}}
+<label class="flex flex-col gap-1.5{{if .Breit}} sm:col-span-2{{end}}">
+    <span class="text-sm text-neutral-600">{{.Beschriftung}}{{if .Pflicht}}<span class="text-red-700">*</span>{{end}}</span>
+    <input name="{{.Name}}" type="{{.Typ}}" value="{{.Wert}}" {{if .Pflicht}}required{{end}}
+           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+</label>
+{{end}}

@@ -39,7 +39,7 @@ go test ./service/... -run TestMemberService_Create
 
 **Adapter layers (not primary seams):**
 
-- `app/` — Wails bindings: thin 1:1 wrappers over `MemberService`/`ExcelImporter` that return HTML fragments for htmx.
+- `app/` — HTTP handlers for the htmx frontend: thin 1:1 wrappers over `MemberService`/`ExcelImporter` that return HTML fragments. They hang off `assetserver.Options.Handler`; Wails bindings are **not** used (see ADR-0002).
 - `templates/` — Go `html/template` files rendering htmx fragments (member rows, forms, error lists).
 
 **SQLite schema (three tables):**
@@ -50,12 +50,14 @@ go test ./service/... -run TestMemberService_Create
 
 Payment status is derived on the fly: `bezahlt` if `bezahlt_bis >= today`, `nicht bezahlt` otherwise. Never stored.
 
+The database file lives in the user config dir (`~/Library/Application Support/Boxclub/boxclub.db` on macOS); `BOXCLUB_DB` overrides the path for development.
+
 ## Testing
 
 Tests hit a real SQLite database (`t.TempDir()`-based temp file per test) — **no mocking**. Test via the service/importer API only; never reach into SQL directly.
 
 - `service/member_service_test.go` is the reference test file — all subsequent tests mirror its setup pattern.
-- Wails bindings and htmx templates are not unit-tested; manual smoke test suffices.
+- `app/` handlers and htmx templates are not unit-tested; manual smoke test suffices.
 - After any significant change: verify `wails dev` and `wails build` succeed on both Windows and Linux. A build failure on a dev platform blocks the ticket just like a failing test.
 
 ## Domain vocabulary

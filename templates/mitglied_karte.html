@@ -1,0 +1,29 @@
+{{define "mitglied-karte"}}
+<div class="rounded-lg border border-neutral-200 bg-white p-6">
+    <h2 class="mb-5 text-base font-semibold">Mitglied gespeichert</h2>
+
+    <dl class="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+        <dt class="text-sm text-neutral-600">Name</dt>
+        <dd>{{.Mitglied.Vorname}} {{.Mitglied.Nachname}}</dd>
+        <dt class="text-sm text-neutral-600">Geburtsdatum</dt>
+        <dd>{{datum .Mitglied.Geburtsdatum}}</dd>
+        <dt class="text-sm text-neutral-600">Adresse</dt>
+        <dd>{{oderStrich .Mitglied.Adresse}}</dd>
+        <dt class="text-sm text-neutral-600">E-Mail</dt>
+        <dd>{{oderStrich .Mitglied.Email}}</dd>
+        <dt class="text-sm text-neutral-600">Telefon</dt>
+        <dd>{{oderStrich .Mitglied.Telefon}}</dd>
+        <dt class="text-sm text-neutral-600">Beitragsklasse</dt>
+        <dd>{{.Beitragsklasse.Name}} — {{euro .Beitragsklasse.PreisMonatlichCents}}/Monat</dd>
+        {{range .Mitglied.Mitgliedschaften}}
+            <dt class="text-sm text-neutral-600">Eintritt</dt>
+            <dd>{{datum .Eintritt}}</dd>
+        {{end}}
+    </dl>
+
+    <button class="mt-6 rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+            hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
+        Weiteres Mitglied anlegen
+    </button>
+</div>
+{{end}}
