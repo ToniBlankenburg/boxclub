@@ -34,7 +34,7 @@
     <form class="flex flex-1 flex-wrap items-center gap-2"
           hx-get="/api/mitglieder/ergebnis"
           hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-          hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-ehemalige">
+          hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-ehemalige">
         <input id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
                placeholder="Name, E-Mail, Telefon oder Mitglieds-ID" autocomplete="off"
                aria-label="Mitglieder durchsuchen"
@@ -43,6 +43,16 @@
         <select id="filter-rueckstand" name="rueckstand" aria-label="Nach Rückstand filtern"
                 class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
             {{range .Rueckstandsoptionen}}
+                <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+            {{end}}
+        </select>
+
+        {{/* Die Trainingsfrequenz ist die Anzahl der Slots und steht nirgends in
+             der Datenbank (CONTEXT.md → Trainingsfrequenz); gefiltert wird
+             trotzdem nach ihr, weil der Verein in Frequenzen denkt. */}}
+        <select id="filter-frequenz" name="frequenz" aria-label="Nach Trainingsfrequenz filtern"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            {{range .Frequenzoptionen}}
                 <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
             {{end}}
         </select>
@@ -79,6 +89,7 @@
                 <tr class="border-b border-neutral-200 text-sm text-neutral-600">
                     <th class="px-4 py-2 font-medium">Name</th>
                     <th class="px-4 py-2 font-medium">Anschrift</th>
+                    <th class="px-4 py-2 font-medium">Training</th>
                     <th class="px-4 py-2 text-right font-medium">Beitrag</th>
                     <th class="px-4 py-2 font-medium">Rückstand</th>
                     <th class="px-4 py-2 font-medium">Eintritt</th>
@@ -137,6 +148,19 @@
             </div>
         {{end}}
     </td>
+    {{/* Die Trainingsslots hängen an der Mitgliedschaft; gezeigt werden die der
+         maßgeblichen — bei einem Ehemaligen also die seines letzten Zeitraums.
+         Wie bei der Anschrift wird abgeschnitten statt umgebrochen; im Tooltip
+         steht die abgeleitete Frequenz, die nirgends gespeichert ist. */}}
+    <td class="px-4 py-2 text-sm text-neutral-600">
+        {{if .Trainingsslots}}
+            <div class="max-w-48" title="{{.Trainingsfrequenz.Bezeichnung}}">
+                {{range .Trainingsslots}}<div class="truncate">{{.}}</div>{{end}}
+            </div>
+        {{else}}
+            <span class="text-neutral-400" title="{{.Trainingsfrequenz.Bezeichnung}}">—</span>
+        {{end}}
+    </td>
     {{/* Der Beitrag ist individuell vereinbart (ADR-0005); 0,00 € ist ein
          gültiger Betrag und keine fehlende Angabe. */}}
     <td class="px-4 py-2 text-right tabular-nums">{{euro .BeitragCents}}</td>
@@ -190,7 +214,7 @@
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    <td class="px-4 py-2" colspan="4">
+    <td class="px-4 py-2" colspan="5">
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/{{if .Wiedereintritt}}wiedereintritt{{else}}austritt{{end}}"
               hx-target="closest tr" hx-swap="outerHTML">
@@ -248,7 +272,7 @@
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input[name=notiz]').focus()">
     <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
-    <td class="px-4 py-2" colspan="4">
+    <td class="px-4 py-2" colspan="5">
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.MitgliedID}}/rueckstand"
               hx-target="closest tr" hx-swap="outerHTML">

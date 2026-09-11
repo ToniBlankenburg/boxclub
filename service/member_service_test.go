@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -33,6 +34,14 @@ func neuerService(t *testing.T) *service.MemberService {
 // beitragImTest ist der Beitrag, den die Fixtures vereinbaren, wo der Betrag
 // selbst nichts zur Sache tut — 65,00 €.
 const beitragImTest = 6500
+
+// mitgliedschaftText verdichtet eine Mitgliedschaft auf ihre Textform, um zwei
+// von ihnen zu vergleichen. Seit sie die Trainingsslots trägt, ist sie kein
+// vergleichbarer Wert mehr — und die Textform zeigt ohnehin den Datumswert
+// hinter dem Austritts-Zeiger statt dessen Adresse.
+func mitgliedschaftText(ms service.Mitgliedschaft) string {
+	return fmt.Sprintf("%+v", ms)
+}
 
 // datum parst ein ISO-Datum für Testfixtures.
 func datum(t *testing.T, iso string) time.Time {
@@ -551,7 +560,7 @@ func TestUpdate_LeererPatchAendertNichtsUndPrueftTrotzdemDieID(t *testing.T) {
 		t.Fatalf("Get (nachher): %v", err)
 	}
 	if nachher.Vorname != vorher.Vorname || nachher.Nachname != vorher.Nachname ||
-		nachher.Mitgliedschaften[0] != vorher.Mitgliedschaften[0] {
+		mitgliedschaftText(nachher.Mitgliedschaften[0]) != mitgliedschaftText(vorher.Mitgliedschaften[0]) {
 		t.Errorf("Mitglied = %+v, erwartet unverändert %+v", nachher, vorher)
 	}
 
@@ -856,7 +865,7 @@ func TestSetRueckstand_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 			nachher.Mitgliedschaften, vorher.Mitgliedschaften)
 	}
 	for i, ms := range nachher.Mitgliedschaften {
-		if ms != vorher.Mitgliedschaften[i] {
+		if mitgliedschaftText(ms) != mitgliedschaftText(vorher.Mitgliedschaften[i]) {
 			t.Errorf("Mitgliedschaft %d = %+v, erwartet unverändert %+v",
 				i, ms, vorher.Mitgliedschaften[i])
 		}

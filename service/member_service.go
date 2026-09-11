@@ -59,6 +59,19 @@ type Mitgliedschaft struct {
 	// BeitragCents ist der monatliche Beitrag in Cent. 0 ist ein gültiger
 	// Betrag — Trainer zahlen nichts — und keine fehlende Angabe.
 	BeitragCents int64
+
+	// Trainingsslots sind die wöchentlichen Termine dieses Zeitraums, null bis
+	// MaxTrainingsslots, in der Reihenfolge, in der sie eingetragen wurden. Sie
+	// hängen wie der Beitrag an der Mitgliedschaft: welche Zeiten vereinbart
+	// sind, gehört zu der Vereinbarung, die mit dem Eintritt zustande kam.
+	Trainingsslots []string
+}
+
+// Trainingsfrequenz ist die Anzahl der Trainingsslots dieses Zeitraums.
+// Gespeichert wird sie nicht (CONTEXT.md → Trainingsfrequenz); abgelesen wird
+// sie in trainingsfrequenzAus.
+func (ms Mitgliedschaft) Trainingsfrequenz() Trainingsfrequenz {
+	return trainingsfrequenzAus(ms.Trainingsslots)
 }
 
 // LaufendeMitgliedschaft liefert den Zeitraum, in dem das Mitglied aktuell aktiv
@@ -144,6 +157,11 @@ type NeuesMitglied struct {
 	// BeitragCents ist der individuell vereinbarte Monatsbeitrag in Cent. Er
 	// landet an der Mitgliedschaft, die mit dem Eintritt beginnt.
 	BeitragCents int64
+
+	// Trainingsslots sind die wöchentlichen Termine, höchstens
+	// MaxTrainingsslots. Leere Angaben zählen nicht mit — das Formular schickt
+	// auch die Felder mit, die der Nutzer frei gelassen hat.
+	Trainingsslots []string
 }
 
 // negativerBeitrag ist die Meldung zum einzigen Beitrag, den es nicht geben
@@ -230,6 +248,14 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_mitglied ON mitgliedschaft(mitglied_id);
+
+CREATE TABLE IF NOT EXISTS trainingsslot (
+	id                INTEGER PRIMARY KEY AUTOINCREMENT,
+	mitgliedschaft_id INTEGER NOT NULL REFERENCES mitgliedschaft(id) ON DELETE CASCADE,
+	bezeichnung       TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trainingsslot_mitgliedschaft ON trainingsslot(mitgliedschaft_id);
 `
 
 func (s *MemberService) migrate() error {
@@ -273,12 +299,21 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 		return 0, fmt.Errorf("mitglied-id lesen: %w", err)
 	}
 
-	_, err = tx.Exec(
+	res, err = tx.Exec(
 		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
 		 VALUES (?, ?, ?)`,
 		id, n.Eintritt.Format(isoDatum), n.BeitragCents)
 	if err != nil {
 		return 0, fmt.Errorf("mitgliedschaft anlegen: %w", err)
+	}
+
+	mitgliedschaftID, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("mitgliedschaft-id lesen: %w", err)
+	}
+
+	if err := trainingsslotsSchreiben(tx, mitgliedschaftID, n.Trainingsslots); err != nil {
+		return 0, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -306,6 +341,7 @@ func (n NeuesMitglied) validieren() error {
 	if n.BeitragCents < 0 {
 		fehler = append(fehler, negativerBeitrag)
 	}
+	fehler = append(fehler, trainingsslotsPruefen(n.Trainingsslots)...)
 
 	if len(fehler) > 0 {
 		return &ValidierungsFehler{Meldungen: fehler}
@@ -338,6 +374,13 @@ type MitgliedPatch struct {
 	// beides zusammen, und dann soll auch beides zusammen gespeichert werden —
 	// ganz oder gar nicht.
 	BeitragCents *int64
+
+	// Trainingsslots ersetzen die Termine der maßgeblichen Mitgliedschaft
+	// vollständig: Hinzufügen und Entfernen sind für den Nutzer derselbe
+	// Vorgang, er schickt die Slots, die danach gelten sollen. Ein Zeiger auf
+	// eine leere Liste heißt deshalb "gar keine mehr", nil dagegen "nicht
+	// angerührt" — wie bei jedem anderen Feld des Patches.
+	Trainingsslots *[]string
 }
 
 // Update schreibt die im Patch gesetzten Felder auf das Mitglied mit dieser ID.
@@ -376,6 +419,16 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 
 	if patch.BeitragCents != nil {
 		if err := beitragSchreiben(tx, id, *patch.BeitragCents); err != nil {
+			return err
+		}
+	}
+
+	if patch.Trainingsslots != nil {
+		mitgliedschaftID, err := massgeblicheMitgliedschaftLesen(tx, id)
+		if err != nil {
+			return err
+		}
+		if err := trainingsslotsSchreiben(tx, mitgliedschaftID, *patch.Trainingsslots); err != nil {
 			return err
 		}
 	}
@@ -421,6 +474,49 @@ const massgeblicheMitgliedschaft = `
 	ORDER BY austritt IS NULL DESC, eintritt DESC, id DESC
 	LIMIT 1`
 
+// massgeblicheMitgliedschaftLesen liefert die ID des Zeitraums, der für das
+// Mitglied gerade gilt — derselbe, den die Liste zeigt und dessen Beitrag
+// beitragSchreiben ändert.
+func massgeblicheMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, error) {
+	var id int64
+
+	err := q.QueryRow(massgeblicheMitgliedschaft, mitgliedID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		// Regulär unerreichbar: Create legt Mitglied und Mitgliedschaft zusammen an.
+		return 0, fmt.Errorf("mitglied %d hat keine mitgliedschaft: %w", mitgliedID, ErrNichtGefunden)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("maßgebliche mitgliedschaft von mitglied %d lesen: %w", mitgliedID, err)
+	}
+
+	return id, nil
+}
+
+// trainingsslotsSchreiben setzt die Termine einer Mitgliedschaft auf genau die
+// übergebenen: erst weg, dann neu. Slots haben außer ihrem Text nichts, woran
+// sich ein einzelner wiedererkennen ließe — ein Abgleich Zeile für Zeile wäre
+// deshalb aufwendiger und nicht genauer.
+//
+// Leere Angaben fallen dabei weg (siehe trainingsslotsNormalisieren); dass es
+// nicht mehr als MaxTrainingsslots sind, hat die Validierung des Aufrufers
+// bereits geprüft.
+func trainingsslotsSchreiben(tx *sql.Tx, mitgliedschaftID int64, slots []string) error {
+	if _, err := tx.Exec(
+		`DELETE FROM trainingsslot WHERE mitgliedschaft_id = ?`, mitgliedschaftID); err != nil {
+		return fmt.Errorf("trainingsslots von mitgliedschaft %d löschen: %w", mitgliedschaftID, err)
+	}
+
+	for _, slot := range trainingsslotsNormalisieren(slots) {
+		if _, err := tx.Exec(
+			`INSERT INTO trainingsslot (mitgliedschaft_id, bezeichnung) VALUES (?, ?)`,
+			mitgliedschaftID, slot); err != nil {
+			return fmt.Errorf("trainingsslot von mitgliedschaft %d anlegen: %w", mitgliedschaftID, err)
+		}
+	}
+
+	return nil
+}
+
 // validieren prüft die gesetzten Felder gegen dieselben Pflichtfeld-Regeln, die
 // auch bei der Neuanlage gelten: ein Pflichtfeld darf nachträglich nicht leer
 // gemacht werden. Nicht gesetzte Felder sind keine Aussage und damit auch kein
@@ -436,6 +532,9 @@ func (p MitgliedPatch) validieren() error {
 	}
 	if p.BeitragCents != nil && *p.BeitragCents < 0 {
 		fehler = append(fehler, negativerBeitrag)
+	}
+	if p.Trainingsslots != nil {
+		fehler = append(fehler, trainingsslotsPruefen(*p.Trainingsslots)...)
 	}
 
 	if len(fehler) > 0 {
@@ -533,6 +632,51 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 	return m, nil
 }
 
+// trainingsslotsLesen liefert die Termine der angegebenen Mitgliedschaften, je
+// Mitgliedschaft in der Reihenfolge, in der sie eingetragen wurden.
+//
+// Gelesen wird in einer zweiten Abfrage statt im Verbund: ein Verbund
+// vervielfachte die Zeilen der Mitgliedschaft, und in einem zusammengefassten
+// Text wäre jedes Trennzeichen eines, das im freien Text eines Slots vorkommen
+// darf.
+func (s *MemberService) trainingsslotsLesen(mitgliedschaftIDs []int64) (map[int64][]string, error) {
+	slots := make(map[int64][]string, len(mitgliedschaftIDs))
+	if len(mitgliedschaftIDs) == 0 {
+		return slots, nil
+	}
+
+	// Die Platzhalter entstehen aus der Anzahl der IDs, die Werte gehen als
+	// Parameter in die Anweisung.
+	platzhalter := strings.Repeat(", ?", len(mitgliedschaftIDs)-1)
+	werte := make([]any, 0, len(mitgliedschaftIDs))
+	for _, id := range mitgliedschaftIDs {
+		werte = append(werte, id)
+	}
+
+	rows, err := s.db.Query(
+		`SELECT mitgliedschaft_id, bezeichnung FROM trainingsslot
+		 WHERE mitgliedschaft_id IN (?`+platzhalter+`)
+		 ORDER BY id`, werte...)
+	if err != nil {
+		return nil, fmt.Errorf("trainingsslots lesen: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			mitgliedschaftID int64
+			bezeichnung      string
+		)
+		if err := rows.Scan(&mitgliedschaftID, &bezeichnung); err != nil {
+			return nil, fmt.Errorf("trainingsslot lesen: %w", err)
+		}
+
+		slots[mitgliedschaftID] = append(slots[mitgliedschaftID], bezeichnung)
+	}
+
+	return slots, rows.Err()
+}
+
 func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, error) {
 	rows, err := s.db.Query(
 		`SELECT id, mitglied_id, eintritt, austritt, beitrag_monatlich_cents
@@ -563,8 +707,24 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 
 		alle = append(alle, ms)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("mitgliedschaften lesen: %w", err)
+	}
 
-	return alle, rows.Err()
+	ids := make([]int64, 0, len(alle))
+	for _, ms := range alle {
+		ids = append(ids, ms.ID)
+	}
+
+	slots, err := s.trainingsslotsLesen(ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range alle {
+		alle[i].Trainingsslots = slots[alle[i].ID]
+	}
+
+	return alle, nil
 }
 
 // MarkExit beendet die laufende Mitgliedschaft eines Mitglieds zum angegebenen
@@ -655,6 +815,12 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// Der zuletzt vereinbarte Beitrag ist der Startwert der neuen Mitgliedschaft
 	// — änderbar wie jeder andere. Die alte behält ihren eigenen: das ist der
 	// Zweck der Aufteilung (ADR-0005).
+	//
+	// Die Trainingsslots wandern dabei ausdrücklich nicht mit: der neue Zeitraum
+	// beginnt ohne Termine, weil die alten für einen Zeitraum galten, der vorbei
+	// ist — an welchen Tagen jemand nach Jahren wieder trainiert, wird neu
+	// vereinbart. Bis dahin liest sich die Frequenz als "kein Training", und die
+	// Slots der alten Mitgliedschaft bleiben unangetastet stehen.
 	if _, err := tx.Exec(
 		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
 		 VALUES (?, ?, (SELECT beitrag_monatlich_cents FROM mitgliedschaft
@@ -738,6 +904,17 @@ type Listeneintrag struct {
 	// Ergebnissen, die Ehemalige einschließen — dort ist er die einzige Angabe,
 	// an der die Zeile als ehemalig erkennbar ist.
 	Austritt *time.Time
+
+	// Trainingsslots sind die Termine der maßgeblichen Mitgliedschaft — bei
+	// einem Ehemaligen also die seines letzten Zeitraums, wie Beitrag und
+	// Eintritt daneben.
+	Trainingsslots []string
+}
+
+// Trainingsfrequenz ist die Anzahl der Trainingsslots dieser Zeile — dieselbe
+// Ableitung wie an der Mitgliedschaft, aus derselben Quelle.
+func (e Listeneintrag) Trainingsfrequenz() Trainingsfrequenz {
+	return trainingsfrequenzAus(e.Trainingsslots)
 }
 
 // List liefert alle aktiven Mitglieder, sortiert nach Nachname und Vorname.
@@ -783,6 +960,9 @@ func (f Rueckstandsfilter) trifft(r Rueckstand) bool {
 // "Filter zurücksetzen" nichts anderes als ein Suchfilter{}.
 type Suchfilter struct {
 	Rueckstand Rueckstandsfilter
+	// Frequenz grenzt auf eine Trainingsfrequenz ein. Sie ist abgeleitet und
+	// wird deshalb wie der Rückstand in Go ausgewertet, nicht in SQL.
+	Frequenz Frequenzfilter
 	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf.
 	AuchEhemalige bool
 }
@@ -855,7 +1035,7 @@ const eintraegeAbfrage = `
 	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon,
 		m.adresse, m.postleitzahl, m.ort,
 		m.rueckstand, m.rueckstand_notiz,
-		ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
+		ms.id, ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
@@ -872,12 +1052,21 @@ const eintraegeAbfrage = `
 type suchzeile struct {
 	eintrag    Listeneintrag
 	suchfelder []string
+
+	// mitgliedschaftID ist der Zeitraum, aus dem die Zeile ihre Angaben bezieht.
+	// Er verlässt den Service nicht und dient allein dazu, die Trainingsslots
+	// nachzuladen.
+	mitgliedschaftID int64
 }
 
 // passtZu entscheidet, ob die Zeile ins Ergebnis gehört. Die Aktivität steht
 // hier nicht zur Debatte: über die entscheidet bereits die Abfrage.
 func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
 	if !filter.Rueckstand.trifft(z.eintrag.Rueckstand) {
+		return false
+	}
+
+	if !filter.Frequenz.trifft(z.eintrag.Trainingsfrequenz()) {
 		return false
 	}
 
@@ -925,15 +1114,16 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 	var zeilen []suchzeile
 	for rows.Next() {
 		var (
-			e              Listeneintrag
-			email, telefon string
-			eintritt       string
-			austritt       sql.NullString
+			e                Listeneintrag
+			email, telefon   string
+			mitgliedschaftID int64
+			eintritt         string
+			austritt         sql.NullString
 		)
 		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon,
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.Rueckstand.Offen, &e.Rueckstand.Notiz,
-			&eintritt, &austritt, &e.BeitragCents); err != nil {
+			&mitgliedschaftID, &eintritt, &austritt, &e.BeitragCents); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 
@@ -952,10 +1142,26 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 				strings.ToLower(email),
 				strings.ToLower(telefon),
 			},
+			mitgliedschaftID: mitgliedschaftID,
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
+	}
+
+	// Die Slots kommen für alle Zeilen auf einmal dazu: eine Abfrage je Zeile
+	// wären bei 200 Mitgliedern 200 Abfragen für eine Ansicht.
+	ids := make([]int64, 0, len(zeilen))
+	for _, z := range zeilen {
+		ids = append(ids, z.mitgliedschaftID)
+	}
+
+	slots, err := s.trainingsslotsLesen(ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range zeilen {
+		zeilen[i].eintrag.Trainingsslots = slots[zeilen[i].mitgliedschaftID]
 	}
 
 	return zeilen, nil

@@ -39,6 +39,7 @@
              0 ist ein gültiger Betrag — Trainer zahlen nichts —, deshalb ist das
              Feld Pflicht: die Null gehört hingeschrieben. */}}
         {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
+        {{template "trainingsslotfelder" .Eingabe.Trainingsslotfelder}}
     </div>
 
     <div class="mt-6 flex items-center gap-3">
@@ -73,4 +74,32 @@
     <input name="{{.Name}}" type="{{.Typ}}" value="{{.Wert}}" {{if .Pflicht}}required{{end}}
            class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
 </label>
+{{end}}
+
+{{/* trainingsslotfelder sind die drei Felder für die wöchentlichen Termine
+     (CONTEXT.md → Trainingsslot). Drei sind das Maximum, deshalb stehen alle
+     drei von vornherein da: Hinzufügen heißt ein Feld ausfüllen, Entfernen
+     heißt es leeren. Ein Knopf, der ein viertes Feld erzeugen könnte, wäre ein
+     Versprechen, das der Service zu Recht bricht.
+
+     Alle Felder heißen gleich und kommen als Liste beim Handler an. Die Daten
+     sind []trainingsslotfeld. */}}
+{{define "trainingsslotfelder"}}
+<div class="flex flex-col gap-1.5 sm:col-span-2">
+    <span class="text-sm text-neutral-600">Trainingsslots</span>
+    <div class="grid gap-2 sm:grid-cols-3">
+        {{range .}}
+            <input name="trainingsslot" type="text" value="{{.Wert}}"
+                   placeholder="z. B. Samstag 10:30 Uhr"
+                   aria-label="Trainingsslot {{.Nummer}}"
+                   class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+        {{end}}
+    </div>
+    {{/* Die Frequenz steht nicht im Formular: sie ist die Anzahl der Slots und
+         wird nirgends gespeichert (CONTEXT.md → Trainingsfrequenz). */}}
+    <span class="text-sm text-neutral-500">
+        Wochentag und Uhrzeit, höchstens drei. Ein leeres Feld ist kein Slot — die
+        Trainingsfrequenz ergibt sich aus der Anzahl der ausgefüllten Felder.
+    </span>
+</div>
 {{end}}

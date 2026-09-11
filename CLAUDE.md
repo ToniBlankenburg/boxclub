@@ -42,10 +42,13 @@ go test ./service/... -run TestMemberService_Create
 - `app/` — HTTP handlers for the htmx frontend: thin 1:1 wrappers over `MemberService`/`ExcelImporter` that return HTML fragments. They hang off `assetserver.Options.Handler`; Wails bindings are **not** used (see ADR-0002).
 - `templates/` — Go `html/template` files rendering htmx fragments (member rows, forms, error lists).
 
-**SQLite schema (two tables):** nothing is seeded — a fresh database is empty.
+**SQLite schema (three tables):** nothing is seeded — a fresh database is empty.
 
 - `mitglied(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries. The postal address is three separate columns (`adresse` is street + house number) — see `CONTEXT.md` → Anschrift
 - `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL, beitrag_monatlich_cents)` — time-bound membership period; `austritt IS NULL` means currently active
+- `trainingsslot(id, mitgliedschaft_id, bezeichnung)` — zero to three weekly training slots per **membership**; `bezeichnung` is free text (weekday + time)
+
+The **Trainingsfrequenz** (1×/2×/3× per week) is never stored: it is the number of a membership's training slots, derived on every read — zero slots mean "no frequency", not "1×". A rejoin starts with no slots; the old membership keeps its own (see `CONTEXT.md` → Trainingsslot).
 
 The monthly fee hangs on the **membership**, not on the person, and is individually agreed — there are no fee classes (see ADR-0005). 0 € is a valid fee, not a missing one. Euro input is converted to cents in `service.BeitragAusEuro`; there is no migration mechanism, so a schema change means deleting the dev database.
 

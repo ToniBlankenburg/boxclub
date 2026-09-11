@@ -11,10 +11,10 @@ import (
 
 // suchBestand ist der Mitgliederbestand, an dem die Such- und Filtertests
 // arbeiten. Er ist bewusst klein und so geschnitten, dass jede Filterdimension
-// für sich beobachtbar ist: beide Rückstandswerte und je ein aktives wie ein
-// ausgetretenes Mitglied kommen darin vor. Umlaute und ein Bindestrich stecken
-// in den Namen; die Beiträge sind verschieden, damit eine vertauschte Zeile
-// auffiele.
+// für sich beobachtbar ist: beide Rückstandswerte, jede Trainingsfrequenz von
+// null bis drei und je ein aktives wie ein ausgetretenes Mitglied kommen darin
+// vor. Umlaute und ein Bindestrich stecken in den Namen; die Beiträge sind
+// verschieden, damit eine vertauschte Zeile auffiele.
 type suchBestand struct {
 	// IDs der angelegten Mitglieder, benannt nach ihrem Nachnamen.
 	Berger, Oeztuerk, MeierSchmidt, Wagner, Klein int64
@@ -25,16 +25,17 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 
 	var b suchBestand
 
-	anlegen := func(vorname, nachname, email, telefon string, beitragCents int64) int64 {
+	anlegen := func(vorname, nachname, email, telefon string, beitragCents int64, slots ...string) int64 {
 		t.Helper()
 
 		id, err := svc.Create(service.NeuesMitglied{
-			Vorname:      vorname,
-			Nachname:     nachname,
-			Email:        email,
-			Telefon:      telefon,
-			BeitragCents: beitragCents,
-			Eintritt:     datum(t, "2026-01-05"),
+			Vorname:        vorname,
+			Nachname:       nachname,
+			Email:          email,
+			Telefon:        telefon,
+			BeitragCents:   beitragCents,
+			Eintritt:       datum(t, "2026-01-05"),
+			Trainingsslots: slots,
 		})
 		if err != nil {
 			t.Fatalf("Create(%s %s): %v", vorname, nachname, err)
@@ -53,19 +54,29 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 
 	// Anna Berger und Jörg Meier-Schmidt bleiben in Ordnung — der Normalfall
 	// beim Lastschrifteinzug, und zugleich der Nullwert nach der Anlage.
-	b.Berger = anlegen("Anna", "Berger", "anna.berger@example.org", "030 1234567", 8000)
+	//
+	// Die Trainingsslots sind so verteilt, dass jede Frequenz genau einmal unter
+	// den Aktiven vorkommt: Meier-Schmidt trainiert gar nicht, Öztürk einmal,
+	// Berger zweimal, Wagner dreimal.
+	b.Berger = anlegen("Anna", "Berger", "anna.berger@example.org", "030 1234567", 8000,
+		"Montag 18:00 Uhr", "Mittwoch 19:30 Uhr")
 
-	b.Oeztuerk = anlegen("Mehmet", "Öztürk", "m.oeztuerk@example.org", "0171 9876543", 6000)
+	b.Oeztuerk = anlegen("Mehmet", "Öztürk", "m.oeztuerk@example.org", "0171 9876543", 6000,
+		"Samstag 10:30 Uhr")
 	imRueckstand(b.Oeztuerk, "Rücklastschrift Oktober")
 
 	b.MeierSchmidt = anlegen("Jörg", "Meier-Schmidt", "joerg.meier-schmidt@example.org", "030 5550101", 0)
 
-	b.Wagner = anlegen("Paul", "Wagner", "paul.wagner@example.org", "030 7778899", 13500)
+	b.Wagner = anlegen("Paul", "Wagner", "paul.wagner@example.org", "030 7778899", 13500,
+		"Montag 18:00 Uhr", "Mittwoch 19:30 Uhr", "Samstag 10:30 Uhr")
 	imRueckstand(b.Wagner, "Rücklastschrift September, angeschrieben am 05.10.")
 
 	// Nina Klein ist ausgetreten — sonst würde sie in denselben Filter fallen
-	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen.
-	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", 4500)
+	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen. Ihre zwei Slots
+	// teilt sie mit Berger: so trifft der Frequenzfilter allein noch nicht die
+	// Aktivität.
+	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", 4500,
+		"Dienstag 19:30 Uhr", "Samstag 10:30 Uhr")
 	imRueckstand(b.Klein, "Rücklastschrift Juni, beim Austritt noch offen")
 	if err := svc.MarkExit(b.Klein, datum(t, "2026-06-30")); err != nil {
 		t.Fatalf("MarkExit: %v", err)
@@ -205,6 +216,90 @@ func TestSearch_FiltertNachRueckstand(t *testing.T) {
 	}
 }
 
+// Der Frequenzfilter fragt nach einer abgeleiteten Größe: gespeichert sind nur
+// die Slots (CONTEXT.md → Trainingsfrequenz). Er ersetzt den Klassenfilter, den
+// ADR-0005 mit den Beitragsklassen abgeräumt hat.
+func TestSearch_FiltertNachTrainingsfrequenz(t *testing.T) {
+	svc := neuerService(t)
+	suchbestandAnlegen(t, svc)
+
+	faelle := []struct {
+		name     string
+		filter   service.Frequenzfilter
+		erwartet []string
+	}{
+		{"alle", service.FrequenzfilterAlle, alleAktiven},
+		{"1× pro Woche", service.FrequenzfilterEinmal, []string{"Öztürk, Mehmet"}},
+		{"2× pro Woche", service.FrequenzfilterZweimal, []string{"Berger, Anna"}},
+		{"3× pro Woche", service.FrequenzfilterDreimal, []string{"Wagner, Paul"}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			gefunden := suchen(t, svc, "", service.Suchfilter{Frequenz: f.filter})
+			if !slices.Equal(gefunden, f.erwartet) {
+				t.Errorf("Frequenzfilter %s = %v, erwartet %v", f.name, gefunden, f.erwartet)
+			}
+		})
+	}
+
+	// Meier-Schmidt hat keinen Slot und fällt damit durch jede Stufe: null Slots
+	// sind "keine Frequenz" und nicht "1×". Nur "alle" zeigt ihn.
+	for _, f := range []service.Frequenzfilter{
+		service.FrequenzfilterEinmal, service.FrequenzfilterZweimal, service.FrequenzfilterDreimal,
+	} {
+		gefunden := suchen(t, svc, "meier-schmidt", service.Suchfilter{Frequenz: f})
+		if len(gefunden) != 0 {
+			t.Errorf("Frequenzfilter %d = %v, erwartet kein Ergebnis für ein Mitglied ohne Slot", int(f), gefunden)
+		}
+	}
+}
+
+// Der Frequenzfilter greift mit Rückstand und Aktivität zusammen — alle drei
+// Dimensionen müssen zutreffen.
+func TestSearch_KombiniertFrequenzMitRueckstandUndAktivitaet(t *testing.T) {
+	svc := neuerService(t)
+	suchbestandAnlegen(t, svc)
+
+	// Berger und Klein trainieren beide zweimal; Klein ist ausgetreten.
+	gefunden := suchen(t, svc, "", service.Suchfilter{Frequenz: service.FrequenzfilterZweimal})
+	if !slices.Equal(gefunden, []string{"Berger, Anna"}) {
+		t.Errorf("2× aktiv = %v, erwartet [Berger, Anna]", gefunden)
+	}
+
+	gefunden = suchen(t, svc, "", service.Suchfilter{
+		Frequenz:      service.FrequenzfilterZweimal,
+		AuchEhemalige: true,
+	})
+	if !slices.Equal(gefunden, []string{"Berger, Anna", "Klein, Nina"}) {
+		t.Errorf("2× inkl. Ehemaliger = %v, erwartet [Berger, Anna Klein, Nina]", gefunden)
+	}
+
+	// Von den beiden ist nur Klein im Rückstand.
+	gefunden = suchen(t, svc, "", service.Suchfilter{
+		Frequenz:      service.FrequenzfilterZweimal,
+		Rueckstand:    service.RueckstandsfilterImRueckstand,
+		AuchEhemalige: true,
+	})
+	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
+		t.Errorf("2× im Rückstand inkl. Ehemaliger = %v, erwartet [Klein, Nina]", gefunden)
+	}
+
+	// Und der Suchbegriff muss zusätzlich treffen: Wagner trainiert dreimal und
+	// ist im Rückstand, Öztürk nur einmal.
+	dreimalImRueckstand := service.Suchfilter{
+		Frequenz:   service.FrequenzfilterDreimal,
+		Rueckstand: service.RueckstandsfilterImRueckstand,
+	}
+	gefunden = suchen(t, svc, "wagner", dreimalImRueckstand)
+	if !slices.Equal(gefunden, []string{"Wagner, Paul"}) {
+		t.Errorf("Search(\"wagner\", 3× im Rückstand) = %v, erwartet [Wagner, Paul]", gefunden)
+	}
+	if gefunden := suchen(t, svc, "öztürk", dreimalImRueckstand); len(gefunden) != 0 {
+		t.Errorf("Search(\"öztürk\", 3× im Rückstand) = %v, erwartet kein Ergebnis", gefunden)
+	}
+}
+
 func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAuchEhemalige(t *testing.T) {
 	svc := neuerService(t)
 	b := suchbestandAnlegen(t, svc)
@@ -294,6 +389,9 @@ func TestSearch_LeererQueryEntsprichtFilterOhneSuche(t *testing.T) {
 		{Rueckstand: service.RueckstandsfilterImRueckstand},
 		{AuchEhemalige: true},
 		{Rueckstand: service.RueckstandsfilterImRueckstand, AuchEhemalige: true},
+		{Frequenz: service.FrequenzfilterZweimal},
+		{Frequenz: service.FrequenzfilterZweimal, AuchEhemalige: true},
+		{Frequenz: service.FrequenzfilterDreimal, Rueckstand: service.RueckstandsfilterImRueckstand},
 	}
 
 	for _, f := range filter {
@@ -334,6 +432,10 @@ func pruefeFilter(t *testing.T, e service.Listeneintrag, f service.Suchfilter) {
 		if !e.Rueckstand.Offen {
 			t.Errorf("%s: in Ordnung, erwartet im Rückstand", e.Nachname)
 		}
+	}
+
+	if f.Frequenz != service.FrequenzfilterAlle && int(e.Trainingsfrequenz()) != int(f.Frequenz) {
+		t.Errorf("%s: trainiert %d×, erwartet %d×", e.Nachname, int(e.Trainingsfrequenz()), int(f.Frequenz))
 	}
 }
 

@@ -38,9 +38,11 @@ Die Postanschrift eines Mitglieds. Sie besteht aus **drei getrennten Angaben** �
 
 Ein konkreter wöchentlicher Trainingstermin, für den ein Mitglied angemeldet ist — bezeichnet durch Wochentag und Uhrzeit (z. B. "Samstag 10:30 Uhr"). Ein Mitglied hat null bis drei Slots.
 
+Slots gehören zur **Mitgliedschaft**, nicht zur Person: welche Zeiten gelten, ist Teil der Vereinbarung eines Zeitraums. Bei einem Wiedereintritt werden sie deshalb neu vereinbart — die neue Mitgliedschaft beginnt ohne Slots, und die der alten bleiben als Historie stehen.
+
 ## Trainingsfrequenz
 
-Wie oft pro Woche ein Mitglied trainieren darf: 1×, 2× oder 3×. Sie **ergibt sich aus der Anzahl der Trainingsslots** des Mitglieds und ist keine davon unabhängige Angabe. _Vermeiden:_ Mitgliedschaft, Tarif, Paket.
+Wie oft pro Woche ein Mitglied trainieren darf: 1×, 2× oder 3×. Sie **ergibt sich aus der Anzahl der Trainingsslots** seiner Mitgliedschaft und ist keine davon unabhängige Angabe. Null Slots sind **keine Frequenz** und nicht "1×". _Vermeiden:_ Mitgliedschaft, Tarif, Paket.
 
 ## Anmeldedatum
 

@@ -120,6 +120,36 @@ type formularEingabe struct {
 	// wird er im Service (service.BeitragAusEuro).
 	Beitrag  string
 	Eintritt string
+
+	// Trainingsslots sind die Rohwerte der Slot-Felder — immer so viele, wie das
+	// Formular Felder zeigt. Welche davon leer sind und damit kein Slot, und wie
+	// viele es höchstens sein dürfen, entscheidet der Service.
+	Trainingsslots []string
+}
+
+// trainingsslotfeld ist ein Slot-Feld des Formulars. Die Nummer steht in der
+// Beschriftung und macht die Felder für die Sprachausgabe unterscheidbar.
+type trainingsslotfeld struct {
+	Nummer int
+	Wert   string
+}
+
+// Trainingsslotfelder sind die Slot-Felder des Formulars: immer
+// service.MaxTrainingsslots Stück, die leeren eingeschlossen. Mehr als drei
+// Termine gibt es nicht, deshalb stehen von vornherein alle da — Hinzufügen
+// heißt ein Feld ausfüllen, Entfernen heißt es leeren. Ein Hinzufügen-Knopf,
+// der ein viertes Feld erzeugen könnte, wäre ein Versprechen, das der Service
+// zu Recht bricht.
+func (e formularEingabe) Trainingsslotfelder() []trainingsslotfeld {
+	felder := make([]trainingsslotfeld, service.MaxTrainingsslots)
+	for i := range felder {
+		felder[i].Nummer = i + 1
+		if i < len(e.Trainingsslots) {
+			felder[i].Wert = e.Trainingsslots[i]
+		}
+	}
+
+	return felder
 }
 
 // formularDaten speist das Formular-Template. Bearbeiten unterscheidet die
@@ -155,11 +185,18 @@ const (
 	rueckstandInOrdnung    = "in-ordnung"
 )
 
+// frequenzAlle ist der Wert des Frequenzfilters für "nicht eingrenzen" — der
+// leere Wert und damit der Standard. Die übrigen Werte sind die Frequenz als
+// Ziffer und stehen deshalb nicht einzeln hier: sie entstehen aus derselben
+// Zählung, aus der auch die Auswahlliste entsteht.
+const frequenzAlle = ""
+
 // suchEingabe hält die Rohwerte der Filterleiste. Der Nullwert ist die
 // Standardansicht — dieselbe, die service.Suchfilter{} beschreibt.
 type suchEingabe struct {
 	Query      string
 	Rueckstand string
+	Frequenz   string
 	Ehemalige  bool
 }
 
@@ -172,6 +209,7 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
 		Ehemalige:  werte.Get("ehemalige") != "",
 		Rueckstand: werte.Get("rueckstand"),
+		Frequenz:   werte.Get("frequenz"),
 	}
 }
 
@@ -187,6 +225,12 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 		filter.Rueckstand = service.RueckstandsfilterImRueckstand
 	case rueckstandInOrdnung:
 		filter.Rueckstand = service.RueckstandsfilterInOrdnung
+	}
+
+	// Der Wert des Frequenzfilters ist die Frequenz als Ziffer. Alles andere —
+	// "alle", Leerraum, ein selbstgebauter Request — bleibt beim Standard.
+	if stufe, err := strconv.Atoi(e.Frequenz); err == nil && stufe >= 1 && stufe <= service.MaxTrainingsslots {
+		filter.Frequenz = service.Frequenzfilter(stufe)
 	}
 
 	return filter
@@ -210,6 +254,27 @@ var rueckstandsoptionen = []filteroption{
 	{Wert: rueckstandAlle, Beschriftung: "Alle Mitglieder"},
 	{Wert: rueckstandImRueckstand, Beschriftung: "Im Rückstand"},
 	{Wert: rueckstandInOrdnung, Beschriftung: "In Ordnung"},
+}
+
+// frequenzoptionen sind die Stufen des Frequenzfilters, eine je möglicher
+// Frequenz. Sie werden gezählt und nicht aufgezählt, damit Wert, Beschriftung
+// und Auswertung aus derselben Quelle kommen; die Beschriftung holt sich die
+// Liste aus dem Service, wo das Vokabular für die Frequenz liegt.
+//
+// Eine Stufe für "keine Frequenz" gibt es nicht — gefragt wird nach den
+// Trainierenden einer Frequenz, und wer keinen Slot hat, ist keine solche Gruppe.
+var frequenzoptionen = frequenzoptionenBauen()
+
+func frequenzoptionenBauen() []filteroption {
+	optionen := []filteroption{{Wert: frequenzAlle, Beschriftung: "Jede Frequenz"}}
+	for stufe := 1; stufe <= service.MaxTrainingsslots; stufe++ {
+		optionen = append(optionen, filteroption{
+			Wert:         strconv.Itoa(stufe),
+			Beschriftung: service.Trainingsfrequenz(stufe).Bezeichnung(),
+		})
+	}
+
+	return optionen
 }
 
 // listeDaten trägt das Suchergebnis, die Werte der Filterleiste und optional
@@ -236,13 +301,26 @@ func (d listeDaten) Gefiltert() bool {
 // Rueckstandsoptionen sind die Stufen des Rückstandsfilters, die gewählte
 // darunter markiert.
 func (d listeDaten) Rueckstandsoptionen() []filteroption {
-	optionen := slices.Clone(rueckstandsoptionen)
+	return gewaehlteOption(rueckstandsoptionen, d.Suche.Rueckstand)
+}
 
-	// Was sich nicht zuordnen lässt, steht auf dem Standard — dieselbe Regel,
-	// nach der alsSuchfilter den Wert auswertet.
+// Frequenzoptionen sind die Stufen des Frequenzfilters, die gewählte darunter
+// markiert.
+func (d listeDaten) Frequenzoptionen() []filteroption {
+	return gewaehlteOption(frequenzoptionen, d.Suche.Frequenz)
+}
+
+// gewaehlteOption kopiert eine Auswahlliste und markiert darin den Eintrag zum
+// übergebenen Wert.
+//
+// Was sich nicht zuordnen lässt, steht auf dem ersten Eintrag — dieselbe Regel,
+// nach der alsSuchfilter den Wert auswertet.
+func gewaehlteOption(vorlage []filteroption, wert string) []filteroption {
+	optionen := slices.Clone(vorlage)
+
 	gewaehlt := 0
 	for i, o := range optionen {
-		if o.Wert == d.Suche.Rueckstand {
+		if o.Wert == wert {
 			gewaehlt = i
 		}
 	}
@@ -404,22 +482,25 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 	var (
 		eintritt *time.Time
 		beitrag  string
+		slots    []string
 	)
 	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
 		eintritt = &letzte.Eintritt
 		beitrag = service.BeitragAlsEuro(letzte.BeitragCents)
+		slots = letzte.Trainingsslots
 	}
 
 	if eingabe == nil {
 		eingabe = &formularEingabe{
-			Vorname:      m.Vorname,
-			Nachname:     m.Nachname,
-			Adresse:      m.Anschrift.Adresse,
-			Postleitzahl: m.Anschrift.Postleitzahl,
-			Ort:          m.Anschrift.Ort,
-			Email:        m.Email,
-			Telefon:      m.Telefon,
-			Beitrag:      beitrag,
+			Vorname:        m.Vorname,
+			Nachname:       m.Nachname,
+			Adresse:        m.Anschrift.Adresse,
+			Postleitzahl:   m.Anschrift.Postleitzahl,
+			Ort:            m.Anschrift.Ort,
+			Email:          m.Email,
+			Telefon:        m.Telefon,
+			Beitrag:        beitrag,
+			Trainingsslots: slots,
 		}
 	}
 
@@ -685,6 +766,10 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Telefon:      r.FormValue("telefon"),
 		Beitrag:      r.FormValue("beitrag"),
 		Eintritt:     r.FormValue("eintritt"),
+		// Alle gleichnamigen Slot-Felder auf einmal, in der Reihenfolge des
+		// Formulars. Die leeren kommen mit; sie auszusortieren ist Sache des
+		// Service, der auch die Obergrenze kennt.
+		Trainingsslots: r.Form["trainingsslot"],
 	}
 }
 
@@ -720,11 +805,12 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	var fehler []string
 
 	neu := service.NeuesMitglied{
-		Vorname:   e.Vorname,
-		Nachname:  e.Nachname,
-		Anschrift: e.alsAnschrift(),
-		Email:     e.Email,
-		Telefon:   e.Telefon,
+		Vorname:        e.Vorname,
+		Nachname:       e.Nachname,
+		Anschrift:      e.alsAnschrift(),
+		Email:          e.Email,
+		Telefon:        e.Telefon,
+		Trainingsslots: e.Trainingsslots,
 	}
 
 	if e.Geburtsdatum != "" {
@@ -767,6 +853,10 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		Anschrift: &anschrift,
 		Email:     &e.Email,
 		Telefon:   &e.Telefon,
+		// Das Formular schickt die Slot-Felder immer mit, auch die leeren: was
+		// darin steht, ist die vollständige Aussage darüber, wann das Mitglied
+		// künftig trainiert.
+		Trainingsslots: &e.Trainingsslots,
 	}
 
 	// Ein unlesbarer Beitrag hält den ganzen Patch auf: er würde sonst
