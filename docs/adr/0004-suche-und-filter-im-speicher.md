@@ -81,3 +81,26 @@ fertiges Ergebnis und siebt nichts nach.
 - **FTS5-Volltextindex** — löst das Problem, kostet aber eine zweite Tabelle samt
   Triggern, um sie synchron zu halten. Für Teiltreffer mitten im Wort
   ("9876543" in einer Telefonnummer) ist ein Wort-Index zudem das falsche Werkzeug.
+
+## Nachtrag (2026-09-11, Ticket 12)
+
+Zwei der drei Filter aus der Entscheidung gibt es nicht mehr, und damit sind zwei
+der Begründungen hinfällig:
+
+- Der **Beitragsklassen-Filter** ist mit [ADR-0005](0005-beitrag-individuell-statt-beitragsklasse.md)
+  entfallen — Beiträge sind individuell vereinbart, es gibt keine Klassen.
+- Der **Zahlungsstatus-Filter** ist mit [ADR-0006](0006-rueckstand-statt-bezahlt-bis.md)
+  durch den **Rückstandsfilter** ersetzt. Das Argument oben ("ist ohnehin ein
+  abgeleiteter Wert und existiert als Spalte gar nicht") trägt für ihn **nicht**:
+  `mitglied.rueckstand` ist eine echte Spalte und ließe sich in SQL filtern.
+
+Die Entscheidung bleibt trotzdem, jetzt aber allein aus dem ersten Grund: der
+**Suchbegriff** muss in Go ausgewertet werden, weil `LIKE` die Umlaut-Faltung
+nicht kann. Suche und Filter zusammen in einem Durchlauf zu halten ist einfacher
+als eine Abfrage, die einen Teil in SQL und den Rest in Go erledigt — bei 200
+Mitgliedern kostet es nichts.
+
+Dazu gekommen ist die **Mitglieds-ID** als Suchfeld. Sie ist der eine Sonderfall:
+sie trifft **genau**, nicht als Teilzeichenkette. Als Teiltreffer brächte "7" die
+7, die 17, die 27 und die 70er zurück, und die Nummer wäre als Sprungmarke zu
+einer bekannten Zeile gerade nicht mehr zu gebrauchen.

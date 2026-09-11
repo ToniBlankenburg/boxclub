@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,7 +34,10 @@ type Mitglied struct {
 	Adresse      string
 	Email        string
 	Telefon      string
-	BezahltBis   *time.Time
+
+	// Rueckstand hängt am Mitglied und nicht an der Mitgliedschaft: ein Austritt
+	// erlässt keine Schulden (ADR-0006).
+	Rueckstand Rueckstand
 
 	// Mitgliedschaften sind alle Zeiträume dieser Person, aufsteigend nach Eintritt.
 	Mitgliedschaften []Mitgliedschaft
@@ -94,75 +98,36 @@ func (m Mitglied) LetzteMitgliedschaft() *Mitgliedschaft {
 	return &m.Mitgliedschaften[len(m.Mitgliedschaften)-1]
 }
 
-// Zahlungsstatus ist die Aussage darüber, ob der Beitrag eines Mitglieds als
-// gezahlt gilt. Er wird nie gespeichert, sondern jedes Mal aus bezahlt_bis und
-// dem heutigen Tag abgeleitet (siehe CONTEXT.md → Statusanzeige).
+// Rueckstand ist das Kennzeichen, dass bei einem Mitglied nach einer
+// Rücklastschrift Geld offen ist, samt der Notiz zum Vorgang. Beides gehört
+// zusammen und reist zusammen: das Glossar kennt genau einen Begriff dafür
+// (CONTEXT.md → Rückstand).
 //
-// Fachlich ist die Anzeige zweistufig — bezahlt oder nicht bezahlt, keine
-// Vorwarnstufe. Der dritte Zustand ist keine dritte Stufe, sondern das
-// Eingeständnis, dass zu diesem Mitglied noch gar keine Angabe vorliegt: das
-// darf nicht als "nicht bezahlt" durchgehen, sonst mahnt der Verein jemanden,
-// über den er nichts weiß.
-type Zahlungsstatus int
+// Der Nullwert ist "in Ordnung, nichts notiert" — der Normalfall beim
+// Lastschrifteinzug und damit auch der Zustand eines frisch angelegten
+// Mitglieds.
+type Rueckstand struct {
+	// Offen sagt, ob gerade Geld offen ist. Einen dritten, neutralen Zustand
+	// gibt es nicht: wer selbst einzieht, darf die Abwesenheit einer Rückgabe
+	// als "gezahlt" lesen (ADR-0006).
+	Offen bool
 
-const (
-	// ZahlungsstatusNichtGesetzt: bezahlt_bis ist leer, es liegt keine Angabe vor.
-	ZahlungsstatusNichtGesetzt Zahlungsstatus = iota
-	// ZahlungsstatusBezahlt: bezahlt_bis liegt heute oder in der Zukunft.
-	ZahlungsstatusBezahlt
-	// ZahlungsstatusNichtBezahlt: bezahlt_bis liegt vor dem heutigen Tag.
-	ZahlungsstatusNichtBezahlt
-)
-
-// String liefert die Bezeichnung, die auch dem Nutzer angezeigt wird.
-func (z Zahlungsstatus) String() string {
-	switch z {
-	case ZahlungsstatusBezahlt:
-		return "bezahlt"
-	case ZahlungsstatusNichtBezahlt:
-		return "nicht bezahlt"
-	default:
-		return "nicht gesetzt"
-	}
+	// Notiz hält den Vorgang fest ("Rücklastschrift Oktober, angeschrieben am
+	// 05.10."). Sie überlebt das Aufheben — sie ist die einzige Spur, die ein
+	// erledigter Vorgang in v1 hinterlässt, denn eine Zahlungshistorie gibt es
+	// nicht.
+	Notiz string
 }
 
-// Bezahlt und NichtBezahlt sind die beiden Stufen der Anzeige, als Prädikate für
-// die Templates: html/template kann Konstanten dieses Package nicht benennen,
-// und die Farbgebung braucht die Unterscheidung an der Stelle, an der sie
-// gerendert wird. Sind beide false, liegt keine Angabe vor.
-func (z Zahlungsstatus) Bezahlt() bool {
-	return z == ZahlungsstatusBezahlt
-}
-
-func (z Zahlungsstatus) NichtBezahlt() bool {
-	return z == ZahlungsstatusNichtBezahlt
-}
-
-// zahlungsstatusAm leitet den Status eines Mitglieds für einen Stichtag ab.
-//
-// Verglichen wird über die ISO-Textform und nicht über die Zeitpunkte selbst:
-// beide Werte sind Kalendertage ohne Uhrzeit, können aber in unterschiedlichen
-// Zonen vorliegen (aus der Datenbank gelesene Daten in UTC, "heute" aus der
-// lokalen Uhr). Ein Zeitpunktvergleich würde je nach Zonenversatz um einen Tag
-// danebenliegen; die ISO-Form sortiert lexikografisch genau wie kalendarisch.
-func zahlungsstatusAm(bezahltBis *time.Time, stichtag time.Time) Zahlungsstatus {
-	if bezahltBis == nil {
-		return ZahlungsstatusNichtGesetzt
+// Bezeichnung ist der Text, den die Oberfläche am Kennzeichen zeigt. Er steht
+// hier und nicht im Template, damit Liste und spätere Ansichten nicht
+// auseinanderlaufen.
+func (r Rueckstand) Bezeichnung() string {
+	if r.Offen {
+		return "im Rückstand"
 	}
 
-	if bezahltBis.Format(isoDatum) < stichtag.Format(isoDatum) {
-		return ZahlungsstatusNichtBezahlt
-	}
-
-	return ZahlungsstatusBezahlt
-}
-
-// heute ist der Kalendertag der lokalen Uhr — der Stichtag, gegen den der
-// Zahlungsstatus abgeleitet wird.
-func heute() time.Time {
-	jetzt := time.Now()
-
-	return time.Date(jetzt.Year(), jetzt.Month(), jetzt.Day(), 0, 0, 0, 0, time.Local)
+	return "in Ordnung"
 }
 
 // NeuesMitglied sind die Stammdaten, die beim Anlegen eines Mitglieds erfasst
@@ -243,14 +208,15 @@ func (s *MemberService) Close() error {
 
 const schema = `
 CREATE TABLE IF NOT EXISTS mitglied (
-	id           INTEGER PRIMARY KEY AUTOINCREMENT,
-	vorname      TEXT    NOT NULL,
-	nachname     TEXT    NOT NULL,
-	geburtsdatum TEXT,
-	adresse      TEXT    NOT NULL DEFAULT '',
-	email        TEXT    NOT NULL DEFAULT '',
-	telefon      TEXT    NOT NULL DEFAULT '',
-	bezahlt_bis  TEXT
+	id               INTEGER PRIMARY KEY AUTOINCREMENT,
+	vorname          TEXT    NOT NULL,
+	nachname         TEXT    NOT NULL,
+	geburtsdatum     TEXT,
+	adresse          TEXT    NOT NULL DEFAULT '',
+	email            TEXT    NOT NULL DEFAULT '',
+	telefon          TEXT    NOT NULL DEFAULT '',
+	rueckstand       INTEGER NOT NULL DEFAULT 0,
+	rueckstand_notiz TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS mitgliedschaft (
@@ -531,14 +497,14 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 	var (
 		m            Mitglied
 		geburtsdatum sql.NullString
-		bezahltBis   sql.NullString
 	)
 
 	err := s.db.QueryRow(
-		`SELECT id, vorname, nachname, geburtsdatum, adresse, email, telefon, bezahlt_bis
+		`SELECT id, vorname, nachname, geburtsdatum, adresse, email, telefon,
+		 	rueckstand, rueckstand_notiz
 		 FROM mitglied WHERE id = ?`, id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum, &m.Adresse, &m.Email,
-			&m.Telefon, &bezahltBis)
+			&m.Telefon, &m.Rueckstand.Offen, &m.Rueckstand.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
 	}
@@ -548,9 +514,6 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 
 	if m.Geburtsdatum, err = ausDatumsText(geburtsdatum); err != nil {
 		return Mitglied{}, fmt.Errorf("geburtsdatum von mitglied %d: %w", id, err)
-	}
-	if m.BezahltBis, err = ausDatumsText(bezahltBis); err != nil {
-		return Mitglied{}, fmt.Errorf("bezahlt_bis von mitglied %d: %w", id, err)
 	}
 
 	if m.Mitgliedschaften, err = s.mitgliedschaften(id); err != nil {
@@ -717,8 +680,10 @@ func letztenAustrittLesen(q abfrager, mitgliedID int64) (string, error) {
 // Mitglied gerade aktiv ist; gibt es keinen, ist der Fehler ErrNichtAktiv.
 //
 // Der Eintritt kommt als ISO-Text zurück und nicht als time.Time: verglichen
-// wird er ohnehin nur mit anderen Kalendertagen in derselben Form — aus
-// demselben Grund, aus dem zahlungsstatusAm über Text vergleicht.
+// wird er ohnehin nur mit anderen Kalendertagen in derselben Form. Die ISO-Form
+// sortiert lexikografisch genau wie kalendarisch, und ein Zeitpunktvergleich
+// läge je nach Zonenversatz um einen Tag daneben — aus der Datenbank gelesene
+// Daten liegen in UTC, "heute" kommt aus der lokalen Uhr.
 func laufendeMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, string, error) {
 	var (
 		id       int64
@@ -746,13 +711,14 @@ func laufendeMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, string, e
 // rendern kann. Das vollständige Mitglied mit seiner Mitgliedschafts-Historie
 // liefert Get.
 type Listeneintrag struct {
-	MitgliedID     int64
-	Vorname        string
-	Nachname       string
-	BeitragCents   int64
-	BezahltBis     *time.Time
-	Zahlungsstatus Zahlungsstatus
-	Eintritt       time.Time
+	MitgliedID   int64
+	Vorname      string
+	Nachname     string
+	BeitragCents int64
+	Eintritt     time.Time
+
+	// Rueckstand färbt das Kennzeichen der Zeile und erklärt es.
+	Rueckstand Rueckstand
 
 	// Austritt ist nil, solange die Mitgliedschaft läuft. Gesetzt ist er nur in
 	// Ergebnissen, die Ehemalige einschließen — dort ist er die einzige Angabe,
@@ -770,39 +736,39 @@ func (s *MemberService) List() ([]Listeneintrag, error) {
 	return s.Search("", Suchfilter{})
 }
 
-// Zahlungsfilter grenzt die Ergebnisliste nach dem Zahlungsstatus ein.
-//
-// "nicht bezahlt" bedeutet dabei genau das und schließt Mitglieder ohne jede
-// Zahlungsangabe aus: wer im Mahn-Filter steht, soll auch wirklich im Rückstand
-// sein (CONTEXT.md → Statusanzeige).
-type Zahlungsfilter int
+// Rueckstandsfilter grenzt die Ergebnisliste nach dem Rückstands-Kennzeichen
+// ein. Das Kennzeichen ist zweiwertig, der Filter hat deshalb genau zwei Stufen
+// plus "alle" — die beiden Stufen zerlegen den Bestand vollständig, ein
+// Mitglied fällt immer in eine von beiden (ADR-0006).
+type Rueckstandsfilter int
 
 const (
-	// ZahlungsfilterAlle ist der Nullwert und grenzt nicht ein.
-	ZahlungsfilterAlle Zahlungsfilter = iota
-	// ZahlungsfilterBezahlt: nur Mitglieder mit ZahlungsstatusBezahlt.
-	ZahlungsfilterBezahlt
-	// ZahlungsfilterNichtBezahlt: nur Mitglieder mit ZahlungsstatusNichtBezahlt.
-	ZahlungsfilterNichtBezahlt
+	// RueckstandsfilterAlle ist der Nullwert und grenzt nicht ein.
+	RueckstandsfilterAlle Rueckstandsfilter = iota
+	// RueckstandsfilterImRueckstand: nur Mitglieder, bei denen Geld offen ist —
+	// die Ausnahmeliste, die der Verein tatsächlich abarbeitet.
+	RueckstandsfilterImRueckstand
+	// RueckstandsfilterInOrdnung: nur Mitglieder ohne offenen Rückstand.
+	RueckstandsfilterInOrdnung
 )
 
-// trifft entscheidet, ob ein Status durch diesen Filter kommt.
-func (f Zahlungsfilter) trifft(status Zahlungsstatus) bool {
+// trifft entscheidet, ob ein Kennzeichen durch diesen Filter kommt.
+func (f Rueckstandsfilter) trifft(r Rueckstand) bool {
 	switch f {
-	case ZahlungsfilterBezahlt:
-		return status == ZahlungsstatusBezahlt
-	case ZahlungsfilterNichtBezahlt:
-		return status == ZahlungsstatusNichtBezahlt
+	case RueckstandsfilterImRueckstand:
+		return r.Offen
+	case RueckstandsfilterInOrdnung:
+		return !r.Offen
 	default:
 		return true
 	}
 }
 
 // Suchfilter grenzt die Mitgliederliste ein. Der Nullwert ist bewusst die
-// Standardansicht: alle Zahlungsstatus, nur aktive Mitglieder. Damit ist
+// Standardansicht: jeder Rückstandswert, nur aktive Mitglieder. Damit ist
 // "Filter zurücksetzen" nichts anderes als ein Suchfilter{}.
 type Suchfilter struct {
-	Zahlungsstatus Zahlungsfilter
+	Rueckstand Rueckstandsfilter
 	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf.
 	AuchEhemalige bool
 }
@@ -810,8 +776,9 @@ type Suchfilter struct {
 // Search liefert die Mitglieder, auf die Suchbegriff und Filter gemeinsam
 // zutreffen — sortiert wie List. Der Suchbegriff trifft als Teilzeichenkette in
 // Vorname, Nachname, E-Mail oder Telefon; Groß-/Kleinschreibung entscheidet
-// nicht. Ein leerer Begriff (auch einer aus lauter Leerraum) grenzt nichts ein,
-// das Ergebnis ist dann das der Filter allein.
+// nicht. Zusätzlich trifft er die Mitglieds-ID, dort aber genau und nicht als
+// Teilzeichenkette (siehe suchzeile). Ein leerer Begriff (auch einer aus lauter
+// Leerraum) grenzt nichts ein, das Ergebnis ist dann das der Filter allein.
 //
 // Gesucht und gefiltert wird vollständig hier im Service — die Oberfläche
 // bekommt bereits das fertige Ergebnis und siebt nichts nach.
@@ -871,7 +838,8 @@ func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
 // beendeten Zeitraum dazu — die Sortierung stellt eine laufende Mitgliedschaft
 // dabei immer vor eine beendete, damit ein Wiedereintritt als aktiv erscheint.
 const eintraegeAbfrage = `
-	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon, m.bezahlt_bis,
+	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon,
+		m.rueckstand, m.rueckstand_notiz,
 		ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
@@ -894,17 +862,27 @@ type suchzeile struct {
 // passtZu entscheidet, ob die Zeile ins Ergebnis gehört. Die Aktivität steht
 // hier nicht zur Debatte: über die entscheidet bereits die Abfrage.
 func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
-	if !filter.Zahlungsstatus.trifft(z.eintrag.Zahlungsstatus) {
+	if !filter.Rueckstand.trifft(z.eintrag.Rueckstand) {
 		return false
 	}
 
-	return z.enthaelt(begriff)
+	return z.trifftBegriff(begriff)
 }
 
-// enthaelt prüft den bereits klein geschriebenen Suchbegriff gegen alle
-// Suchfelder. Ein leerer Begriff trifft jede Zeile.
-func (z suchzeile) enthaelt(begriff string) bool {
+// trifftBegriff prüft den bereits klein geschriebenen Suchbegriff gegen die
+// Suchfelder und die Mitglieds-ID. Ein leerer Begriff trifft jede Zeile.
+//
+// Die Mitglieds-ID ist dabei der Sonderfall: sie trifft nur, wenn der Begriff
+// die ganze Nummer ist. Als Teiltreffer wäre sie bei 200 Mitgliedern wertlos —
+// "7" brächte die 7, die 17, die 27 und die 70er zurück, und damit wäre die
+// Nummer als Sprungmarke zu einer bekannten Zeile gerade nicht mehr zu
+// gebrauchen.
+func (z suchzeile) trifftBegriff(begriff string) bool {
 	if begriff == "" {
+		return true
+	}
+
+	if begriff == strconv.FormatInt(z.eintrag.MitgliedID, 10) {
 		return true
 	}
 
@@ -929,35 +907,26 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 	}
 	defer rows.Close()
 
-	// Alle Zeilen einer Abfrage werden gegen denselben Stichtag bewertet, damit
-	// die Liste in sich stimmig ist.
-	stichtag := heute()
-
 	var zeilen []suchzeile
 	for rows.Next() {
 		var (
 			e              Listeneintrag
 			email, telefon string
-			bezahltBis     sql.NullString
 			eintritt       string
 			austritt       sql.NullString
 		)
-		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon, &bezahltBis,
+		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon,
+			&e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&eintritt, &austritt, &e.BeitragCents); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 
-		if e.BezahltBis, err = ausDatumsText(bezahltBis); err != nil {
-			return nil, fmt.Errorf("bezahlt_bis von mitglied %d: %w", e.MitgliedID, err)
-		}
 		if e.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
 			return nil, fmt.Errorf("eintritt von mitglied %d: %w", e.MitgliedID, err)
 		}
 		if e.Austritt, err = ausDatumsText(austritt); err != nil {
 			return nil, fmt.Errorf("austritt von mitglied %d: %w", e.MitgliedID, err)
 		}
-
-		e.Zahlungsstatus = zahlungsstatusAm(e.BezahltBis, stichtag)
 
 		zeilen = append(zeilen, suchzeile{
 			eintrag: e,
@@ -976,20 +945,25 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 	return zeilen, nil
 }
 
-// SetBezahltBis setzt das Datum, bis zu dem die Beiträge des Mitglieds als
-// bezahlt gelten — in v1 die einzige Art, den Zahlungsstand zu pflegen: der
-// Nutzer sieht in MoneyMoney nach und trägt das Ergebnis hier ein. Ein nil-Datum
-// setzt die Angabe zurück auf "nicht gesetzt".
+// SetRueckstand setzt Kennzeichen und Notiz eines Mitglieds in einem Zug —
+// beides zusammen, weil der Nutzer beides im selben Formular vor sich hat.
+//
+// Die Notiz wird beim Aufheben nicht geleert. Sie ist die einzige Spur, die ein
+// erledigter Vorgang in v1 hinterlässt — eine Zahlungshistorie gibt es nicht
+// (ADR-0006). Wer sie loswerden will, übergibt einen leeren Text. Umschließender
+// Leerraum wird abgeschnitten: normalisiert wird, wo gespeichert wird.
 //
 // Der Aufruf ist idempotent: derselbe Wert noch einmal geschrieben ändert
 // nichts und ist kein Fehler. Andere Felder des Mitglieds bleiben unberührt,
-// insbesondere seine Mitgliedschaften. Existiert die ID nicht, ist der Fehler
-// ErrNichtGefunden.
-func (s *MemberService) SetBezahltBis(id int64, datum *time.Time) error {
+// insbesondere seine Mitgliedschaften — der Rückstand hängt an der Person und
+// überlebt deshalb Austritt und Wiedereintritt. Existiert die ID nicht, ist der
+// Fehler ErrNichtGefunden.
+func (s *MemberService) SetRueckstand(id int64, r Rueckstand) error {
 	res, err := s.db.Exec(
-		`UPDATE mitglied SET bezahlt_bis = ? WHERE id = ?`, alsDatumsText(datum), id)
+		`UPDATE mitglied SET rueckstand = ?, rueckstand_notiz = ? WHERE id = ?`,
+		r.Offen, strings.TrimSpace(r.Notiz), id)
 	if err != nil {
-		return fmt.Errorf("bezahlt_bis von mitglied %d setzen: %w", id, err)
+		return fmt.Errorf("rückstand von mitglied %d setzen: %w", id, err)
 	}
 
 	betroffen, err := res.RowsAffected()

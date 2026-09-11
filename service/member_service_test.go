@@ -92,8 +92,8 @@ func TestCreate_LegtMitgliedUndAktiveMitgliedschaftAn(t *testing.T) {
 	if m.Telefon != "030 1234567" {
 		t.Errorf("Telefon = %q", m.Telefon)
 	}
-	if m.BezahltBis != nil {
-		t.Errorf("BezahltBis = %v, erwartet nil bei Neuanlage", m.BezahltBis)
+	if m.Rueckstand.Offen {
+		t.Errorf("Rueckstand.Offen = true, erwartet false bei Neuanlage")
 	}
 
 	if len(m.Mitgliedschaften) != 1 {
@@ -282,8 +282,8 @@ func TestList_LiefertAktiveMitgliederNachNamenSortiert(t *testing.T) {
 		if !eintrag.Eintritt.Equal(datum(t, e.eintritt)) {
 			t.Errorf("Eintrag %d (%s): Eintritt = %v, erwartet %s", i, e.nachname, eintrag.Eintritt, e.eintritt)
 		}
-		if eintrag.BezahltBis != nil {
-			t.Errorf("Eintrag %d (%s): BezahltBis = %v, erwartet nil bei Neuanlage", i, e.nachname, eintrag.BezahltBis)
+		if eintrag.Rueckstand.Offen {
+			t.Errorf("Eintrag %d (%s): Rueckstand.Offen = true, erwartet false bei Neuanlage", i, e.nachname)
 		}
 	}
 }
@@ -440,8 +440,8 @@ func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
 	if m.Geburtsdatum == nil || !m.Geburtsdatum.Equal(geburtsdatum) {
 		t.Errorf("Geburtsdatum = %v, erwartet unverändert %v", m.Geburtsdatum, geburtsdatum)
 	}
-	if m.BezahltBis != nil {
-		t.Errorf("BezahltBis = %v, erwartet unverändert nil", m.BezahltBis)
+	if m.Rueckstand.Offen {
+		t.Errorf("Rueckstand.Offen = true, erwartet unverändert false")
 	}
 
 	// Die Mitgliedschaft ist von einer Stammdaten-Änderung nicht betroffen.
@@ -602,9 +602,9 @@ func TestLaufendeMitgliedschaft_LiefertDenOffenenZeitraumUndNachAustrittNil(t *t
 	}
 }
 
-// heuteVersetzt liefert ein Datum relativ zum heutigen Tag — die Status-Ableitung
-// vergleicht gegen "heute", also müssen die Fixtures mitwandern statt feste
-// Kalendertage zu setzen.
+// heuteVersetzt liefert ein Datum relativ zum heutigen Tag. Aus- und
+// Wiedereintritt werden gegen "heute" geprüft, also müssen die Fixtures
+// mitwandern statt feste Kalendertage zu setzen.
 func heuteVersetzt(tage int) time.Time {
 	// Kalendertag von heute, in UTC wie alle aus der Datenbank gelesenen Daten —
 	// so lassen sich die Werte direkt mit Equal vergleichen.
@@ -630,105 +630,180 @@ func mitgliedAnlegen(t *testing.T, svc *service.MemberService, vorname, nachname
 	return id
 }
 
-func TestZahlungsstatus_LeitetSichAusBezahltBisUndHeuteAb(t *testing.T) {
+// Der Rückstand ist zweiwertig: in Ordnung oder im Rückstand. Einen neutralen
+// Zustand gibt es nicht mehr — bei Lastschrift bedeutet die Abwesenheit einer
+// Rückgabe tatsächlich, dass gezahlt wurde (ADR-0006).
+func TestRueckstand_IstZweiwertigUndStartetInOrdnung(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Ravi", "Kumar")
 
-	// Ohne jede Zahlungsangabe ist der Status weder bezahlt noch nicht bezahlt.
 	eintrag, err := svc.Eintrag(id)
 	if err != nil {
 		t.Fatalf("Eintrag: %v", err)
 	}
-	if eintrag.Zahlungsstatus != service.ZahlungsstatusNichtGesetzt {
-		t.Errorf("Zahlungsstatus ohne bezahlt_bis = %v, erwartet %v",
-			eintrag.Zahlungsstatus, service.ZahlungsstatusNichtGesetzt)
+	if eintrag.Rueckstand.Offen {
+		t.Errorf("Rueckstand.Offen = true, erwartet false bei Neuanlage")
+	}
+	if eintrag.Rueckstand.Notiz != "" {
+		t.Errorf("Rueckstand.Notiz = %q, erwartet leer bei Neuanlage", eintrag.Rueckstand.Notiz)
 	}
 
-	faelle := []struct {
-		name     string
-		tage     int
-		erwartet service.Zahlungsstatus
-	}{
-		{"gestern", -1, service.ZahlungsstatusNichtBezahlt},
-		{"heute", 0, service.ZahlungsstatusBezahlt},
-		{"morgen", 1, service.ZahlungsstatusBezahlt},
-	}
-	for _, f := range faelle {
-		t.Run(f.name, func(t *testing.T) {
-			bezahltBis := heuteVersetzt(f.tage)
-			if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
-				t.Fatalf("SetBezahltBis: %v", err)
-			}
-
-			eintrag, err := svc.Eintrag(id)
-			if err != nil {
-				t.Fatalf("Eintrag: %v", err)
-			}
-			if eintrag.Zahlungsstatus != f.erwartet {
-				t.Errorf("Zahlungsstatus bei bezahlt_bis = %s = %v, erwartet %v",
-					f.name, eintrag.Zahlungsstatus, f.erwartet)
-			}
-			if eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(bezahltBis) {
-				t.Errorf("BezahltBis = %v, erwartet %v", eintrag.BezahltBis, bezahltBis)
-			}
-		})
-	}
-
-	// Zurücksetzen führt in den neutralen Zustand, nicht in "nicht bezahlt".
-	if err := svc.SetBezahltBis(id, nil); err != nil {
-		t.Fatalf("SetBezahltBis(nil): %v", err)
+	const notiz = "Rücklastschrift Oktober, angeschrieben am 05.10."
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: notiz}); err != nil {
+		t.Fatalf("SetRueckstand(true): %v", err)
 	}
 
 	eintrag, err = svc.Eintrag(id)
 	if err != nil {
-		t.Fatalf("Eintrag nach dem Zurücksetzen: %v", err)
+		t.Fatalf("Eintrag nach dem Setzen: %v", err)
 	}
-	if eintrag.BezahltBis != nil {
-		t.Errorf("BezahltBis = %v, erwartet nil nach dem Zurücksetzen", eintrag.BezahltBis)
+	if !eintrag.Rueckstand.Offen {
+		t.Errorf("Rueckstand.Offen = false, erwartet true nach dem Setzen")
 	}
-	if eintrag.Zahlungsstatus != service.ZahlungsstatusNichtGesetzt {
-		t.Errorf("Zahlungsstatus nach dem Zurücksetzen = %v, erwartet %v",
-			eintrag.Zahlungsstatus, service.ZahlungsstatusNichtGesetzt)
+	if eintrag.Rueckstand.Notiz != notiz {
+		t.Errorf("Rueckstand.Notiz = %q, erwartet %q", eintrag.Rueckstand.Notiz, notiz)
 	}
 }
 
-func TestSetBezahltBis_IstBeiWiederholungIdempotent(t *testing.T) {
+// Die Notiz ist änderbar, ohne dass das Kennzeichen wechselt: der Vorgang
+// entwickelt sich weiter, während das Geld offen bleibt.
+func TestSetRueckstand_AendertDieNotizOhneDasKennzeichenZuWechseln(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Sina", "Petrov")
-	bezahltBis := heuteVersetzt(30)
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: "Rücklastschrift Oktober"}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
+	}
 
-	for versuch := 1; versuch <= 3; versuch++ {
-		if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
-			t.Fatalf("SetBezahltBis (Versuch %d): %v", versuch, err)
+	const nachgefasst = "Rücklastschrift Oktober, zweite Mahnung am 19.10."
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: nachgefasst}); err != nil {
+		t.Fatalf("SetRueckstand (Notiz ändern): %v", err)
+	}
+
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag: %v", err)
+	}
+	if !eintrag.Rueckstand.Offen || eintrag.Rueckstand.Notiz != nachgefasst {
+		t.Errorf("Eintrag = (%v, %q), erwartet (true, %q)",
+			eintrag.Rueckstand.Offen, eintrag.Rueckstand.Notiz, nachgefasst)
+	}
+}
+
+// Beim Aufheben bleibt die Notiz stehen. Sie ist die einzige Spur, die ein
+// erledigter Vorgang in v1 hinterlässt — eine Zahlungshistorie gibt es nicht
+// (ADR-0006). Wer sie loswerden will, leert sie ausdrücklich.
+func TestSetRueckstand_LaesstDieNotizBeimAufhebenStehen(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Ilse", "Brandt")
+	const notiz = "Rücklastschrift März, im April nachgezahlt"
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: notiz}); err != nil {
+		t.Fatalf("SetRueckstand(true): %v", err)
+	}
+
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: false, Notiz: notiz}); err != nil {
+		t.Fatalf("SetRueckstand(false): %v", err)
+	}
+
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag: %v", err)
+	}
+	if eintrag.Rueckstand.Offen {
+		t.Errorf("Rueckstand.Offen = true, erwartet false nach dem Aufheben")
+	}
+	if eintrag.Rueckstand.Notiz != notiz {
+		t.Errorf("Rueckstand.Notiz = %q, erwartet unverändert %q", eintrag.Rueckstand.Notiz, notiz)
+	}
+
+	// Leeren ist der ausdrückliche Weg, die Notiz loszuwerden.
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: false}); err != nil {
+		t.Fatalf("SetRueckstand(false, \"\"): %v", err)
+	}
+
+	eintrag, err = svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag nach dem Leeren: %v", err)
+	}
+	if eintrag.Rueckstand.Notiz != "" {
+		t.Errorf("Rueckstand.Notiz = %q, erwartet leer", eintrag.Rueckstand.Notiz)
+	}
+}
+
+func TestSetRueckstand_IstBeiWiederholungIdempotent(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Sina", "Petrov")
+	const notiz = "Rücklastschrift November"
+
+	for versuch := 1; versuch <= 2; versuch++ {
+		if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: notiz}); err != nil {
+			t.Fatalf("SetRueckstand (Versuch %d): %v", versuch, err)
 		}
 
 		eintrag, err := svc.Eintrag(id)
 		if err != nil {
 			t.Fatalf("Eintrag (Versuch %d): %v", versuch, err)
 		}
-		if eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(bezahltBis) {
-			t.Fatalf("BezahltBis nach Versuch %d = %v, erwartet %v",
-				versuch, eintrag.BezahltBis, bezahltBis)
-		}
-		if eintrag.Zahlungsstatus != service.ZahlungsstatusBezahlt {
-			t.Fatalf("Zahlungsstatus nach Versuch %d = %v, erwartet %v",
-				versuch, eintrag.Zahlungsstatus, service.ZahlungsstatusBezahlt)
+		if !eintrag.Rueckstand.Offen || eintrag.Rueckstand.Notiz != notiz {
+			t.Fatalf("Eintrag nach Versuch %d = (%v, %q), erwartet (true, %q)",
+				versuch, eintrag.Rueckstand.Offen, eintrag.Rueckstand.Notiz, notiz)
 		}
 	}
 
-	// Auch die Liste kennt das Mitglied danach genau einmal.
 	liste, err := svc.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(liste) != 1 {
-		t.Errorf("List = %d Einträge, erwartet 1: %+v", len(liste), liste)
+		t.Errorf("List = %d Einträge, erwartet 1 — es darf kein zweites Mitglied entstanden sein", len(liste))
 	}
 }
 
-func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
+// Der Rückstand hängt am Mitglied, nicht an der Mitgliedschaft: ein Austritt
+// erlässt keine Schulden. Geprüft am Service-Seam, weil genau hier die
+// Zuordnung entschieden wird.
+func TestSetRueckstand_BleibtNachDemAustrittBestehen(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
+	const notiz = "Rücklastschrift Juni, noch offen"
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: notiz}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
+	}
+
+	if err := svc.MarkExit(id, heuteVersetzt(-10)); err != nil {
+		t.Fatalf("MarkExit: %v", err)
+	}
+
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag: %v", err)
+	}
+	if !eintrag.Rueckstand.Offen || eintrag.Rueckstand.Notiz != notiz {
+		t.Errorf("Eintrag nach dem Austritt = (%v, %q), erwartet (true, %q)",
+			eintrag.Rueckstand.Offen, eintrag.Rueckstand.Notiz, notiz)
+	}
+
+	// Auch ein Wiedereintritt ändert daran nichts: die neue Mitgliedschaft
+	// beginnt, der alte Rückstand bleibt.
+	if err := svc.Rejoin(id, heuteVersetzt(-1)); err != nil {
+		t.Fatalf("Rejoin: %v", err)
+	}
+
+	eintrag, err = svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag nach dem Wiedereintritt: %v", err)
+	}
+	if !eintrag.Rueckstand.Offen || eintrag.Rueckstand.Notiz != notiz {
+		t.Errorf("Eintrag nach dem Wiedereintritt = (%v, %q), erwartet (true, %q)",
+			eintrag.Rueckstand.Offen, eintrag.Rueckstand.Notiz, notiz)
+	}
+}
+
+func TestSetRueckstand_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 	svc := neuerService(t)
 
 	geburtsdatum := datum(t, "1994-07-19")
@@ -752,9 +827,8 @@ func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 		t.Fatalf("Get (vorher): %v", err)
 	}
 
-	bezahltBis := heuteVersetzt(14)
-	if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
-		t.Fatalf("SetBezahltBis: %v", err)
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: "Rücklastschrift Februar"}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
 	}
 
 	nachher, err := svc.Get(id)
@@ -762,18 +836,17 @@ func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 		t.Fatalf("Get (nachher): %v", err)
 	}
 
-	if nachher.BezahltBis == nil || !nachher.BezahltBis.Equal(bezahltBis) {
-		t.Errorf("BezahltBis = %v, erwartet %v", nachher.BezahltBis, bezahltBis)
+	if !nachher.Rueckstand.Offen || nachher.Rueckstand.Notiz != "Rücklastschrift Februar" {
+		t.Errorf("Rückstand = (%v, %q), erwartet (true, \"Rücklastschrift Februar\")",
+			nachher.Rueckstand.Offen, nachher.Rueckstand.Notiz)
 	}
 
-	// Alles außer bezahlt_bis muss identisch geblieben sein — inklusive der
-	// Mitgliedschaft, die von einer Zahlungsangabe nichts wissen darf.
-	erwartet := vorher
-	erwartet.BezahltBis = nachher.BezahltBis
-	if nachher.ID != erwartet.ID || nachher.Vorname != erwartet.Vorname ||
-		nachher.Nachname != erwartet.Nachname || nachher.Adresse != erwartet.Adresse ||
-		nachher.Email != erwartet.Email || nachher.Telefon != erwartet.Telefon {
-		t.Errorf("Stammdaten = %+v, erwartet unverändert %+v", nachher, erwartet)
+	// Alles außer dem Rückstand muss identisch geblieben sein — inklusive der
+	// Mitgliedschaft, die von einem Rückstand nichts wissen darf.
+	if nachher.ID != vorher.ID || nachher.Vorname != vorher.Vorname ||
+		nachher.Nachname != vorher.Nachname || nachher.Adresse != vorher.Adresse ||
+		nachher.Email != vorher.Email || nachher.Telefon != vorher.Telefon {
+		t.Errorf("Stammdaten = %+v, erwartet unverändert %+v", nachher, vorher)
 	}
 	if nachher.Geburtsdatum == nil || !nachher.Geburtsdatum.Equal(geburtsdatum) {
 		t.Errorf("Geburtsdatum = %v, erwartet %v", nachher.Geburtsdatum, geburtsdatum)
@@ -790,12 +863,58 @@ func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 	}
 }
 
-func TestSetBezahltBis_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
+// Normalisiert wird, wo gespeichert wird: umschließender Leerraum aus einem
+// Formularfeld darf nicht als Notiz durchgehen und "leeren" verhindern.
+func TestSetRueckstand_SchneidetLeerraumAusDerNotiz(t *testing.T) {
 	svc := neuerService(t)
 
-	bezahltBis := heuteVersetzt(7)
-	if err := svc.SetBezahltBis(4711, &bezahltBis); !errors.Is(err, service.ErrNichtGefunden) {
-		t.Fatalf("SetBezahltBis(4711, …) = %v, erwartet ErrNichtGefunden", err)
+	id := mitgliedAnlegen(t, svc, "Jonas", "Weber")
+	if err := svc.SetRueckstand(id, service.Rueckstand{
+		Offen: true,
+		Notiz: "  Rücklastschrift Oktober\t",
+	}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
+	}
+
+	eintrag, err := svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag: %v", err)
+	}
+	if eintrag.Rueckstand.Notiz != "Rücklastschrift Oktober" {
+		t.Errorf("Rueckstand.Notiz = %q, erwartet ohne umschließenden Leerraum", eintrag.Rueckstand.Notiz)
+	}
+
+	// Eine Notiz aus lauter Leerraum ist keine Notiz.
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: "   "}); err != nil {
+		t.Fatalf("SetRueckstand (nur Leerraum): %v", err)
+	}
+
+	eintrag, err = svc.Eintrag(id)
+	if err != nil {
+		t.Fatalf("Eintrag nach Leerraum-Notiz: %v", err)
+	}
+	if eintrag.Rueckstand.Notiz != "" {
+		t.Errorf("Rueckstand.Notiz = %q, erwartet leer", eintrag.Rueckstand.Notiz)
+	}
+}
+
+// Die Bezeichnung steht am Typ und nicht im Template, damit Liste und spätere
+// Ansichten dieselben Worte benutzen.
+func TestRueckstand_BezeichnungIstZweiwertig(t *testing.T) {
+	if got := (service.Rueckstand{Offen: true}).Bezeichnung(); got != "im Rückstand" {
+		t.Errorf("Bezeichnung bei offen = %q, erwartet \"im Rückstand\"", got)
+	}
+	// Der Nullwert ist "in Ordnung" — der Normalfall beim Lastschrifteinzug.
+	if got := (service.Rueckstand{}).Bezeichnung(); got != "in Ordnung" {
+		t.Errorf("Bezeichnung des Nullwerts = %q, erwartet \"in Ordnung\"", got)
+	}
+}
+
+func TestSetRueckstand_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
+	svc := neuerService(t)
+
+	if err := svc.SetRueckstand(4711, service.Rueckstand{Offen: true, Notiz: "egal"}); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Fatalf("SetRueckstand(4711, …) = %v, erwartet ErrNichtGefunden", err)
 	}
 
 	liste, err := svc.List()
@@ -811,9 +930,8 @@ func TestEintrag_LiefertDieselbeZeileWieDieListe(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Mara", "Delgado")
-	bezahltBis := heuteVersetzt(3)
-	if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
-		t.Fatalf("SetBezahltBis: %v", err)
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: "Rücklastschrift September"}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
 	}
 
 	liste, err := svc.List()
@@ -830,9 +948,9 @@ func TestEintrag_LiefertDieselbeZeileWieDieListe(t *testing.T) {
 	}
 	if eintrag.MitgliedID != liste[0].MitgliedID || eintrag.Vorname != liste[0].Vorname ||
 		eintrag.Nachname != liste[0].Nachname || eintrag.BeitragCents != liste[0].BeitragCents ||
-		eintrag.Zahlungsstatus != liste[0].Zahlungsstatus ||
-		!eintrag.Eintritt.Equal(liste[0].Eintritt) ||
-		eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(*liste[0].BezahltBis) {
+		eintrag.Rueckstand.Offen != liste[0].Rueckstand.Offen ||
+		eintrag.Rueckstand.Notiz != liste[0].Rueckstand.Notiz ||
+		!eintrag.Eintritt.Equal(liste[0].Eintritt) {
 		t.Errorf("Eintrag = %+v, erwartet dieselbe Zeile wie List: %+v", eintrag, liste[0])
 	}
 }

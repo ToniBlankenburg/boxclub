@@ -44,12 +44,12 @@ go test ./service/... -run TestMemberService_Create
 
 **SQLite schema (two tables):** nothing is seeded — a fresh database is empty.
 
-- `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, bezahlt_bis)` — person master data; one row per person even across re-entries
+- `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries
 - `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL, beitrag_monatlich_cents)` — time-bound membership period; `austritt IS NULL` means currently active
 
 The monthly fee hangs on the **membership**, not on the person, and is individually agreed — there are no fee classes (see ADR-0005). 0 € is a valid fee, not a missing one. Euro input is converted to cents in `service.BeitragAusEuro`; there is no migration mechanism, so a schema change means deleting the dev database.
 
-Payment status is derived on the fly: `bezahlt` if `bezahlt_bis >= today`, `nicht bezahlt` otherwise, and `nicht gesetzt` while `bezahlt_bis` is NULL. Never stored.
+The club collects by SEPA direct debit, so there is no payment status to track — only **Rückstand**: a two-valued flag (`in Ordnung` / `im Rückstand`) plus a free-text note, both hand-maintained and both on the **person**, so an exit does not clear a debt (see ADR-0006). There is no neutral third state, and no payment history in v1.
 
 The database file lives in the user config dir (`~/Library/Application Support/Boxclub/boxclub.db` on macOS); `BOXCLUB_DB` overrides the path for development.
 

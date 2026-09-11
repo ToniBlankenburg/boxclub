@@ -35,7 +35,7 @@ Die Rolle von `app/` ändert sich dadurch nicht: es bleibt die dünne
 Adapter-Schicht, die Eingaben parst, an `MemberService` bzw. `ExcelImporter`
 delegiert und ein HTML-Fragment aus `templates/` rendert. Maßgeblich ist nicht
 die Zahl der Service-Aufrufe, sondern dass **keine Fachregel** in `app/` liegt:
-Pflichtfelder, Zahlungsstatus und Lebenszyklus gehören in `service/`, hier wird
+Pflichtfelder, Rückstand und Lebenszyklus gehören in `service/`, hier wird
 nur angezeigt, was von dort kommt. Nur der Transport ist HTTP statt Wails-IPC.
 
 ## Betrachtete Alternativen

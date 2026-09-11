@@ -3,6 +3,7 @@ package service_test
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -10,10 +11,10 @@ import (
 
 // suchBestand ist der Mitgliederbestand, an dem die Such- und Filtertests
 // arbeiten. Er ist bewusst klein und so geschnitten, dass jede Filterdimension
-// für sich beobachtbar ist: alle drei Zahlungsstatus (inklusive "nicht
-// gesetzt") und je ein aktives wie ein ausgetretenes Mitglied kommen darin vor.
-// Umlaute und ein Bindestrich stecken in den Namen; die Beiträge sind
-// verschieden, damit eine vertauschte Zeile auffiele.
+// für sich beobachtbar ist: beide Rückstandswerte und je ein aktives wie ein
+// ausgetretenes Mitglied kommen darin vor. Umlaute und ein Bindestrich stecken
+// in den Namen; die Beiträge sind verschieden, damit eine vertauschte Zeile
+// auffiele.
 type suchBestand struct {
 	// IDs der angelegten Mitglieder, benannt nach ihrem Nachnamen.
 	Berger, Oeztuerk, MeierSchmidt, Wagner, Klein int64
@@ -42,31 +43,30 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 		return id
 	}
 
-	bezahltBis := func(id int64, tage int) {
+	imRueckstand := func(id int64, notiz string) {
 		t.Helper()
 
-		d := heuteVersetzt(tage)
-		if err := svc.SetBezahltBis(id, &d); err != nil {
-			t.Fatalf("SetBezahltBis: %v", err)
+		if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: notiz}); err != nil {
+			t.Fatalf("SetRueckstand: %v", err)
 		}
 	}
 
+	// Anna Berger und Jörg Meier-Schmidt bleiben in Ordnung — der Normalfall
+	// beim Lastschrifteinzug, und zugleich der Nullwert nach der Anlage.
 	b.Berger = anlegen("Anna", "Berger", "anna.berger@example.org", "030 1234567", 8000)
-	bezahltBis(b.Berger, 30)
 
 	b.Oeztuerk = anlegen("Mehmet", "Öztürk", "m.oeztuerk@example.org", "0171 9876543", 6000)
-	bezahltBis(b.Oeztuerk, -5)
+	imRueckstand(b.Oeztuerk, "Rücklastschrift Oktober")
 
-	// Jörg Meier-Schmidt bleibt ohne Zahlungsangabe: "nicht gesetzt".
 	b.MeierSchmidt = anlegen("Jörg", "Meier-Schmidt", "joerg.meier-schmidt@example.org", "030 5550101", 0)
 
 	b.Wagner = anlegen("Paul", "Wagner", "paul.wagner@example.org", "030 7778899", 13500)
-	bezahltBis(b.Wagner, -3)
+	imRueckstand(b.Wagner, "Rücklastschrift September, angeschrieben am 05.10.")
 
 	// Nina Klein ist ausgetreten — sonst würde sie in denselben Filter fallen
 	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen.
 	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", 4500)
-	bezahltBis(b.Klein, -20)
+	imRueckstand(b.Klein, "Rücklastschrift Juni, beim Austritt noch offen")
 	if err := svc.MarkExit(b.Klein, datum(t, "2026-06-30")); err != nil {
 		t.Fatalf("MarkExit: %v", err)
 	}
@@ -169,29 +169,39 @@ func TestSearch_FindetUmlauteUndBindestriche(t *testing.T) {
 	}
 }
 
-// Ein Mitglied ohne Zahlungsangabe ist nicht "nicht bezahlt" — es darf im
-// Mahn-Filter nicht auftauchen (CONTEXT.md → Statusanzeige).
-func TestSearch_FiltertNachZahlungsstatus(t *testing.T) {
+// Der Rückstandsfilter ist zweiwertig plus "alle" — ein neutraler Zustand, den
+// beide Stufen ausschließen würden, existiert nicht mehr (ADR-0006). Jedes
+// Mitglied fällt deshalb in genau eine der beiden Stufen.
+func TestSearch_FiltertNachRueckstand(t *testing.T) {
 	svc := neuerService(t)
 	suchbestandAnlegen(t, svc)
 
 	faelle := []struct {
 		name     string
-		filter   service.Zahlungsfilter
+		filter   service.Rueckstandsfilter
 		erwartet []string
 	}{
-		{"alle", service.ZahlungsfilterAlle, alleAktiven},
-		{"bezahlt", service.ZahlungsfilterBezahlt, []string{"Berger, Anna"}},
-		{"nicht bezahlt", service.ZahlungsfilterNichtBezahlt, []string{"Öztürk, Mehmet", "Wagner, Paul"}},
+		{"alle", service.RueckstandsfilterAlle, alleAktiven},
+		{"in Ordnung", service.RueckstandsfilterInOrdnung, []string{"Berger, Anna", "Meier-Schmidt, Jörg"}},
+		{"im Rückstand", service.RueckstandsfilterImRueckstand, []string{"Öztürk, Mehmet", "Wagner, Paul"}},
 	}
 
 	for _, f := range faelle {
 		t.Run(f.name, func(t *testing.T) {
-			gefunden := suchen(t, svc, "", service.Suchfilter{Zahlungsstatus: f.filter})
+			gefunden := suchen(t, svc, "", service.Suchfilter{Rueckstand: f.filter})
 			if !slices.Equal(gefunden, f.erwartet) {
-				t.Errorf("Zahlungsfilter %v = %v, erwartet %v", f.name, gefunden, f.erwartet)
+				t.Errorf("Rückstandsfilter %v = %v, erwartet %v", f.name, gefunden, f.erwartet)
 			}
 		})
+	}
+
+	// Die beiden Stufen zerlegen den Bestand vollständig: zusammen ergeben sie
+	// wieder alle Aktiven, ohne Überschneidung.
+	inOrdnung := suchen(t, svc, "", service.Suchfilter{Rueckstand: service.RueckstandsfilterInOrdnung})
+	rueckstaendig := suchen(t, svc, "", service.Suchfilter{Rueckstand: service.RueckstandsfilterImRueckstand})
+	if len(inOrdnung)+len(rueckstaendig) != len(alleAktiven) {
+		t.Errorf("beide Stufen zusammen = %d Einträge, erwartet %d — es gibt keinen dritten Zustand",
+			len(inOrdnung)+len(rueckstaendig), len(alleAktiven))
 	}
 }
 
@@ -236,22 +246,22 @@ func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAuchEhemalige(t *testin
 	}
 }
 
-// Der Fall aus dem Ticket: "aktive Mitglieder mit unbezahltem Status".
+// Der Fall aus dem Ticket: "aktive Mitglieder im Rückstand".
 func TestSearch_KombiniertSucheUndFilter(t *testing.T) {
 	svc := neuerService(t)
 	suchbestandAnlegen(t, svc)
 
-	aktiveUnbezahlt := service.Suchfilter{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt}
+	aktiveImRueckstand := service.Suchfilter{Rueckstand: service.RueckstandsfilterImRueckstand}
 
 	// Klein passt in jede Filterdimension außer der Aktivität und muss deshalb
 	// fehlen.
-	gefunden := suchen(t, svc, "", aktiveUnbezahlt)
+	gefunden := suchen(t, svc, "", aktiveImRueckstand)
 	if !slices.Equal(gefunden, []string{"Öztürk, Mehmet", "Wagner, Paul"}) {
-		t.Errorf("aktive mit unbezahltem Status = %v, erwartet [Öztürk, Mehmet Wagner, Paul]", gefunden)
+		t.Errorf("aktive im Rückstand = %v, erwartet [Öztürk, Mehmet Wagner, Paul]", gefunden)
 	}
 
 	// Derselbe Filter, jetzt auch mit den Ehemaligen: Klein kommt dazu.
-	mitEhemaligen := aktiveUnbezahlt
+	mitEhemaligen := aktiveImRueckstand
 	mitEhemaligen.AuchEhemalige = true
 
 	gefunden = suchen(t, svc, "", mitEhemaligen)
@@ -260,15 +270,15 @@ func TestSearch_KombiniertSucheUndFilter(t *testing.T) {
 	}
 
 	// Query und Filter müssen beide zutreffen.
-	gefunden = suchen(t, svc, "wagner", aktiveUnbezahlt)
+	gefunden = suchen(t, svc, "wagner", aktiveImRueckstand)
 	if !slices.Equal(gefunden, []string{"Wagner, Paul"}) {
-		t.Errorf("Search(\"wagner\", aktive unbezahlt) = %v, erwartet [Wagner, Paul]", gefunden)
+		t.Errorf("Search(\"wagner\", aktive im Rückstand) = %v, erwartet [Wagner, Paul]", gefunden)
 	}
 
-	// Berger trifft den Query, fällt aber durch den Zahlungsfilter.
-	gefunden = suchen(t, svc, "berger", aktiveUnbezahlt)
+	// Berger trifft den Query, fällt aber durch den Rückstandsfilter.
+	gefunden = suchen(t, svc, "berger", aktiveImRueckstand)
 	if len(gefunden) != 0 {
-		t.Errorf("Search(\"berger\", aktive unbezahlt) = %v, erwartet kein Ergebnis", gefunden)
+		t.Errorf("Search(\"berger\", aktive im Rückstand) = %v, erwartet kein Ergebnis", gefunden)
 	}
 }
 
@@ -280,10 +290,10 @@ func TestSearch_LeererQueryEntsprichtFilterOhneSuche(t *testing.T) {
 
 	filter := []service.Suchfilter{
 		{},
-		{Zahlungsstatus: service.ZahlungsfilterBezahlt},
-		{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt},
+		{Rueckstand: service.RueckstandsfilterInOrdnung},
+		{Rueckstand: service.RueckstandsfilterImRueckstand},
 		{AuchEhemalige: true},
-		{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt, AuchEhemalige: true},
+		{Rueckstand: service.RueckstandsfilterImRueckstand, AuchEhemalige: true},
 	}
 
 	for _, f := range filter {
@@ -315,14 +325,14 @@ func pruefeFilter(t *testing.T, e service.Listeneintrag, f service.Suchfilter) {
 		t.Errorf("%s: ausgetreten, gehört ohne AuchEhemalige nicht ins Ergebnis", e.Nachname)
 	}
 
-	switch f.Zahlungsstatus {
-	case service.ZahlungsfilterBezahlt:
-		if e.Zahlungsstatus != service.ZahlungsstatusBezahlt {
-			t.Errorf("%s: Zahlungsstatus %v, erwartet bezahlt", e.Nachname, e.Zahlungsstatus)
+	switch f.Rueckstand {
+	case service.RueckstandsfilterInOrdnung:
+		if e.Rueckstand.Offen {
+			t.Errorf("%s: im Rückstand, erwartet in Ordnung", e.Nachname)
 		}
-	case service.ZahlungsfilterNichtBezahlt:
-		if e.Zahlungsstatus != service.ZahlungsstatusNichtBezahlt {
-			t.Errorf("%s: Zahlungsstatus %v, erwartet nicht bezahlt", e.Nachname, e.Zahlungsstatus)
+	case service.RueckstandsfilterImRueckstand:
+		if !e.Rueckstand.Offen {
+			t.Errorf("%s: in Ordnung, erwartet im Rückstand", e.Nachname)
 		}
 	}
 }
@@ -361,8 +371,8 @@ func TestSearch_OhneMitgliederIstLeer(t *testing.T) {
 	svc := neuerService(t)
 
 	liste, err := svc.Search("berger", service.Suchfilter{
-		Zahlungsstatus: service.ZahlungsfilterBezahlt,
-		AuchEhemalige:  true,
+		Rueckstand:    service.RueckstandsfilterImRueckstand,
+		AuchEhemalige: true,
 	})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -382,5 +392,82 @@ func TestSearch_SortiertErgebnisNachDeutschenRegeln(t *testing.T) {
 	erwartet := []string{"Berger, Anna", "Klein, Nina", "Meier-Schmidt, Jörg", "Öztürk, Mehmet", "Wagner, Paul"}
 	if !slices.Equal(gefunden, erwartet) {
 		t.Errorf("Reihenfolge = %v, erwartet %v", gefunden, erwartet)
+	}
+}
+
+// Die Mitglieds-ID ist die Nummer, unter der der Verein sein Mitglied kennt
+// (CONTEXT.md → Mitglieds-ID). Sie direkt eintippen zu können ist der schnellste
+// Weg zu einer bekannten Zeile.
+//
+// Anders als die übrigen Suchfelder trifft sie **genau** und nicht als
+// Teilzeichenkette: bei 200 Mitgliedern würde eine einzelne Ziffer sonst ein
+// Dutzend Zeilen zurückgeben, und die Nummer wäre als Sprungmarke wertlos.
+func TestSearch_FindetMitgliedUeberSeineMitgliedsID(t *testing.T) {
+	svc := neuerService(t)
+
+	// Bewusst ohne E-Mail und Telefon: eine Ziffernfolge darf hier nur über die
+	// ID treffen können, sonst belegte der Test nichts.
+	namenDerReihe := []string{
+		"Berger", "Öztürk", "Meier", "Wagner", "Klein", "Sommer",
+		"Adler", "Vogel", "Brandt", "Kumar", "Petrov", "Delgado",
+	}
+
+	ids := make(map[string]int64, len(namenDerReihe))
+	for _, nachname := range namenDerReihe {
+		ids[nachname] = mitgliedAnlegen(t, svc, "Test", nachname)
+	}
+
+	for _, nachname := range namenDerReihe {
+		id := ids[nachname]
+		gefunden := suchen(t, svc, strconv.FormatInt(id, 10), service.Suchfilter{})
+		if !slices.Equal(gefunden, []string{nachname + ", Test"}) {
+			t.Errorf("Search(%d) = %v, erwartet [%s, Test]", id, gefunden, nachname)
+		}
+	}
+
+	// Eine Nummer, die es nicht gibt, trifft nichts — und eine Teilzahl trifft
+	// nicht die längeren Nummern, die mit ihr beginnen.
+	for _, query := range []string{"99", "0", "4711"} {
+		if gefunden := suchen(t, svc, query, service.Suchfilter{}); len(gefunden) != 0 {
+			t.Errorf("Search(%q) = %v, erwartet kein Ergebnis", query, gefunden)
+		}
+	}
+}
+
+// Die ID-Suche hebelt die übrigen Filter nicht aus: sie ist ein zusätzliches
+// Suchfeld, kein Sprung an der Ansicht vorbei.
+func TestSearch_MitgliedsIDRespektiertDieFilter(t *testing.T) {
+	svc := neuerService(t)
+
+	// Ohne Telefon und E-Mail, damit eine Ziffer nur über die ID treffen kann.
+	aktiv := mitgliedAnlegen(t, svc, "Paul", "Wagner")
+	ehemalig := mitgliedAnlegen(t, svc, "Nina", "Klein")
+	if err := svc.MarkExit(ehemalig, datum(t, "2026-06-30")); err != nil {
+		t.Fatalf("MarkExit: %v", err)
+	}
+	if err := svc.SetRueckstand(aktiv, service.Rueckstand{Offen: true, Notiz: "Rücklastschrift Oktober"}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
+	}
+
+	alsText := func(id int64) string { return strconv.FormatInt(id, 10) }
+
+	// Die ID einer ausgetretenen Person findet sie nur, wenn die Ansicht
+	// Ehemalige einschließt.
+	if gefunden := suchen(t, svc, alsText(ehemalig), service.Suchfilter{}); len(gefunden) != 0 {
+		t.Errorf("Search(%d) = %v, erwartet kein Ergebnis ohne AuchEhemalige", ehemalig, gefunden)
+	}
+	gefunden := suchen(t, svc, alsText(ehemalig), service.Suchfilter{AuchEhemalige: true})
+	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
+		t.Errorf("Search(%d, auch Ehemalige) = %v, erwartet [Klein, Nina]", ehemalig, gefunden)
+	}
+
+	// Und ebenso wenig am Rückstandsfilter vorbei.
+	gefunden = suchen(t, svc, alsText(aktiv), service.Suchfilter{Rueckstand: service.RueckstandsfilterImRueckstand})
+	if !slices.Equal(gefunden, []string{"Wagner, Paul"}) {
+		t.Errorf("Search(%d, im Rückstand) = %v, erwartet [Wagner, Paul]", aktiv, gefunden)
+	}
+	gefunden = suchen(t, svc, alsText(aktiv), service.Suchfilter{Rueckstand: service.RueckstandsfilterInOrdnung})
+	if len(gefunden) != 0 {
+		t.Errorf("Search(%d, in Ordnung) = %v, erwartet kein Ergebnis", aktiv, gefunden)
 	}
 }

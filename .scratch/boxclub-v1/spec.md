@@ -173,7 +173,7 @@ Nichts davon wird gespeichert. Alle drei werden bei jeder Abfrage neu bestimmt �
 
 ### Suche und Filter
 
-`MemberService.Search(query, filter)` sucht gegen Vorname, Nachname, E-Mail, Telefon und **Mitglieds-ID**. Der Filter kombiniert:
+`MemberService.Search(query, filter)` sucht gegen Vorname, Nachname, E-Mail, Telefon und **Mitglieds-ID**. Die vier Textfelder treffen als Teilzeichenkette; die **Mitglieds-ID trifft genau**. Als Teiltreffer wäre sie bei 200 Mitgliedern wertlos — "7" brächte die 7, die 17, die 27 und die 70er zurück, und damit wäre die Nummer als Sprungmarke zu einer bekannten Zeile gerade nicht mehr zu gebrauchen (Story 5). Der Filter kombiniert:
 
 - Rückstand: alle / nur im Rückstand / nur in Ordnung
 - Trainingsfrequenz: alle / 1× / 2× / 3×

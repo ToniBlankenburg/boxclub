@@ -51,8 +51,8 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/mitglied/{id}/formular", a.mitgliedBearbeitenFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}", a.mitgliedAktualisieren)
 	mux.HandleFunc("GET /api/mitglied/{id}/zeile", a.mitgliedZeile)
-	mux.HandleFunc("GET /api/mitglied/{id}/zahlung", a.zahlungFormular)
-	mux.HandleFunc("POST /api/mitglied/{id}/zahlung", a.zahlungSpeichern)
+	mux.HandleFunc("GET /api/mitglied/{id}/rueckstand", a.rueckstandFormular)
+	mux.HandleFunc("POST /api/mitglied/{id}/rueckstand", a.rueckstandSpeichern)
 	mux.HandleFunc("GET /api/mitglied/{id}/austritt", a.austrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/austritt", a.austrittEintragen)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
@@ -84,7 +84,7 @@ var bereiche = []navigationseintrag{
 }
 
 // navigation liefert die Navigationseinträge mit dem angegebenen Bereich als
-// aktivem — dasselbe Muster wie Statusoptionen: die feste Liste kopieren und
+// aktivem — dasselbe Muster wie Rueckstandsoptionen: die feste Liste kopieren und
 // darin markieren.
 //
 // Mitgeschickt wird sie von jeder Antwort, die eine ganze Bereichsansicht
@@ -142,21 +142,21 @@ type meldung struct {
 	Warnung bool
 }
 
-// Werte des Zahlungsstatus-Filters, wie sie über die Adresszeile laufen. Sie
-// stehen hier als Konstanten, damit Auswahlliste und Auswertung nicht
-// auseinanderlaufen können.
+// Werte des Rückstandsfilters, wie sie über die Adresszeile laufen. Sie stehen
+// hier als Konstanten, damit Auswahlliste und Auswertung nicht auseinanderlaufen
+// können.
 const (
-	statusAlle         = ""
-	statusBezahlt      = "bezahlt"
-	statusNichtBezahlt = "nicht-bezahlt"
+	rueckstandAlle         = ""
+	rueckstandImRueckstand = "im-rueckstand"
+	rueckstandInOrdnung    = "in-ordnung"
 )
 
 // suchEingabe hält die Rohwerte der Filterleiste. Der Nullwert ist die
 // Standardansicht — dieselbe, die service.Suchfilter{} beschreibt.
 type suchEingabe struct {
-	Query     string
-	Status    string
-	Ehemalige bool
+	Query      string
+	Rueckstand string
+	Ehemalige  bool
 }
 
 // suchEingabeLesen sammelt Suchbegriff und Filter aus der Adresszeile ein.
@@ -166,8 +166,8 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 	return suchEingabe{
 		Query: werte.Get("q"),
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
-		Ehemalige: werte.Get("ehemalige") != "",
-		Status:    werte.Get("status"),
+		Ehemalige:  werte.Get("ehemalige") != "",
+		Rueckstand: werte.Get("rueckstand"),
 	}
 }
 
@@ -178,11 +178,11 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 	filter := service.Suchfilter{AuchEhemalige: e.Ehemalige}
 
-	switch e.Status {
-	case statusBezahlt:
-		filter.Zahlungsstatus = service.ZahlungsfilterBezahlt
-	case statusNichtBezahlt:
-		filter.Zahlungsstatus = service.ZahlungsfilterNichtBezahlt
+	switch e.Rueckstand {
+	case rueckstandImRueckstand:
+		filter.Rueckstand = service.RueckstandsfilterImRueckstand
+	case rueckstandInOrdnung:
+		filter.Rueckstand = service.RueckstandsfilterInOrdnung
 	}
 
 	return filter
@@ -196,13 +196,16 @@ type filteroption struct {
 	Gewaehlt     bool
 }
 
-// zahlungsstatusoptionen sind die Stufen des Zahlungsstatus-Filters in der
-// Reihenfolge, in der die Auswahlliste sie zeigt. Der erste Eintrag ist der
-// Standard, auf den auch ein unbekannter Wert zurückfällt.
-var zahlungsstatusoptionen = []filteroption{
-	{Wert: statusAlle, Beschriftung: "Alle Zahlungsstatus"},
-	{Wert: statusBezahlt, Beschriftung: "Bezahlt"},
-	{Wert: statusNichtBezahlt, Beschriftung: "Nicht bezahlt"},
+// rueckstandsoptionen sind die Stufen des Rückstandsfilters in der Reihenfolge,
+// in der die Auswahlliste sie zeigt. Der erste Eintrag ist der Standard, auf den
+// auch ein unbekannter Wert zurückfällt.
+//
+// "Im Rückstand" steht vor "In Ordnung": es ist die Ausnahmeliste, die der
+// Verein tatsächlich abarbeitet (ADR-0006).
+var rueckstandsoptionen = []filteroption{
+	{Wert: rueckstandAlle, Beschriftung: "Alle Mitglieder"},
+	{Wert: rueckstandImRueckstand, Beschriftung: "Im Rückstand"},
+	{Wert: rueckstandInOrdnung, Beschriftung: "In Ordnung"},
 }
 
 // listeDaten trägt das Suchergebnis, die Werte der Filterleiste und optional
@@ -226,16 +229,16 @@ func (d listeDaten) Gefiltert() bool {
 	return eingabe != (suchEingabe{})
 }
 
-// Statusoptionen sind die Stufen des Zahlungsstatus-Filters, die gewählte
+// Rueckstandsoptionen sind die Stufen des Rückstandsfilters, die gewählte
 // darunter markiert.
-func (d listeDaten) Statusoptionen() []filteroption {
-	optionen := slices.Clone(zahlungsstatusoptionen)
+func (d listeDaten) Rueckstandsoptionen() []filteroption {
+	optionen := slices.Clone(rueckstandsoptionen)
 
 	// Was sich nicht zuordnen lässt, steht auf dem Standard — dieselbe Regel,
 	// nach der alsSuchfilter den Wert auswertet.
 	gewaehlt := 0
 	for i, o := range optionen {
-		if o.Wert == d.Suche.Status {
+		if o.Wert == d.Suche.Rueckstand {
 			gewaehlt = i
 		}
 	}
@@ -424,14 +427,8 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 	})
 }
 
-// zahlungDaten speist die Zeile, in der bezahlt_bis eingetragen wird.
-type zahlungDaten struct {
-	Eintrag service.Listeneintrag
-	Fehler  string
-}
-
 // mitgliedZeile liefert eine einzelne Listenzeile — der Rückweg aus der
-// Zahlungseingabe, wenn der Nutzer abbricht.
+// Rückstandseingabe, wenn der Nutzer abbricht.
 func (a *App) mitgliedZeile(w http.ResponseWriter, r *http.Request) {
 	eintrag, ok := a.zeileLesen(w, r)
 	if !ok {
@@ -441,30 +438,16 @@ func (a *App) mitgliedZeile(w http.ResponseWriter, r *http.Request) {
 	a.rendern(w, "mitglied-zeile", eintrag)
 }
 
-// zahlungFormular tauscht die Zeile gegen die Eingabe von bezahlt_bis.
-func (a *App) zahlungFormular(w http.ResponseWriter, r *http.Request) {
+// rueckstandFormular tauscht die Zeile gegen die Pflege von Kennzeichen und
+// Notiz. Beides steht im selben Formular: Setzen, Aufheben und das Nachtragen
+// der Notiz sind für den Nutzer derselbe Vorgang.
+func (a *App) rueckstandFormular(w http.ResponseWriter, r *http.Request) {
 	eintrag, ok := a.zeileLesen(w, r)
 	if !ok {
 		return
 	}
 
-	a.rendern(w, "mitglied-zahlung-formular", zahlungDaten{Eintrag: eintrag})
-}
-
-// zahlungFormularMitFehler zeigt die Eingabe erneut, mitsamt der Meldung.
-//
-// Der abgelehnte Rohwert wird bewusst nicht zurückgereicht: <input type="date">
-// zeigt einen Wert, der kein Datum ist, ohnehin nicht an. Hierher kommt nur, wer
-// den Request selbst gebaut hat — das Feld beginnt dann wieder beim
-// gespeicherten Stand.
-func (a *App) zahlungFormularMitFehler(w http.ResponseWriter, id int64, fehler string) {
-	eintrag, err := a.svc.Eintrag(id)
-	if err != nil {
-		a.zeileNichtGefundenOderFehler(w, err)
-		return
-	}
-
-	a.rendern(w, "mitglied-zahlung-formular", zahlungDaten{Eintrag: eintrag, Fehler: fehler})
+	a.rendern(w, "mitglied-rueckstand-formular", eintrag)
 }
 
 // zeileLesen holt die Zeile zur ID aus dem Pfad. Ist das Ergebnis nicht ok,
@@ -484,9 +467,13 @@ func (a *App) zeileLesen(w http.ResponseWriter, r *http.Request) (service.Listen
 	return eintrag, true
 }
 
-// zahlungSpeichern schreibt bezahlt_bis und antwortet mit der aktualisierten
-// Zeile, die htmx an Ort und Stelle einwechselt.
-func (a *App) zahlungSpeichern(w http.ResponseWriter, r *http.Request) {
+// rueckstandSpeichern schreibt Kennzeichen und Notiz und antwortet mit der
+// aktualisierten Zeile, die htmx an Ort und Stelle einwechselt.
+//
+// Hier kann nichts ungültig sein: das Kennzeichen ist ein Kontrollkästchen, die
+// Notiz freier Text. Einen Fehlerpfad ins Formular zurück braucht es deshalb
+// nicht.
+func (a *App) rueckstandSpeichern(w http.ResponseWriter, r *http.Request) {
 	id, ok := mitgliedID(w, r)
 	if !ok {
 		return
@@ -497,18 +484,11 @@ func (a *App) zahlungSpeichern(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ein leeres Feld ist kein Fehler, sondern die Rücknahme der Angabe.
-	var bezahltBis *time.Time
-	if roh := r.FormValue("bezahlt_bis"); roh != "" {
-		d, err := time.Parse(isoDatum, roh)
-		if err != nil {
-			a.zahlungFormularMitFehler(w, id, "Das ist kein gültiges Datum.")
-			return
-		}
-		bezahltBis = &d
-	}
-
-	if err := a.svc.SetBezahltBis(id, bezahltBis); err != nil {
+	if err := a.svc.SetRueckstand(id, service.Rueckstand{
+		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
+		Offen: r.FormValue("rueckstand") != "",
+		Notiz: r.FormValue("notiz"),
+	}); err != nil {
 		a.zeileNichtGefundenOderFehler(w, err)
 		return
 	}
@@ -837,14 +817,6 @@ var templateFunktionen = template.FuncMap{
 		return service.BeitragAlsEuro(cents) + " €"
 	},
 	"datum": datumAnzeige,
-	// isodatum liefert den Wert für ein <input type="date">; nil wird zu "".
-	"isodatum": func(d *time.Time) string {
-		if d == nil {
-			return ""
-		}
-
-		return d.Format(isoDatum)
-	},
 	// feld bündelt die Argumente für das Teil-Template "feld"; html/template
 	// kennt keine benannten Parameter.
 	"feld": func(beschriftung, name, typ, wert string, pflicht, breit bool) feldDaten {

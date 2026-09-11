@@ -78,7 +78,6 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 	// "Stammdaten, ID, Historie bleiben" — mit leeren Feldern wäre sie nicht
 	// bewiesen, sondern nur nicht widerlegt.
 	geburtsdatum := datum(t, "1994-11-02")
-	bezahltBis := datum(t, "2026-12-31")
 
 	id, err := svc.Create(service.NeuesMitglied{
 		Vorname:      "Nina",
@@ -93,8 +92,8 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := svc.SetBezahltBis(id, &bezahltBis); err != nil {
-		t.Fatalf("SetBezahltBis: %v", err)
+	if err := svc.SetRueckstand(id, service.Rueckstand{Offen: true, Notiz: "Rücklastschrift Mai, noch offen"}); err != nil {
+		t.Fatalf("SetRueckstand: %v", err)
 	}
 
 	vorher, err := svc.Get(id)
