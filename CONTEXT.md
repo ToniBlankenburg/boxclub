@@ -50,6 +50,14 @@ Der Tag, an dem ein Mitglied seine Anmeldung abgegeben hat. Liegt in der Regel v
 
 **Nicht zu verwechseln mit:** dem Eintritt — das ist der Tag, ab dem die Mitgliedschaft läuft und der Beitrag fällig wird (üblicherweise ein Monatserster).
 
+## Anmeldegebühr
+
+Der einmalige Betrag, der beim Eintritt fällig war. Er ist ein **historischer Wert**: er hält fest, was tatsächlich gezahlt wurde, und wird nie neu berechnet. 0 € heißt „keine erhoben" — zwischen „keine" und „null Euro" unterscheidet der Verein nicht, denn geflossen ist in beiden Fällen nichts.
+
+Sie hängt an der **Mitgliedschaft**, nicht an der Person: jeder Zeitraum hatte seine eigene Anmeldung. Bei einem Wiedereintritt wird sie deshalb nicht fortgeschrieben.
+
+**Nicht zu verwechseln mit:** dem *Beitrag* (monatlich, laufend).
+
 ## Kündigungsdatum
 
 Der Tag, an dem ein Mitglied seine Kündigung erklärt hat. Das Datum, zu dem die Mitgliedschaft dann tatsächlich endet, ist der *Austritt*; er wird von Hand eingetragen und nicht aus der Kündigungsfrist berechnet.

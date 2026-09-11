@@ -18,15 +18,18 @@
     <div class="grid gap-4 sm:grid-cols-2">
         {{template "feld" feld "Vorname" "vorname" "text" .Eingabe.Vorname true false}}
         {{template "feld" feld "Nachname" "nachname" "text" .Eingabe.Nachname true false}}
-        {{/* Geburts- und Eintrittsdatum sind nach der Anlage bewusst nicht mehr
-             änderbar (Tippfehler-Schutz) und werden beim Bearbeiten nur angezeigt. */}}
+        {{/* Das Geburtsdatum ist nach der Anlage bewusst nicht mehr änderbar
+             (Tippfehler-Schutz) und wird beim Bearbeiten nur angezeigt — ebenso
+             das Eintrittsdatum weiter unten. */}}
         {{if .Bearbeiten}}
             {{template "feld-nur-lesen" anzeigefeld "Geburtsdatum" .GeburtsdatumAnzeige}}
-            {{template "feld-nur-lesen" anzeigefeld "Eintrittsdatum" .EintrittAnzeige}}
         {{else}}
             {{template "feld" feld "Geburtsdatum" "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
-            {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
         {{end}}
+        {{/* Das Geschlecht ist Freitext; die Liste darunter ist eine
+             Eintipphilfe und keine Einschränkung (Spec → keine
+             Wertelisten-Prüfung). */}}
+        {{template "feld-mit-vorschlaegen" vorschlagsfeld "Geschlecht" "geschlecht" .Eingabe.Geschlecht geschlechtVorschlaege}}
         {{/* Die Anschrift steht in drei Feldern (CONTEXT.md → Anschrift): Straße
              samt Hausnummer über die ganze Breite, Postleitzahl und Ort
              darunter nebeneinander. Alle drei sind freiwillig. */}}
@@ -35,11 +38,40 @@
         {{template "feld" feld "Ort" "ort" "text" .Eingabe.Ort false false}}
         {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
         {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
+        {{/* Die IBAN wird als reiner Text gespeichert: keine Prüfziffer, kein
+             Format, kein SEPA-Export (ADR-0006). Eine halb abgetippte IBAN soll
+             sich festhalten lassen — die Excel kann das heute auch. */}}
+        {{template "feld" feld "IBAN" "iban" "text" .Eingabe.IBAN false true}}
+        {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der Regel davor
+             (CONTEXT.md → Anmeldedatum). Anders als Geburtsdatum und Eintritt
+             bleibt es auch beim Bearbeiten änderbar: es begrenzt keinen Zeitraum,
+             sondern hält einen Vorgang fest. */}}
+        {{template "feld" feld "Anmeldedatum" "anmeldedatum" "date" .Eingabe.Anmeldedatum false false}}
+        {{/* Der Eintritt dagegen begrenzt den Zeitraum, gegen den Aus- und
+             Wiedereintritt prüfen, und liegt nach der Anlage fest. */}}
+        {{if .Bearbeiten}}
+            {{template "feld-nur-lesen" anzeigefeld "Eintrittsdatum" .EintrittAnzeige}}
+        {{else}}
+            {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
+        {{end}}
+        {{/* Die Anmeldegebühr ist ein historischer Wert — was beim Eintritt
+             tatsächlich gezahlt wurde. Leer heißt "keine erhoben"; deshalb ist
+             sie, anders als der Beitrag, kein Pflichtfeld. */}}
+        {{template "feld" feld "Anmeldegebühr in € (einmalig)" "anmeldegebuehr" "text" .Eingabe.Anmeldegebuehr false false}}
         {{/* Der Beitrag ist frei vereinbart, keine Auswahl aus Stufen (ADR-0005).
              0 ist ein gültiger Betrag — Trainer zahlen nichts —, deshalb ist das
              Feld Pflicht: die Null gehört hingeschrieben. */}}
         {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
         {{template "trainingsslotfelder" .Eingabe.Trainingsslotfelder}}
+        {{/* Zweiwertig: hat bewertet oder nicht (CONTEXT.md → Google-Bewertung).
+             Die Beschriftung des Hakens kommt aus dem Service. */}}
+        {{template "feld-kontrollkaestchen" kontrollkaestchen "Google-Bewertung" "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
+        {{/* Digital ist die gleichnamige Excel-Spalte, wortwörtlich als
+             Freitext. Ihre Bedeutung ist unbekannt; sie fährt mit, damit beim
+             Import keine Daten verloren gehen — deshalb hier keine Auswahl,
+             keine Prüfung und kein erklärender Hinweis, den niemand belegen
+             kann. */}}
+        {{template "feld" feld "Digital" "digital" "text" .Eingabe.Digital false false}}
     </div>
 
     <div class="mt-6 flex items-center gap-3">
@@ -101,5 +133,35 @@
         Wochentag und Uhrzeit, höchstens drei. Ein leeres Feld ist kein Slot — die
         Trainingsfrequenz ergibt sich aus der Anzahl der ausgefüllten Felder.
     </span>
+</div>
+{{end}}
+
+{{/* feld-mit-vorschlaegen ist ein Freitextfeld mit Eintipphilfe: die Liste
+     schlägt vor, schränkt aber nicht ein — gespeichert wird, was eingetippt
+     wurde. Ein <select> wäre hier falsch, weil es einen Wert erzwänge, den es
+     im Verein womöglich gar nicht gibt. Die Daten sind vorschlagsfeldDaten. */}}
+{{define "feld-mit-vorschlaegen"}}
+<label class="flex flex-col gap-1.5">
+    <span class="text-sm text-neutral-600">{{.Beschriftung}}</span>
+    <input name="{{.Name}}" type="text" value="{{.Wert}}" list="{{.Name}}-vorschlaege"
+           autocomplete="off"
+           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+    <datalist id="{{.Name}}-vorschlaege">
+        {{range .Vorschlaege}}<option value="{{.}}"></option>{{end}}
+    </datalist>
+</label>
+{{end}}
+
+{{/* feld-kontrollkaestchen ist ein zweiwertiges Feld. Ein Kontrollkästchen
+     schickt seinen Wert nur, wenn es gesetzt ist — ohne Haken kommt also nichts
+     an, und genau das heißt "nein". Die Daten sind kontrollkaestchenDaten. */}}
+{{define "feld-kontrollkaestchen"}}
+<div class="flex flex-col gap-1.5">
+    <span class="text-sm text-neutral-600">{{.Beschriftung}}</span>
+    <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-2.5 py-2 text-neutral-700">
+        <input name="{{.Name}}" type="checkbox" value="1"
+               class="accent-red-700" {{if .Gesetzt}}checked{{end}}>
+        {{.Text}}
+    </label>
 </div>
 {{end}}

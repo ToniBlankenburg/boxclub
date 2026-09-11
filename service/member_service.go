@@ -35,6 +35,27 @@ type Mitglied struct {
 	Email        string
 	Telefon      string
 
+	// IBAN steht als reiner Text da: die App speichert sie, prüft sie aber
+	// nicht und erzeugt keine Lastschrift-Dateien (ADR-0006). Eine Prüfziffer
+	// zu verlangen hieße, eine unvollständig abgetippte IBAN gar nicht erst
+	// festhalten zu können — und genau das tut die Excel heute.
+	IBAN string
+
+	// Geschlecht ist Freitext. Die Werteliste der Excel ist eine Eintipphilfe
+	// (siehe GeschlechtVorschlaege), keine Einschränkung.
+	Geschlecht string
+
+	// GoogleBewertung ist zweiwertig (CONTEXT.md → Google-Bewertung).
+	GoogleBewertung GoogleBewertung
+
+	// Digital ist die gleichnamige Excel-Spalte, wortwörtlich als Freitext.
+	// Ihre Bedeutung ist unbekannt; sie fährt mit, damit beim Import keine
+	// Daten verloren gehen, und bekommt bis dahin bewusst keine Semantik —
+	// weder Prüfung noch Auswahl noch Glossareintrag. Sobald klar ist, was sie
+	// bedeutet, ist das eine eigene, kleine Änderung: umbenennen und einen Typ
+	// geben.
+	Digital string
+
 	// Rueckstand hängt am Mitglied und nicht an der Mitgliedschaft: ein Austritt
 	// erlässt keine Schulden (ADR-0006).
 	Rueckstand Rueckstand
@@ -59,6 +80,11 @@ type Mitgliedschaft struct {
 	// BeitragCents ist der monatliche Beitrag in Cent. 0 ist ein gültiger
 	// Betrag — Trainer zahlen nichts — und keine fehlende Angabe.
 	BeitragCents int64
+
+	// Anmeldung ist, was beim Zustandekommen dieses Zeitraums einmalig anfiel:
+	// Anmeldedatum und Anmeldegebühr. Sie hängt an der Mitgliedschaft und nicht
+	// am Mitglied, weil jeder Zeitraum seine eigene Anmeldung hatte.
+	Anmeldung Anmeldung
 
 	// Trainingsslots sind die wöchentlichen Termine dieses Zeitraums, null bis
 	// MaxTrainingsslots, in der Reihenfolge, in der sie eingetragen wurden. Sie
@@ -154,9 +180,19 @@ type NeuesMitglied struct {
 	Telefon      string
 	Eintritt     time.Time
 
+	// Die vier freiwilligen Angaben am Mitglied — siehe Mitglied.
+	IBAN            string
+	Geschlecht      string
+	GoogleBewertung GoogleBewertung
+	Digital         string
+
 	// BeitragCents ist der individuell vereinbarte Monatsbeitrag in Cent. Er
 	// landet an der Mitgliedschaft, die mit dem Eintritt beginnt.
 	BeitragCents int64
+
+	// Anmeldung landet wie der Beitrag an der Mitgliedschaft, die mit dem
+	// Eintritt beginnt. Beide Angaben darin sind freiwillig.
+	Anmeldung Anmeldung
 
 	// Trainingsslots sind die wöchentlichen Termine, höchstens
 	// MaxTrainingsslots. Leere Angaben zählen nicht mit — das Formular schickt
@@ -167,6 +203,10 @@ type NeuesMitglied struct {
 // negativerBeitrag ist die Meldung zum einzigen Beitrag, den es nicht geben
 // kann. 0 € ist ausdrücklich erlaubt.
 const negativerBeitrag = "Der Beitrag darf nicht negativ sein."
+
+// negativeGebuehr ist das Gegenstück für die Anmeldegebühr. 0 € heißt hier
+// "keine erhoben" und ist der Normalfall, nicht die Ausnahme.
+const negativeGebuehr = "Die Anmeldegebühr darf nicht negativ sein."
 
 // ErrNichtGefunden meldet, dass zu einer ID kein Datensatz existiert.
 var ErrNichtGefunden = errors.New("nicht gefunden")
@@ -235,15 +275,21 @@ CREATE TABLE IF NOT EXISTS mitglied (
 	ort              TEXT    NOT NULL DEFAULT '',
 	email            TEXT    NOT NULL DEFAULT '',
 	telefon          TEXT    NOT NULL DEFAULT '',
+	iban             TEXT    NOT NULL DEFAULT '',
+	geschlecht       TEXT    NOT NULL DEFAULT '',
+	google_bewertung INTEGER NOT NULL DEFAULT 0,
+	digital          TEXT    NOT NULL DEFAULT '',
 	rueckstand       INTEGER NOT NULL DEFAULT 0,
 	rueckstand_notiz TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS mitgliedschaft (
-	id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-	mitglied_id            INTEGER NOT NULL REFERENCES mitglied(id) ON DELETE CASCADE,
-	eintritt               TEXT    NOT NULL,
-	austritt               TEXT,
+	id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+	mitglied_id             INTEGER NOT NULL REFERENCES mitglied(id) ON DELETE CASCADE,
+	anmeldedatum            TEXT,
+	eintritt                TEXT    NOT NULL,
+	austritt                TEXT,
+	anmeldegebuehr_cents    INTEGER NOT NULL DEFAULT 0,
 	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0
 );
 
@@ -285,11 +331,13 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
-		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
+		 	 iban, geschlecht, google_bewertung, digital)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
 		n.Anschrift.Adresse, n.Anschrift.Postleitzahl, n.Anschrift.Ort,
-		n.Email, n.Telefon)
+		n.Email, n.Telefon,
+		n.IBAN, n.Geschlecht, bool(n.GoogleBewertung), n.Digital)
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -300,9 +348,11 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 	}
 
 	res, err = tx.Exec(
-		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
-		 VALUES (?, ?, ?)`,
-		id, n.Eintritt.Format(isoDatum), n.BeitragCents)
+		`INSERT INTO mitgliedschaft
+		 	(mitglied_id, anmeldedatum, eintritt, anmeldegebuehr_cents, beitrag_monatlich_cents)
+		 VALUES (?, ?, ?, ?, ?)`,
+		id, alsDatumsText(n.Anmeldung.Datum), n.Eintritt.Format(isoDatum),
+		n.Anmeldung.GebuehrCents, n.BeitragCents)
 	if err != nil {
 		return 0, fmt.Errorf("mitgliedschaft anlegen: %w", err)
 	}
@@ -341,6 +391,9 @@ func (n NeuesMitglied) validieren() error {
 	if n.BeitragCents < 0 {
 		fehler = append(fehler, negativerBeitrag)
 	}
+	if n.Anmeldung.GebuehrCents < 0 {
+		fehler = append(fehler, negativeGebuehr)
+	}
 	fehler = append(fehler, trainingsslotsPruefen(n.Trainingsslots)...)
 
 	if len(fehler) > 0 {
@@ -364,6 +417,13 @@ type MitgliedPatch struct {
 	Email    *string
 	Telefon  *string
 
+	// Die vier freiwilligen Angaben am Mitglied — siehe Mitglied. Ein Zeiger
+	// auf den leeren Wert heißt "leeren", nil heißt "nicht angerührt".
+	IBAN            *string
+	Geschlecht      *string
+	GoogleBewertung *GoogleBewertung
+	Digital         *string
+
 	// Anschrift ändert sich als Ganzes und nicht feldweise: ein Umzug betrifft
 	// alle drei Angaben, und im Formular stehen sie zusammen. Wer nur den Ort
 	// korrigieren will, schickt die anderen beiden unverändert mit.
@@ -374,6 +434,17 @@ type MitgliedPatch struct {
 	// beides zusammen, und dann soll auch beides zusammen gespeichert werden —
 	// ganz oder gar nicht.
 	BeitragCents *int64
+
+	// Anmeldung ändert Anmeldedatum und -gebühr der maßgeblichen Mitgliedschaft
+	// als Ganzes, wie die Anschrift ihre drei Felder: beide beschreiben denselben
+	// Vorgang und stehen im Formular nebeneinander. Ein Zeiger auf die leere
+	// Anmeldung heißt deshalb "nichts mehr erfasst", nil dagegen "nicht angerührt".
+	//
+	// Anders als Geburtsdatum und Eintritt ist das Anmeldedatum nachträglich
+	// änderbar: es begrenzt keinen Zeitraum, gegen den der Lebenszyklus prüft,
+	// sondern hält einen Vorgang fest — und ein falsch abgetippter Vorgang muss
+	// sich korrigieren lassen.
+	Anmeldung *Anmeldung
 
 	// Trainingsslots ersetzen die Termine der maßgeblichen Mitgliedschaft
 	// vollständig: Hinzufügen und Entfernen sind für den Nutzer derselbe
@@ -407,18 +478,16 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 		return err
 	}
 
-	if zuweisungen, werte := patch.zuweisungen(); len(zuweisungen) > 0 {
-		// Die Spaltennamen stammen ausschließlich aus zuweisungen und sind dort
-		// Literale; die Werte gehen als Parameter in die Anweisung.
+	if stammdaten := patch.zuweisungen(); !stammdaten.leer() {
 		if _, err := tx.Exec(
-			`UPDATE mitglied SET `+strings.Join(zuweisungen, ", ")+` WHERE id = ?`,
-			append(werte, id)...); err != nil {
+			`UPDATE mitglied SET `+stammdaten.klausel()+` WHERE id = ?`,
+			append(stammdaten.werte, id)...); err != nil {
 			return fmt.Errorf("mitglied %d aktualisieren: %w", id, err)
 		}
 	}
 
-	if patch.BeitragCents != nil {
-		if err := beitragSchreiben(tx, id, *patch.BeitragCents); err != nil {
+	if mitgliedschaft := patch.mitgliedschaftZuweisungen(); !mitgliedschaft.leer() {
+		if err := mitgliedschaftSchreiben(tx, id, mitgliedschaft); err != nil {
 			return err
 		}
 	}
@@ -440,16 +509,16 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 	return nil
 }
 
-// beitragSchreiben setzt den Beitrag der maßgeblichen Mitgliedschaft — der
-// laufenden, und wenn keine läuft, der zuletzt begonnenen. Das ist derselbe
-// Zeitraum, den die Liste zeigt und den LetzteMitgliedschaft liefert: geändert
-// wird, was der Nutzer vor sich sieht.
-func beitragSchreiben(tx *sql.Tx, mitgliedID int64, cents int64) error {
+// mitgliedschaftSchreiben setzt die übergebenen Felder auf der maßgeblichen
+// Mitgliedschaft — der laufenden, und wenn keine läuft, der zuletzt begonnenen.
+// Das ist derselbe Zeitraum, den die Liste zeigt und den LetzteMitgliedschaft
+// liefert: geändert wird, was der Nutzer vor sich sieht.
+func mitgliedschaftSchreiben(tx *sql.Tx, mitgliedID int64, z zuweisungssatz) error {
 	res, err := tx.Exec(
-		`UPDATE mitgliedschaft SET beitrag_monatlich_cents = ?
-		 WHERE id = (`+massgeblicheMitgliedschaft+`)`, cents, mitgliedID)
+		`UPDATE mitgliedschaft SET `+z.klausel()+`
+		 WHERE id = (`+massgeblicheMitgliedschaft+`)`, append(z.werte, mitgliedID)...)
 	if err != nil {
-		return fmt.Errorf("beitrag von mitglied %d setzen: %w", mitgliedID, err)
+		return fmt.Errorf("mitgliedschaft von mitglied %d aktualisieren: %w", mitgliedID, err)
 	}
 
 	betroffen, err := res.RowsAffected()
@@ -533,6 +602,9 @@ func (p MitgliedPatch) validieren() error {
 	if p.BeitragCents != nil && *p.BeitragCents < 0 {
 		fehler = append(fehler, negativerBeitrag)
 	}
+	if p.Anmeldung != nil && p.Anmeldung.GebuehrCents < 0 {
+		fehler = append(fehler, negativeGebuehr)
+	}
 	if p.Trainingsslots != nil {
 		fehler = append(fehler, trainingsslotsPruefen(*p.Trainingsslots)...)
 	}
@@ -544,36 +616,82 @@ func (p MitgliedPatch) validieren() error {
 	return nil
 }
 
-// zuweisungen übersetzt die gesetzten Felder in SET-Fragmente samt ihrer Werte.
-func (p MitgliedPatch) zuweisungen() ([]string, []any) {
-	var (
-		fragmente []string
-		werte     []any
-	)
+// zuweisungssatz sammelt die SET-Fragmente einer Änderung samt ihrer Werte. Die
+// Spaltennamen sind dabei ausnahmslos Literale aus diesem Package; die Werte
+// gehen als Parameter in die Anweisung und werden nie in sie hineingeschrieben.
+type zuweisungssatz struct {
+	fragmente []string
+	werte     []any
+}
 
-	setze := func(spalte string, wert any) {
-		fragmente = append(fragmente, spalte+" = ?")
-		werte = append(werte, wert)
-	}
+func (z *zuweisungssatz) setze(spalte string, wert any) {
+	z.fragmente = append(z.fragmente, spalte+" = ?")
+	z.werte = append(z.werte, wert)
+}
+
+// leer sagt, ob nichts zu schreiben ist — dann unterbleibt die Anweisung ganz.
+func (z zuweisungssatz) leer() bool {
+	return len(z.fragmente) == 0
+}
+
+// klausel ist der Teil hinter SET.
+func (z zuweisungssatz) klausel() string {
+	return strings.Join(z.fragmente, ", ")
+}
+
+// zuweisungen übersetzt die gesetzten Felder in SET-Fragmente samt ihrer Werte.
+func (p MitgliedPatch) zuweisungen() zuweisungssatz {
+	var z zuweisungssatz
 
 	if p.Vorname != nil {
-		setze("vorname", *p.Vorname)
+		z.setze("vorname", *p.Vorname)
 	}
 	if p.Nachname != nil {
-		setze("nachname", *p.Nachname)
+		z.setze("nachname", *p.Nachname)
 	}
 	if p.Anschrift != nil {
-		setze("adresse", p.Anschrift.Adresse)
-		setze("postleitzahl", p.Anschrift.Postleitzahl)
-		setze("ort", p.Anschrift.Ort)
+		z.setze("adresse", p.Anschrift.Adresse)
+		z.setze("postleitzahl", p.Anschrift.Postleitzahl)
+		z.setze("ort", p.Anschrift.Ort)
 	}
 	if p.Email != nil {
-		setze("email", *p.Email)
+		z.setze("email", *p.Email)
 	}
 	if p.Telefon != nil {
-		setze("telefon", *p.Telefon)
+		z.setze("telefon", *p.Telefon)
 	}
-	return fragmente, werte
+	if p.IBAN != nil {
+		z.setze("iban", *p.IBAN)
+	}
+	if p.Geschlecht != nil {
+		z.setze("geschlecht", *p.Geschlecht)
+	}
+	if p.GoogleBewertung != nil {
+		z.setze("google_bewertung", bool(*p.GoogleBewertung))
+	}
+	if p.Digital != nil {
+		z.setze("digital", *p.Digital)
+	}
+
+	return z
+}
+
+// mitgliedschaftZuweisungen übersetzt die Patch-Felder, die nicht am Mitglied
+// hängen, sondern an seiner maßgeblichen Mitgliedschaft. Getrennt von
+// zuweisungen, weil sie in eine andere Tabelle gehen — nicht, weil sie im
+// Formular woanders stünden.
+func (p MitgliedPatch) mitgliedschaftZuweisungen() zuweisungssatz {
+	var z zuweisungssatz
+
+	if p.BeitragCents != nil {
+		z.setze("beitrag_monatlich_cents", *p.BeitragCents)
+	}
+	if p.Anmeldung != nil {
+		z.setze("anmeldedatum", alsDatumsText(p.Anmeldung.Datum))
+		z.setze("anmeldegebuehr_cents", p.Anmeldung.GebuehrCents)
+	}
+
+	return z
 }
 
 // abfrager ist die Teilmenge von *sql.DB und *sql.Tx, die die Prüfungen unten
@@ -609,11 +727,14 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 
 	err := s.db.QueryRow(
 		`SELECT id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort,
-		 	email, telefon, rueckstand, rueckstand_notiz
+		 	email, telefon, iban, geschlecht, google_bewertung, digital,
+		 	rueckstand, rueckstand_notiz
 		 FROM mitglied WHERE id = ?`, id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
 			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
-			&m.Email, &m.Telefon, &m.Rueckstand.Offen, &m.Rueckstand.Notiz)
+			&m.Email, &m.Telefon,
+			&m.IBAN, &m.Geschlecht, &m.GoogleBewertung, &m.Digital,
+			&m.Rueckstand.Offen, &m.Rueckstand.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
 	}
@@ -679,7 +800,8 @@ func (s *MemberService) trainingsslotsLesen(mitgliedschaftIDs []int64) (map[int6
 
 func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, error) {
 	rows, err := s.db.Query(
-		`SELECT id, mitglied_id, eintritt, austritt, beitrag_monatlich_cents
+		`SELECT id, mitglied_id, anmeldedatum, eintritt, austritt,
+		 	anmeldegebuehr_cents, beitrag_monatlich_cents
 		 FROM mitgliedschaft WHERE mitglied_id = ?
 		 ORDER BY eintritt, id`, mitgliedID)
 	if err != nil {
@@ -690,14 +812,19 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 	var alle []Mitgliedschaft
 	for rows.Next() {
 		var (
-			ms       Mitgliedschaft
-			eintritt string
-			austritt sql.NullString
+			ms           Mitgliedschaft
+			anmeldedatum sql.NullString
+			eintritt     string
+			austritt     sql.NullString
 		)
-		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &eintritt, &austritt, &ms.BeitragCents); err != nil {
+		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &austritt,
+			&ms.Anmeldung.GebuehrCents, &ms.BeitragCents); err != nil {
 			return nil, fmt.Errorf("mitgliedschaft lesen: %w", err)
 		}
 
+		if ms.Anmeldung.Datum, err = ausDatumsText(anmeldedatum); err != nil {
+			return nil, fmt.Errorf("anmeldedatum von mitgliedschaft %d: %w", ms.ID, err)
+		}
 		if ms.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
 			return nil, fmt.Errorf("eintritt von mitgliedschaft %d: %w", ms.ID, err)
 		}
@@ -821,6 +948,11 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// ist — an welchen Tagen jemand nach Jahren wieder trainiert, wird neu
 	// vereinbart. Bis dahin liest sich die Frequenz als "kein Training", und die
 	// Slots der alten Mitgliedschaft bleiben unangetastet stehen.
+	//
+	// Aus demselben Grund bleibt die Anmeldung leer: Anmeldedatum und -gebühr
+	// halten fest, was bei *diesem* Eintritt geschah. Die Werte des alten
+	// Zeitraums abzuschreiben hieße, eine Gebühr zu behaupten, die niemand
+	// gezahlt hat.
 	if _, err := tx.Exec(
 		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
 		 VALUES (?, ?, (SELECT beitrag_monatlich_cents FROM mitgliedschaft
@@ -899,6 +1031,12 @@ type Listeneintrag struct {
 
 	// Rueckstand färbt das Kennzeichen der Zeile und erklärt es.
 	Rueckstand Rueckstand
+
+	// GoogleBewertung ist die einzige der freiwilligen Angaben, die in der Liste
+	// steht: die Frage "wen kann ich noch fragen" beantwortet man durchsehend.
+	// IBAN, Geschlecht, Digital, Anmeldedatum und Anmeldegebühr stehen nur im
+	// Formular — sie helfen beim Überblick nicht und machten die Zeile nur breiter.
+	GoogleBewertung GoogleBewertung
 
 	// Austritt ist nil, solange die Mitgliedschaft läuft. Gesetzt ist er nur in
 	// Ergebnissen, die Ehemalige einschließen — dort ist er die einzige Angabe,
@@ -1034,7 +1172,7 @@ func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
 const eintraegeAbfrage = `
 	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon,
 		m.adresse, m.postleitzahl, m.ort,
-		m.rueckstand, m.rueckstand_notiz,
+		m.google_bewertung, m.rueckstand, m.rueckstand_notiz,
 		ms.id, ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
@@ -1122,7 +1260,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 		)
 		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon,
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
-			&e.Rueckstand.Offen, &e.Rueckstand.Notiz,
+			&e.GoogleBewertung, &e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&mitgliedschaftID, &eintritt, &austritt, &e.BeitragCents); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}

@@ -116,10 +116,25 @@ type formularEingabe struct {
 	Ort          string
 	Email        string
 	Telefon      string
+	// IBAN, Geschlecht und Digital sind freier Text und gehen unverändert
+	// weiter: geprüft wird an keinem der drei etwas (ADR-0006, Spec → Digital).
+	IBAN       string
+	Geschlecht string
+	Digital    string
+	// GoogleBewertung kommt aus einem Kontrollkästchen und ist deshalb schon
+	// hier ein Wahrheitswert — parsen lässt sich daran nichts.
+	GoogleBewertung bool
 	// Beitrag ist der getippte Euro-Betrag, so wie er im Feld steht — umgerechnet
 	// wird er im Service (service.BeitragAusEuro).
-	Beitrag  string
-	Eintritt string
+	Beitrag string
+	// Anmeldegebuehr ist der getippte Euro-Betrag der einmaligen Gebühr; anders
+	// als der Beitrag darf das Feld leer bleiben (service.AnmeldegebuehrAusEuro).
+	Anmeldegebuehr string
+	// Anmeldedatum und Eintritt stehen beide als ISO-Text im Formular. Der
+	// Eintritt ist nach der Anlage nicht mehr änderbar, das Anmeldedatum schon
+	// — es begrenzt keinen Zeitraum, sondern hält einen Vorgang fest.
+	Anmeldedatum string
+	Eintritt     string
 
 	// Trainingsslots sind die Rohwerte der Slot-Felder — immer so viele, wie das
 	// Formular Felder zeigt. Welche davon leer sind und damit kein Slot, und wie
@@ -480,27 +495,37 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 	// ausgetretenen Mitglied, dessen letzter Eintritt und Beitrag hier stehen
 	// sollen. Denselben Zeitraum ändert Update auch wieder.
 	var (
-		eintritt *time.Time
-		beitrag  string
-		slots    []string
+		eintritt       *time.Time
+		beitrag        string
+		anmeldedatum   string
+		anmeldegebuehr string
+		slots          []string
 	)
 	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
 		eintritt = &letzte.Eintritt
 		beitrag = service.BeitragAlsEuro(letzte.BeitragCents)
+		anmeldedatum = isoDatumsWert(letzte.Anmeldung.Datum)
+		anmeldegebuehr = service.AnmeldegebuehrAlsEuro(letzte.Anmeldung.GebuehrCents)
 		slots = letzte.Trainingsslots
 	}
 
 	if eingabe == nil {
 		eingabe = &formularEingabe{
-			Vorname:        m.Vorname,
-			Nachname:       m.Nachname,
-			Adresse:        m.Anschrift.Adresse,
-			Postleitzahl:   m.Anschrift.Postleitzahl,
-			Ort:            m.Anschrift.Ort,
-			Email:          m.Email,
-			Telefon:        m.Telefon,
-			Beitrag:        beitrag,
-			Trainingsslots: slots,
+			Vorname:         m.Vorname,
+			Nachname:        m.Nachname,
+			Adresse:         m.Anschrift.Adresse,
+			Postleitzahl:    m.Anschrift.Postleitzahl,
+			Ort:             m.Anschrift.Ort,
+			Email:           m.Email,
+			Telefon:         m.Telefon,
+			IBAN:            m.IBAN,
+			Geschlecht:      m.Geschlecht,
+			GoogleBewertung: bool(m.GoogleBewertung),
+			Digital:         m.Digital,
+			Beitrag:         beitrag,
+			Anmeldegebuehr:  anmeldegebuehr,
+			Anmeldedatum:    anmeldedatum,
+			Trainingsslots:  slots,
 		}
 	}
 
@@ -764,8 +789,15 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Ort:          r.FormValue("ort"),
 		Email:        r.FormValue("email"),
 		Telefon:      r.FormValue("telefon"),
-		Beitrag:      r.FormValue("beitrag"),
-		Eintritt:     r.FormValue("eintritt"),
+		IBAN:         r.FormValue("iban"),
+		Geschlecht:   r.FormValue("geschlecht"),
+		Digital:      r.FormValue("digital"),
+		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
+		GoogleBewertung: r.FormValue("google_bewertung") != "",
+		Beitrag:         r.FormValue("beitrag"),
+		Anmeldegebuehr:  r.FormValue("anmeldegebuehr"),
+		Anmeldedatum:    r.FormValue("anmeldedatum"),
+		Eintritt:        r.FormValue("eintritt"),
 		// Alle gleichnamigen Slot-Felder auf einmal, in der Reihenfolge des
 		// Formulars. Die leeren kommen mit; sie auszusortieren ist Sache des
 		// Service, der auch die Obergrenze kennt.
@@ -797,6 +829,34 @@ func (e formularEingabe) alsAnschrift() service.Anschrift {
 	}
 }
 
+// alsAnmeldung bündelt Anmeldedatum und Anmeldegebühr — die beiden Angaben, die
+// an der Mitgliedschaft und nicht am Mitglied hängen. Beide sind freiwillig:
+// ein leeres Datumsfeld heißt "nicht erfasst", ein leeres Gebührenfeld "keine
+// erhoben". Unlesbar ist deshalb nur, was gefüllt und trotzdem kein Wert ist.
+func (e formularEingabe) alsAnmeldung() (service.Anmeldung, []string) {
+	var (
+		anmeldung service.Anmeldung
+		fehler    []string
+	)
+
+	if e.Anmeldedatum != "" {
+		d, err := time.Parse(isoDatum, e.Anmeldedatum)
+		if err != nil {
+			fehler = append(fehler, "Anmeldedatum ist kein gültiges Datum.")
+		} else {
+			anmeldung.Datum = &d
+		}
+	}
+
+	cents, err := service.AnmeldegebuehrAusEuro(e.Anmeldegebuehr)
+	if err != nil {
+		fehler = append(fehler, err.Error())
+	}
+	anmeldung.GebuehrCents = cents
+
+	return anmeldung, fehler
+}
+
 // alsNeuesMitglied übersetzt die Rohwerte in die Service-Eingabe und sammelt
 // dabei alle Parse-Fehler, statt beim ersten abzubrechen. Leere Pflichtfelder
 // meldet nicht diese Funktion, sondern der Service — sonst stünde dieselbe Regel
@@ -804,13 +864,21 @@ func (e formularEingabe) alsAnschrift() service.Anschrift {
 func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	var fehler []string
 
+	anmeldung, anmeldungFehler := e.alsAnmeldung()
+	fehler = append(fehler, anmeldungFehler...)
+
 	neu := service.NeuesMitglied{
-		Vorname:        e.Vorname,
-		Nachname:       e.Nachname,
-		Anschrift:      e.alsAnschrift(),
-		Email:          e.Email,
-		Telefon:        e.Telefon,
-		Trainingsslots: e.Trainingsslots,
+		Vorname:         e.Vorname,
+		Nachname:        e.Nachname,
+		Anschrift:       e.alsAnschrift(),
+		Email:           e.Email,
+		Telefon:         e.Telefon,
+		IBAN:            e.IBAN,
+		Geschlecht:      e.Geschlecht,
+		GoogleBewertung: service.GoogleBewertung(e.GoogleBewertung),
+		Digital:         e.Digital,
+		Anmeldung:       anmeldung,
+		Trainingsslots:  e.Trainingsslots,
 	}
 
 	if e.Geburtsdatum != "" {
@@ -847,25 +915,41 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 	var fehler []string
 
 	anschrift := e.alsAnschrift()
+	googleBewertung := service.GoogleBewertung(e.GoogleBewertung)
 	patch := service.MitgliedPatch{
-		Vorname:   &e.Vorname,
-		Nachname:  &e.Nachname,
-		Anschrift: &anschrift,
-		Email:     &e.Email,
-		Telefon:   &e.Telefon,
+		Vorname:         &e.Vorname,
+		Nachname:        &e.Nachname,
+		Anschrift:       &anschrift,
+		Email:           &e.Email,
+		Telefon:         &e.Telefon,
+		IBAN:            &e.IBAN,
+		Geschlecht:      &e.Geschlecht,
+		GoogleBewertung: &googleBewertung,
+		Digital:         &e.Digital,
 		// Das Formular schickt die Slot-Felder immer mit, auch die leeren: was
 		// darin steht, ist die vollständige Aussage darüber, wann das Mitglied
 		// künftig trainiert.
 		Trainingsslots: &e.Trainingsslots,
 	}
 
-	// Ein unlesbarer Beitrag hält den ganzen Patch auf: er würde sonst
-	// stillschweigend auf 0 € stehen bleiben, und 0 € ist ein gültiger Betrag.
+	// Was sich nicht lesen lässt, bleibt ungesetzt: ein halb verstandener Wert
+	// stünde sonst stillschweigend auf 0 € bzw. auf "kein Datum", und beides ist
+	// eine gültige Aussage, die niemand getroffen hat. Gemeldet werden beide
+	// Betragsfelder auf einmal — wer sich in beiden vertippt hat, soll das nicht
+	// nacheinander erfahren.
+	anmeldung, anmeldungFehler := e.alsAnmeldung()
+	if len(anmeldungFehler) > 0 {
+		fehler = append(fehler, anmeldungFehler...)
+	} else {
+		patch.Anmeldung = &anmeldung
+	}
+
 	cents, err := service.BeitragAusEuro(e.Beitrag)
 	if err != nil {
-		return patch, append(fehler, err.Error())
+		fehler = append(fehler, err.Error())
+	} else {
+		patch.BeitragCents = &cents
 	}
-	patch.BeitragCents = &cents
 
 	return patch, fehler
 }
@@ -899,6 +983,17 @@ func (a *App) nichtGefundenOderFehler(w http.ResponseWriter, err error) {
 	}
 
 	fehlerAntwort(w, err)
+}
+
+// isoDatumsWert schreibt ein optionales Datum so, wie <input type="date"> es
+// erwartet; nil wird zum leeren Feld. Das ist die Umkehrung des Parsens in
+// formularEingabe.alsAnmeldung.
+func isoDatumsWert(d *time.Time) string {
+	if d == nil {
+		return ""
+	}
+
+	return d.Format(isoDatum)
 }
 
 // datumAnzeige formatiert ein Datum deutsch; nil und der Nullwert werden zu "—".
@@ -942,6 +1037,53 @@ var templateFunktionen = template.FuncMap{
 	"anzeigefeld": func(beschriftung, wert string) anzeigeDaten {
 		return anzeigeDaten{Beschriftung: beschriftung, Wert: wert}
 	},
+	// vorschlagsfeld bündelt die Argumente für das Teil-Template
+	// "feld-mit-vorschlaegen".
+	"vorschlagsfeld": func(beschriftung, name, wert string, vorschlaege []string) vorschlagsfeldDaten {
+		return vorschlagsfeldDaten{
+			Beschriftung: beschriftung,
+			Name:         name,
+			Wert:         wert,
+			Vorschlaege:  vorschlaege,
+		}
+	},
+	// geschlechtVorschlaege reicht die Eintipphilfe aus dem Service ins
+	// Template — die Werte stehen dort, wo das Vokabular liegt.
+	"geschlechtVorschlaege": service.GeschlechtVorschlaege,
+	// kontrollkaestchen bündelt die Argumente für das Teil-Template
+	// "feld-kontrollkaestchen". Text beschreibt, was ein Haken bedeutet, und
+	// kommt deshalb aus dem Service.
+	"kontrollkaestchen": func(beschriftung, name, text string, gesetzt bool) kontrollkaestchenDaten {
+		return kontrollkaestchenDaten{
+			Beschriftung: beschriftung,
+			Name:         name,
+			Text:         text,
+			Gesetzt:      gesetzt,
+		}
+	},
+	// beschriftungHatBewertet ist der Text am Google-Haken: der Zustand, den ein
+	// gesetzter Haken bedeutet. Er kommt aus dem Service, damit Liste und
+	// Formular dieselben Worte benutzen (service.GoogleBewertung).
+	"beschriftungHatBewertet": service.GoogleBewertung(true).Bezeichnung,
+}
+
+// vorschlagsfeldDaten beschreibt ein Freitextfeld mit Eintipphilfe für das
+// Teil-Template "feld-mit-vorschlaegen". Die Vorschläge schränken nicht ein:
+// gespeichert wird, was der Nutzer schreibt.
+type vorschlagsfeldDaten struct {
+	Beschriftung string
+	Name         string
+	Wert         string
+	Vorschlaege  []string
+}
+
+// kontrollkaestchenDaten beschreibt einen zweiwertigen Haken für das
+// Teil-Template "feld-kontrollkaestchen".
+type kontrollkaestchenDaten struct {
+	Beschriftung string
+	Name         string
+	Text         string
+	Gesetzt      bool
 }
 
 // anzeigeDaten beschreibt eine Angabe, die nur gelesen wird, für das

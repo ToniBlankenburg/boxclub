@@ -126,6 +126,16 @@
     hx-trigger="click, keyup[key=='Enter']">
     <td class="px-4 py-2">
         {{.Nachname}}, {{.Vorname}}
+        {{/* Die Google-Bewertung ist die einzige der freiwilligen Angaben, die in
+             der Liste steht — als Zeichen am Namen und nicht als eigene Spalte,
+             denn die Frage lautet "wen kann ich noch fragen" und wird
+             durchsehend beantwortet. Wer bewertet hat, trägt den Stern; die
+             übrigen sind die, die man noch fragen kann. Die Worte dazu kommen
+             wie beim Rückstandskennzeichen aus dem Service. */}}
+        {{if .GoogleBewertung}}
+            <span class="ml-1 text-amber-500" title="Google-Bewertung: {{.GoogleBewertung.Bezeichnung}}"
+                  aria-label="Google-Bewertung: {{.GoogleBewertung.Bezeichnung}}">&#9733;</span>
+        {{end}}
         {{/* Ein Austrittsdatum steht nur in Ergebnissen, die Ehemalige
              einschließen — dann muss die Zeile sich als solche zu erkennen geben. */}}
         {{if .Austritt}}

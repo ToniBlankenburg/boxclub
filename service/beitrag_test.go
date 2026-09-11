@@ -299,3 +299,80 @@ func TestCreate_LehntNegativenBeitragAb(t *testing.T) {
 		t.Fatalf("Update mit negativem Beitrag = %v, erwartet *service.ValidierungsFehler", err)
 	}
 }
+
+// Die Anmeldegebühr teilt sich die Umrechnung mit dem Beitrag und liest
+// deshalb dieselben Schreibweisen. Der eine Unterschied: sie ist freiwillig —
+// ein leeres Feld heißt "keine Gebühr" und ist kein Fehler.
+func TestAnmeldegebuehrAusEuro_RechnetWieDerBeitragUndErlaubtLeer(t *testing.T) {
+	faelle := []struct {
+		eingabe string
+		cents   int64
+	}{
+		{"", 0},
+		{"   ", 0},
+		{"0", 0},
+		{"60", 6000},
+		{"60,50", 6050},
+		{"60.50", 6050},
+		{"  30 € ", 3000},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.eingabe, func(t *testing.T) {
+			cents, err := service.AnmeldegebuehrAusEuro(f.eingabe)
+			if err != nil {
+				t.Fatalf("AnmeldegebuehrAusEuro(%q): %v", f.eingabe, err)
+			}
+			if cents != f.cents {
+				t.Errorf("AnmeldegebuehrAusEuro(%q) = %d Cent, erwartet %d", f.eingabe, cents, f.cents)
+			}
+		})
+	}
+}
+
+// Was kein Betrag ist, wird auch hier abgewiesen statt zurechtgebogen — die
+// Gebühr ist ein historischer Wert, den niemand nachrechnet.
+func TestAnmeldegebuehrAusEuro_WeistUngueltigeEingabenAb(t *testing.T) {
+	for _, eingabe := range []string{"abc", "-5", "60,005", "1.234,56", "60,", ",50", "12345"} {
+		t.Run(eingabe, func(t *testing.T) {
+			cents, err := service.AnmeldegebuehrAusEuro(eingabe)
+
+			var validierung *service.ValidierungsFehler
+			if !errors.As(err, &validierung) {
+				t.Fatalf("AnmeldegebuehrAusEuro(%q) = %d, %v — erwartet *service.ValidierungsFehler", eingabe, cents, err)
+			}
+			if cents != 0 {
+				t.Errorf("AnmeldegebuehrAusEuro(%q) = %d Cent, erwartet 0 neben dem Fehler", eingabe, cents)
+			}
+		})
+	}
+}
+
+// Anzeige und Eingabe müssen auch bei der Gebühr zusammenpassen — und die nicht
+// erhobene Gebühr muss als leeres Feld hin- und zurückkommen.
+func TestAnmeldegebuehrAlsEuro_IstDieUmkehrungDerEingabe(t *testing.T) {
+	faelle := []struct {
+		cents int64
+		text  string
+	}{
+		{0, ""},
+		{3000, "30,00"},
+		{6050, "60,50"},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.text, func(t *testing.T) {
+			if got := service.AnmeldegebuehrAlsEuro(f.cents); got != f.text {
+				t.Errorf("AnmeldegebuehrAlsEuro(%d) = %q, erwartet %q", f.cents, got, f.text)
+			}
+
+			zurueck, err := service.AnmeldegebuehrAusEuro(f.text)
+			if err != nil {
+				t.Fatalf("AnmeldegebuehrAusEuro(%q): %v", f.text, err)
+			}
+			if zurueck != f.cents {
+				t.Errorf("AnmeldegebuehrAusEuro(%q) = %d Cent, erwartet %d", f.text, zurueck, f.cents)
+			}
+		})
+	}
+}
