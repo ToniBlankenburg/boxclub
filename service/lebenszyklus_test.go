@@ -83,7 +83,7 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 		Vorname:      "Nina",
 		Nachname:     "Klein",
 		Geburtsdatum: &geburtsdatum,
-		Adresse:      "Kanalstraße 12, 12043 Berlin",
+		Anschrift:    service.Anschrift{Adresse: "Kanalstraße 12", Postleitzahl: "12043", Ort: "Berlin"},
 		Email:        "nina.klein@example.org",
 		Telefon:      "0160 4443322",
 		BeitragCents: beitragImTest,

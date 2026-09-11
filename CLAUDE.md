@@ -44,7 +44,7 @@ go test ./service/... -run TestMemberService_Create
 
 **SQLite schema (two tables):** nothing is seeded — a fresh database is empty.
 
-- `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries
+- `mitglied(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries. The postal address is three separate columns (`adresse` is street + house number) — see `CONTEXT.md` → Anschrift
 - `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL, beitrag_monatlich_cents)` — time-bound membership period; `austritt IS NULL` means currently active
 
 The monthly fee hangs on the **membership**, not on the person, and is individually agreed — there are no fee classes (see ADR-0005). 0 € is a valid fee, not a missing one. Euro input is converted to cents in `service.BeitragAusEuro`; there is no migration mechanism, so a schema change means deleting the dev database.

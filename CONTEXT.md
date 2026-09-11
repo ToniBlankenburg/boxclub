@@ -28,6 +28,12 @@ Der monatliche Betrag, den ein bestimmtes Mitglied zahlt. Er ist **individuell p
 
 **Abgelöst:** *Beitragsklasse* — eine gemeinsame Preisstufe, der Mitglieder zugeordnet werden. Das Konzept existiert in diesem Verein nicht; siehe [ADR-0005](docs/adr/0005-beitrag-individuell-statt-beitragsklasse.md). _Vermeiden:_ Beitragsklasse, Tarif, Preisstufe.
 
+## Anschrift
+
+Die Postanschrift eines Mitglieds. Sie besteht aus **drei getrennten Angaben** — *Adresse* (Straße samt Hausnummer), *Postleitzahl* und *Ort* —, weil die Excel-Tabelle des Vereins sie so führt und nur getrennt Postleitzahl und Ort als eigene Angaben auswertbar bleiben. Alle drei sind freiwillig; ein Mitglied ohne Anschrift ist ein gültiges Mitglied.
+
+**Nicht zu verwechseln mit:** einem einzelnen Adress-Textblock. _Vermeiden:_ „Adresse" als Sammelbegriff für die ganze Anschrift — Adresse ist hier nur die Straße mit Hausnummer.
+
 ## Trainingsslot
 
 Ein konkreter wöchentlicher Trainingstermin, für den ein Mitglied angemeldet ist — bezeichnet durch Wochentag und Uhrzeit (z. B. "Samstag 10:30 Uhr"). Ein Mitglied hat null bis drei Slots.

@@ -56,7 +56,7 @@ func TestCreate_LegtMitgliedUndAktiveMitgliedschaftAn(t *testing.T) {
 		Vorname:      "Anna",
 		Nachname:     "Berger",
 		Geburtsdatum: &geburtsdatum,
-		Adresse:      "Ringstraße 5, 12043 Berlin",
+		Anschrift:    service.Anschrift{Adresse: "Ringstraße 5", Postleitzahl: "12043", Ort: "Berlin"},
 		Email:        "anna.berger@example.org",
 		Telefon:      "030 1234567",
 		BeitragCents: 8000,
@@ -83,8 +83,8 @@ func TestCreate_LegtMitgliedUndAktiveMitgliedschaftAn(t *testing.T) {
 	if m.Geburtsdatum == nil || !m.Geburtsdatum.Equal(geburtsdatum) {
 		t.Errorf("Geburtsdatum = %v, erwartet %v", m.Geburtsdatum, geburtsdatum)
 	}
-	if m.Adresse != "Ringstraße 5, 12043 Berlin" {
-		t.Errorf("Adresse = %q", m.Adresse)
+	if erwartet := (service.Anschrift{Adresse: "Ringstraße 5", Postleitzahl: "12043", Ort: "Berlin"}); m.Anschrift != erwartet {
+		t.Errorf("Anschrift = %+v, erwartet %+v", m.Anschrift, erwartet)
 	}
 	if m.Email != "anna.berger@example.org" {
 		t.Errorf("Email = %q", m.Email)
@@ -397,7 +397,7 @@ func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
 		Vorname:      "Jonas",
 		Nachname:     "Krüger",
 		Geburtsdatum: &geburtsdatum,
-		Adresse:      "Hauptstraße 1, 10115 Berlin",
+		Anschrift:    service.Anschrift{Adresse: "Hauptstraße 1", Postleitzahl: "10115", Ort: "Berlin"},
 		Email:        "jonas@example.org",
 		Telefon:      "030 111111",
 		BeitragCents: beitragImTest,
@@ -431,8 +431,8 @@ func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
 	if m.Vorname != "Jonas" {
 		t.Errorf("Vorname = %q, erwartet unverändert %q", m.Vorname, "Jonas")
 	}
-	if m.Adresse != "Hauptstraße 1, 10115 Berlin" {
-		t.Errorf("Adresse = %q, erwartet unverändert", m.Adresse)
+	if erwartet := (service.Anschrift{Adresse: "Hauptstraße 1", Postleitzahl: "10115", Ort: "Berlin"}); m.Anschrift != erwartet {
+		t.Errorf("Anschrift = %+v, erwartet unverändert %+v", m.Anschrift, erwartet)
 	}
 	if m.Telefon != "030 111111" {
 		t.Errorf("Telefon = %q, erwartet unverändert %q", m.Telefon, "030 111111")
@@ -812,7 +812,7 @@ func TestSetRueckstand_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 		Vorname:      "Lina",
 		Nachname:     "Fischer",
 		Geburtsdatum: &geburtsdatum,
-		Adresse:      "Hauptstraße 3, 10115 Berlin",
+		Anschrift:    service.Anschrift{Adresse: "Hauptstraße 3", Postleitzahl: "10115", Ort: "Berlin"},
 		Email:        "lina@example.org",
 		Telefon:      "030 123456",
 		BeitragCents: beitragImTest,
@@ -844,7 +844,7 @@ func TestSetRueckstand_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 	// Alles außer dem Rückstand muss identisch geblieben sein — inklusive der
 	// Mitgliedschaft, die von einem Rückstand nichts wissen darf.
 	if nachher.ID != vorher.ID || nachher.Vorname != vorher.Vorname ||
-		nachher.Nachname != vorher.Nachname || nachher.Adresse != vorher.Adresse ||
+		nachher.Nachname != vorher.Nachname || nachher.Anschrift != vorher.Anschrift ||
 		nachher.Email != vorher.Email || nachher.Telefon != vorher.Telefon {
 		t.Errorf("Stammdaten = %+v, erwartet unverändert %+v", nachher, vorher)
 	}

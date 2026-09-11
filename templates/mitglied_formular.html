@@ -27,7 +27,12 @@
             {{template "feld" feld "Geburtsdatum" "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
             {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
         {{end}}
-        {{template "feld" feld "Adresse" "adresse" "text" .Eingabe.Adresse false true}}
+        {{/* Die Anschrift steht in drei Feldern (CONTEXT.md → Anschrift): Straße
+             samt Hausnummer über die ganze Breite, Postleitzahl und Ort
+             darunter nebeneinander. Alle drei sind freiwillig. */}}
+        {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Eingabe.Adresse false true}}
+        {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Eingabe.Postleitzahl false false}}
+        {{template "feld" feld "Ort" "ort" "text" .Eingabe.Ort false false}}
         {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
         {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
         {{/* Der Beitrag ist frei vereinbart, keine Auswahl aus Stufen (ADR-0005).

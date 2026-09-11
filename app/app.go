@@ -109,7 +109,11 @@ type formularEingabe struct {
 	Vorname      string
 	Nachname     string
 	Geburtsdatum string
+	// Die drei Felder der Anschrift kommen einzeln aus dem Formular und gehen
+	// als service.Anschrift weiter (CONTEXT.md → Anschrift).
 	Adresse      string
+	Postleitzahl string
+	Ort          string
 	Email        string
 	Telefon      string
 	// Beitrag ist der getippte Euro-Betrag, so wie er im Feld steht — umgerechnet
@@ -408,12 +412,14 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 
 	if eingabe == nil {
 		eingabe = &formularEingabe{
-			Vorname:  m.Vorname,
-			Nachname: m.Nachname,
-			Adresse:  m.Adresse,
-			Email:    m.Email,
-			Telefon:  m.Telefon,
-			Beitrag:  beitrag,
+			Vorname:      m.Vorname,
+			Nachname:     m.Nachname,
+			Adresse:      m.Anschrift.Adresse,
+			Postleitzahl: m.Anschrift.Postleitzahl,
+			Ort:          m.Anschrift.Ort,
+			Email:        m.Email,
+			Telefon:      m.Telefon,
+			Beitrag:      beitrag,
 		}
 	}
 
@@ -673,6 +679,8 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Nachname:     r.FormValue("nachname"),
 		Geburtsdatum: r.FormValue("geburtsdatum"),
 		Adresse:      r.FormValue("adresse"),
+		Postleitzahl: r.FormValue("postleitzahl"),
+		Ort:          r.FormValue("ort"),
 		Email:        r.FormValue("email"),
 		Telefon:      r.FormValue("telefon"),
 		Beitrag:      r.FormValue("beitrag"),
@@ -694,6 +702,16 @@ func mitgliedID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
+// alsAnschrift bündelt die drei Adressfelder des Formulars. Anders als Beitrag
+// und Datum ist hier nichts zu parsen — die Werte gehen unverändert weiter.
+func (e formularEingabe) alsAnschrift() service.Anschrift {
+	return service.Anschrift{
+		Adresse:      e.Adresse,
+		Postleitzahl: e.Postleitzahl,
+		Ort:          e.Ort,
+	}
+}
+
 // alsNeuesMitglied übersetzt die Rohwerte in die Service-Eingabe und sammelt
 // dabei alle Parse-Fehler, statt beim ersten abzubrechen. Leere Pflichtfelder
 // meldet nicht diese Funktion, sondern der Service — sonst stünde dieselbe Regel
@@ -702,11 +720,11 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	var fehler []string
 
 	neu := service.NeuesMitglied{
-		Vorname:  e.Vorname,
-		Nachname: e.Nachname,
-		Adresse:  e.Adresse,
-		Email:    e.Email,
-		Telefon:  e.Telefon,
+		Vorname:   e.Vorname,
+		Nachname:  e.Nachname,
+		Anschrift: e.alsAnschrift(),
+		Email:     e.Email,
+		Telefon:   e.Telefon,
 	}
 
 	if e.Geburtsdatum != "" {
@@ -742,12 +760,13 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 	var fehler []string
 
+	anschrift := e.alsAnschrift()
 	patch := service.MitgliedPatch{
-		Vorname:  &e.Vorname,
-		Nachname: &e.Nachname,
-		Adresse:  &e.Adresse,
-		Email:    &e.Email,
-		Telefon:  &e.Telefon,
+		Vorname:   &e.Vorname,
+		Nachname:  &e.Nachname,
+		Anschrift: &anschrift,
+		Email:     &e.Email,
+		Telefon:   &e.Telefon,
 	}
 
 	// Ein unlesbarer Beitrag hält den ganzen Patch auf: er würde sonst

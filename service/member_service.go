@@ -31,7 +31,7 @@ type Mitglied struct {
 	Vorname      string
 	Nachname     string
 	Geburtsdatum *time.Time
-	Adresse      string
+	Anschrift    Anschrift
 	Email        string
 	Telefon      string
 
@@ -136,7 +136,7 @@ type NeuesMitglied struct {
 	Vorname      string
 	Nachname     string
 	Geburtsdatum *time.Time
-	Adresse      string
+	Anschrift    Anschrift
 	Email        string
 	Telefon      string
 	Eintritt     time.Time
@@ -213,6 +213,8 @@ CREATE TABLE IF NOT EXISTS mitglied (
 	nachname         TEXT    NOT NULL,
 	geburtsdatum     TEXT,
 	adresse          TEXT    NOT NULL DEFAULT '',
+	postleitzahl     TEXT    NOT NULL DEFAULT '',
+	ort              TEXT    NOT NULL DEFAULT '',
 	email            TEXT    NOT NULL DEFAULT '',
 	telefon          TEXT    NOT NULL DEFAULT '',
 	rueckstand       INTEGER NOT NULL DEFAULT 0,
@@ -257,10 +259,11 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
-		 	(vorname, nachname, geburtsdatum, adresse, email, telefon)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
+		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
-		n.Adresse, n.Email, n.Telefon)
+		n.Anschrift.Adresse, n.Anschrift.Postleitzahl, n.Anschrift.Ort,
+		n.Email, n.Telefon)
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -322,9 +325,13 @@ func (n NeuesMitglied) validieren() error {
 type MitgliedPatch struct {
 	Vorname  *string
 	Nachname *string
-	Adresse  *string
 	Email    *string
 	Telefon  *string
+
+	// Anschrift ändert sich als Ganzes und nicht feldweise: ein Umzug betrifft
+	// alle drei Angaben, und im Formular stehen sie zusammen. Wer nur den Ort
+	// korrigieren will, schickt die anderen beiden unverändert mit.
+	Anschrift *Anschrift
 
 	// BeitragCents gehört nicht zu den Stammdaten, sondern zur maßgeblichen
 	// Mitgliedschaft. Er steht trotzdem hier: das Bearbeitungsformular zeigt
@@ -456,8 +463,10 @@ func (p MitgliedPatch) zuweisungen() ([]string, []any) {
 	if p.Nachname != nil {
 		setze("nachname", *p.Nachname)
 	}
-	if p.Adresse != nil {
-		setze("adresse", *p.Adresse)
+	if p.Anschrift != nil {
+		setze("adresse", p.Anschrift.Adresse)
+		setze("postleitzahl", p.Anschrift.Postleitzahl)
+		setze("ort", p.Anschrift.Ort)
 	}
 	if p.Email != nil {
 		setze("email", *p.Email)
@@ -500,11 +509,12 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 	)
 
 	err := s.db.QueryRow(
-		`SELECT id, vorname, nachname, geburtsdatum, adresse, email, telefon,
-		 	rueckstand, rueckstand_notiz
+		`SELECT id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort,
+		 	email, telefon, rueckstand, rueckstand_notiz
 		 FROM mitglied WHERE id = ?`, id).
-		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum, &m.Adresse, &m.Email,
-			&m.Telefon, &m.Rueckstand.Offen, &m.Rueckstand.Notiz)
+		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
+			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
+			&m.Email, &m.Telefon, &m.Rueckstand.Offen, &m.Rueckstand.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
 	}
@@ -717,6 +727,10 @@ type Listeneintrag struct {
 	BeitragCents int64
 	Eintritt     time.Time
 
+	// Anschrift steht in der Liste, weil der Verein sie beim Durchsehen
+	// braucht. Gesucht wird gegen sie nicht (siehe suchzeile).
+	Anschrift Anschrift
+
 	// Rueckstand färbt das Kennzeichen der Zeile und erklärt es.
 	Rueckstand Rueckstand
 
@@ -839,6 +853,7 @@ func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
 // dabei immer vor eine beendete, damit ein Wiedereintritt als aktiv erscheint.
 const eintraegeAbfrage = `
 	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon,
+		m.adresse, m.postleitzahl, m.ort,
 		m.rueckstand, m.rueckstand_notiz,
 		ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
 	FROM mitglied m
@@ -916,6 +931,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			austritt       sql.NullString
 		)
 		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon,
+			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&eintritt, &austritt, &e.BeitragCents); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
