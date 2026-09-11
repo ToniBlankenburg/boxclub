@@ -32,3 +32,21 @@ Zweistufig, keine gelbe Vorwarnstufe (siehe spec.md und Grill-Runde 3, Q4).
 - Die Schaltfläche steht in der Spalte "Bezahlt bis", also bei dem Wert, den sie ändert, und stoppt ihr Click-/Keyup-Ereignis; die restliche Zeile öffnet weiter das Bearbeitungsformular.
 - Bekannte Kante für Ticket 06/07: `Eintrag` findet nur Mitglieder mit laufender Mitgliedschaft. Sobald die Liste auch Ausgetretene zeigt, muss die geteilte Abfrage auf die *letzte* statt die *laufende* Mitgliedschaft joinen — heute ist der Fall nicht erreichbar, weil ausgetretene Mitglieder gar nicht in der Liste stehen.
 - Verifiziert: `go test ./...` grün, `wails build` unter Linux grün, Handler-Pfade per Wegwerf-Smoke-Test gegen `httptest` durchgespielt (Liste, Formular, Speichern, Zurücksetzen, ungültiges Datum, unbekannte ID). `wails dev` und Windows wurden **nicht** gegengeprüft.
+
+### Überholt: `bezahlt_bis` gibt es nicht mehr (2026-09-11)
+
+Dieses Ticket ist umgesetzt, seine Grundlage ist aber widerlegt. Die
+Bestandsaufnahme der echten Excel-Tabelle
+([excel-vorlage.md](../excel-vorlage.md)) hat gezeigt: der Verein zieht **alle**
+Beiträge per Lastschrift ein, und die Tabelle führt konsequenterweise **gar keine
+Spalte zum Zahlungsstand**. Ein `bezahlt_bis`-Datum hätte in diesem Verein nie
+eine Quelle gehabt, und die Ampel wäre dauerhaft grün gewesen.
+
+Ersetzt durch **Ticket 12** (Rückstand statt `bezahlt_bis`). Begründung samt
+Kostenseite in [ADR-0006](../../../docs/adr/0006-rueckstand-statt-bezahlt-bis.md).
+Der Rückbau ist **kein Bug und keine Regression** — er ist die Entscheidung.
+
+Was von diesem Ticket überlebt: Ampel und Filter als Bedienkonzept. Nur ihre
+Bedeutung wechselt von "hat nicht bezahlt" zu "Lastschrift ist geplatzt". Was
+entfällt: das Datum selbst und der neutrale Zustand *nicht gesetzt*, der nur
+existierte, weil ein leeres Datum nicht als "nicht bezahlt" gelten durfte.

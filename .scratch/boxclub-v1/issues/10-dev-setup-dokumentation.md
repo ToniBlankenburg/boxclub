@@ -14,6 +14,7 @@ Status: ready-for-agent
 - [ ] Troubleshooting-Sektion listet mindestens die zwei häufigsten Startfehler pro Plattform mit Lösungshinweis
 - [ ] Verweise auf [CONTEXT.md](CONTEXT.md), [ADR-0001](docs/adr/0001-go-wails-fuer-desktop-gui.md) und [spec.md](.scratch/boxclub-v1/spec.md) sind vorhanden
 - [ ] Klarstellung: **macOS-Nutzung ist Produktions-Ziel, Windows/Linux sind Entwicklungs-Plattformen ohne Auslieferungs-Anspruch**
+- [ ] Dokumentiert, dass es **keinen Migrationsmechanismus** gibt: das Schema entsteht über `CREATE TABLE IF NOT EXISTS`, und nach einer Schemaänderung muss die Entwicklungs-Datenbank (`BOXCLUB_DB`) gelöscht werden. Andernfalls startet die App gegen ein veraltetes Schema und die Fehlermeldung zeigt nicht auf die Ursache
 
 ## Comments
 
