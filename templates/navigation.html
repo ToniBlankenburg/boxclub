@@ -1,0 +1,24 @@
+{{/* navigation ist die Bereichsumschaltung in der Kopfzeile. Sie steht
+     außerhalb von #inhalt und kommt deshalb per hx-swap-oob mit: jede Antwort,
+     die den Bereich wechseln kann, liefert sie auf oberster Ebene ihres
+     Fragments mit, und htmx tauscht sie an ihrem eigenen Platz aus.
+
+     Damit das greift, muss <nav> ein direktes Kind der Antwort bleiben —
+     innerhalb eines anderen Elements würde htmx den Austausch nicht erkennen.
+     Deshalb steht der Aufruf in den Bereichs-Templates vor deren Inhalt und
+     nicht darin, und deshalb hängt er an einem {{with}}: ohne Einträge darf gar
+     nichts kommen, sonst leerte ein leeres <nav> die Kopfzeile.
+
+     Die Daten sind []navigationseintrag. */}}
+{{define "navigation"}}
+<nav id="navigation" hx-swap-oob="true" aria-label="Bereiche" class="flex gap-1">
+    {{range .}}
+        <button type="button" {{if .Aktiv}}aria-current="page"{{end}}
+                class="rounded-md px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-red-700/40 focus:outline-none
+                       {{if .Aktiv}}bg-red-50 text-red-800{{else}}text-neutral-600 hover:bg-neutral-100{{end}}"
+                hx-get="{{.Pfad}}" hx-target="#inhalt" hx-swap="innerHTML">
+            {{.Beschriftung}}
+        </button>
+    {{end}}
+</nav>
+{{end}}

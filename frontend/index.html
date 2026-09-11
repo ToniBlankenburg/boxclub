@@ -6,8 +6,12 @@
     <title>Boxclub Mitgliederverwaltung</title>
 </head>
 <body class="bg-neutral-50 text-neutral-900 antialiased">
-<header class="border-b border-neutral-200 bg-white px-6 py-4">
+<header class="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-neutral-200 bg-white px-6 py-4">
     <h1 class="text-base font-semibold">Boxclub Mitgliederverwaltung</h1>
+    <!-- Die Bereichsnavigation rendert das Backend: jede Antwort, die den
+         Bereich wechseln kann, liefert sie per hx-swap-oob mit und ersetzt
+         dieses Element. Der erste Aufruf unten füllt es. -->
+    <nav id="navigation" aria-label="Bereiche"></nav>
 </header>
 
 <!-- Der gesamte Inhalt kommt als HTML-Fragment aus dem Go-Backend. -->

@@ -294,11 +294,31 @@ func (s *MemberService) migrate() error {
 // aufsteigend nach Preis. Deaktivierte Klassen bleiben außen vor, damit ein
 // Formular sie nicht mehr anbietet — ihre Preishistorie bleibt aber erhalten.
 func (s *MemberService) AktiveBeitragsklassen() ([]Beitragsklasse, error) {
-	rows, err := s.db.Query(
+	return s.beitragsklassenAbfragen(
 		`SELECT id, name, preis_monatlich_cents, aktiv
 		 FROM beitragsklasse
 		 WHERE aktiv = 1
 		 ORDER BY preis_monatlich_cents, id`)
+}
+
+// ListBeitragsklassen liefert alle Klassen, aufsteigend nach Preis — das
+// vollständige Preisverzeichnis des Vereins. Anders als AktiveBeitragsklassen
+// sind auch deaktivierte Klassen dabei: die Übersicht beschreibt, was der
+// Verein führt, nicht, was ein Formular anbietet. Wie viele Mitglieder einer
+// Klasse zugeordnet sind, spielt dabei keine Rolle — eine leere Klasse gehört
+// genauso in die Liste.
+func (s *MemberService) ListBeitragsklassen() ([]Beitragsklasse, error) {
+	return s.beitragsklassenAbfragen(
+		`SELECT id, name, preis_monatlich_cents, aktiv
+		 FROM beitragsklasse
+		 ORDER BY preis_monatlich_cents, id`)
+}
+
+// beitragsklassenAbfragen liest das Ergebnis einer Beitragsklassen-Abfrage aus.
+// Jeder Aufrufer bringt seine vollständige Anweisung mit — geteilt wird nur das
+// Auslesen der Zeilen, nicht ein zusammengesetztes SQL-Fragment.
+func (s *MemberService) beitragsklassenAbfragen(abfrage string) ([]Beitragsklasse, error) {
+	rows, err := s.db.Query(abfrage)
 	if err != nil {
 		return nil, fmt.Errorf("beitragsklassen lesen: %w", err)
 	}

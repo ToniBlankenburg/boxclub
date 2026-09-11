@@ -57,8 +57,49 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/austritt", a.austrittEintragen)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
+	mux.HandleFunc("GET /api/beitragsklassen", a.beitragsklassenUebersicht)
 
 	return mux
+}
+
+// Bereiche der App — die Ebene, auf der die Kopfzeilen-Navigation umschaltet.
+const (
+	bereichMitglieder      = "mitglieder"
+	bereichBeitragsklassen = "beitragsklassen"
+)
+
+// navigationseintrag ist ein Eintrag der Bereichsnavigation. Schluessel ist der
+// Bereich, den der Eintrag öffnet; er dient nur dem Vergleich in navigation und
+// erscheint nicht in der Ausgabe.
+type navigationseintrag struct {
+	Schluessel   string
+	Beschriftung string
+	Pfad         string
+	Aktiv        bool
+}
+
+// bereiche sind die Bereiche in der Reihenfolge, in der die Navigation sie
+// zeigt. Wie bei den Filteroptionen steht die Liste in Go, damit Beschriftungen
+// und Pfade nicht als Textliterale ins Template wandern.
+var bereiche = []navigationseintrag{
+	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
+	{Schluessel: bereichBeitragsklassen, Beschriftung: "Beitragsklassen", Pfad: "/api/beitragsklassen"},
+}
+
+// navigation liefert die Navigationseinträge mit dem angegebenen Bereich als
+// aktivem — dasselbe Muster wie Statusoptionen: die feste Liste kopieren und
+// darin markieren.
+//
+// Mitgeschickt wird sie von jeder Antwort, die eine ganze Bereichsansicht
+// ersetzt. Antworten innerhalb eines Bereichs (Formulare, einzelne Zeilen)
+// lassen sie weg; die Markierung in der Kopfzeile bleibt dann stehen, wie sie ist.
+func navigation(aktiv string) []navigationseintrag {
+	eintraege := slices.Clone(bereiche)
+	for i := range eintraege {
+		eintraege[i].Aktiv = eintraege[i].Schluessel == aktiv
+	}
+
+	return eintraege
 }
 
 // formularEingabe hält die Rohwerte des Formulars, damit eine fehlerhafte
@@ -179,6 +220,7 @@ type listeDaten struct {
 	Meldung         meldung
 	Suche           suchEingabe
 	Beitragsklassen []service.Beitragsklasse
+	Navigation      []navigationseintrag
 }
 
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
@@ -283,7 +325,31 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		Meldung:         m,
 		Suche:           eingabe,
 		Beitragsklassen: klassen,
+		Navigation:      navigation(bereichMitglieder),
 	}, true
+}
+
+// beitragsklassenDaten speist die Preisübersicht. Sie ist in v1 bewusst nur
+// lesend: gepflegt werden die Klassen noch nicht.
+type beitragsklassenDaten struct {
+	Klassen    []service.Beitragsklasse
+	Navigation []navigationseintrag
+}
+
+// beitragsklassenUebersicht zeigt das Preisverzeichnis des Vereins. Anders als
+// die Auswahllisten der Formulare listet es alle Klassen, auch deaktivierte und
+// solche, denen gerade niemand zugeordnet ist.
+func (a *App) beitragsklassenUebersicht(w http.ResponseWriter, r *http.Request) {
+	klassen, err := a.svc.ListBeitragsklassen()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.rendern(w, "beitragsklassen", beitragsklassenDaten{
+		Klassen:    klassen,
+		Navigation: navigation(bereichBeitragsklassen),
+	})
 }
 
 func (a *App) mitgliedFormular(w http.ResponseWriter, r *http.Request) {
