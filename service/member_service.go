@@ -22,29 +22,18 @@ import (
 // Es sortiert lexikografisch korrekt und lässt sich in SQL direkt vergleichen.
 const isoDatum = "2006-01-02"
 
-// Beitragsklasse ist eine Preisstufe. Die Staffelung ergibt sich ausschließlich
-// aus der Trainingsfrequenz; der Preis liegt in Cent vor, um
-// Fließkomma-Ungenauigkeiten zu vermeiden.
-type Beitragsklasse struct {
-	ID                  int64
-	Name                string
-	PreisMonatlichCents int64
-	Aktiv               bool
-}
-
 // Mitglied ist die natürliche Person, die dem Verein bekannt ist. Der Datensatz
 // bleibt derselbe, auch wenn die Person zwischenzeitlich aus- und wieder eintritt
 // — die zeitliche Zuordnung steckt in Mitgliedschaften.
 type Mitglied struct {
-	ID               int64
-	Vorname          string
-	Nachname         string
-	Geburtsdatum     *time.Time
-	Adresse          string
-	Email            string
-	Telefon          string
-	BeitragsklasseID int64
-	BezahltBis       *time.Time
+	ID           int64
+	Vorname      string
+	Nachname     string
+	Geburtsdatum *time.Time
+	Adresse      string
+	Email        string
+	Telefon      string
+	BezahltBis   *time.Time
 
 	// Mitgliedschaften sind alle Zeiträume dieser Person, aufsteigend nach Eintritt.
 	Mitgliedschaften []Mitgliedschaft
@@ -52,11 +41,20 @@ type Mitglied struct {
 
 // Mitgliedschaft ist ein Zeitraum, in dem ein Mitglied aktiv im Verein ist.
 // Austritt == nil bedeutet: die Mitgliedschaft läuft aktuell.
+//
+// Der Beitrag hängt hier und nicht am Mitglied: er ist Teil der Vereinbarung,
+// die mit dem Eintritt zustande kam. Ein Wiedereintritt bekommt dadurch seinen
+// eigenen Beitrag, und der alte bleibt an der alten Mitgliedschaft stehen
+// (ADR-0005).
 type Mitgliedschaft struct {
 	ID         int64
 	MitgliedID int64
 	Eintritt   time.Time
 	Austritt   *time.Time
+
+	// BeitragCents ist der monatliche Beitrag in Cent. 0 ist ein gültiger
+	// Betrag — Trainer zahlen nichts — und keine fehlende Angabe.
+	BeitragCents int64
 }
 
 // LaufendeMitgliedschaft liefert den Zeitraum, in dem das Mitglied aktuell aktiv
@@ -170,15 +168,22 @@ func heute() time.Time {
 // NeuesMitglied sind die Stammdaten, die beim Anlegen eines Mitglieds erfasst
 // werden. Eintritt eröffnet zugleich die erste Mitgliedschaft.
 type NeuesMitglied struct {
-	Vorname          string
-	Nachname         string
-	Geburtsdatum     *time.Time
-	Adresse          string
-	Email            string
-	Telefon          string
-	BeitragsklasseID int64
-	Eintritt         time.Time
+	Vorname      string
+	Nachname     string
+	Geburtsdatum *time.Time
+	Adresse      string
+	Email        string
+	Telefon      string
+	Eintritt     time.Time
+
+	// BeitragCents ist der individuell vereinbarte Monatsbeitrag in Cent. Er
+	// landet an der Mitgliedschaft, die mit dem Eintritt beginnt.
+	BeitragCents int64
 }
+
+// negativerBeitrag ist die Meldung zum einzigen Beitrag, den es nicht geben
+// kann. 0 € ist ausdrücklich erlaubt.
+const negativerBeitrag = "Der Beitrag darf nicht negativ sein."
 
 // ErrNichtGefunden meldet, dass zu einer ID kein Datensatz existiert.
 var ErrNichtGefunden = errors.New("nicht gefunden")
@@ -203,15 +208,15 @@ func (f *ValidierungsFehler) Error() string {
 	return strings.Join(f.Meldungen, " ")
 }
 
-// MemberService kapselt alle Operationen auf Mitgliedern, Mitgliedschaften und
-// Beitragsklassen.
+// MemberService kapselt alle Operationen auf Mitgliedern und ihren
+// Mitgliedschaften.
 type MemberService struct {
 	db *sql.DB
 }
 
-// Open öffnet die SQLite-Datei unter dbPath, legt sie bei Bedarf samt Schema an
-// und seedet die Standard-Beitragsklassen. Der Aufrufer ist für Close
-// verantwortlich.
+// Open öffnet die SQLite-Datei unter dbPath und legt sie bei Bedarf samt Schema
+// an. Geseedet wird nichts: eine frische Datenbank ist leer, alles darin ist
+// vom Verein erfasst. Der Aufrufer ist für Close verantwortlich.
 func Open(dbPath string) (*MemberService, error) {
 	// Fremdschlüssel sind in SQLite pro Verbindung abzuschalten bzw. -zuschalten;
 	// _pragma im DSN sorgt dafür, dass jede Verbindung aus dem Pool sie aktiviert.
@@ -237,123 +242,34 @@ func (s *MemberService) Close() error {
 }
 
 const schema = `
-CREATE TABLE IF NOT EXISTS beitragsklasse (
-	id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-	name                  TEXT    NOT NULL UNIQUE,
-	preis_monatlich_cents INTEGER NOT NULL,
-	aktiv                 INTEGER NOT NULL DEFAULT 1
-);
-
 CREATE TABLE IF NOT EXISTS mitglied (
-	id                INTEGER PRIMARY KEY AUTOINCREMENT,
-	vorname           TEXT    NOT NULL,
-	nachname          TEXT    NOT NULL,
-	geburtsdatum      TEXT,
-	adresse           TEXT    NOT NULL DEFAULT '',
-	email             TEXT    NOT NULL DEFAULT '',
-	telefon           TEXT    NOT NULL DEFAULT '',
-	beitragsklasse_id INTEGER NOT NULL REFERENCES beitragsklasse(id),
-	bezahlt_bis       TEXT
+	id           INTEGER PRIMARY KEY AUTOINCREMENT,
+	vorname      TEXT    NOT NULL,
+	nachname     TEXT    NOT NULL,
+	geburtsdatum TEXT,
+	adresse      TEXT    NOT NULL DEFAULT '',
+	email        TEXT    NOT NULL DEFAULT '',
+	telefon      TEXT    NOT NULL DEFAULT '',
+	bezahlt_bis  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS mitgliedschaft (
-	id          INTEGER PRIMARY KEY AUTOINCREMENT,
-	mitglied_id INTEGER NOT NULL REFERENCES mitglied(id) ON DELETE CASCADE,
-	eintritt    TEXT    NOT NULL,
-	austritt    TEXT
+	id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+	mitglied_id            INTEGER NOT NULL REFERENCES mitglied(id) ON DELETE CASCADE,
+	eintritt               TEXT    NOT NULL,
+	austritt               TEXT,
+	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_mitglied ON mitgliedschaft(mitglied_id);
 `
-
-// seedKlassen sind die beiden Klassen, mit denen eine frische Datenbank startet.
-var seedKlassen = []Beitragsklasse{
-	{Name: "Erwachsen 1×/Woche", PreisMonatlichCents: 6000, Aktiv: true},
-	{Name: "Erwachsen 2×/Woche", PreisMonatlichCents: 8000, Aktiv: true},
-}
 
 func (s *MemberService) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("schema anlegen: %w", err)
 	}
 
-	for _, k := range seedKlassen {
-		_, err := s.db.Exec(
-			`INSERT OR IGNORE INTO beitragsklasse (name, preis_monatlich_cents, aktiv)
-			 VALUES (?, ?, ?)`,
-			k.Name, k.PreisMonatlichCents, k.Aktiv)
-		if err != nil {
-			return fmt.Errorf("beitragsklasse %q seeden: %w", k.Name, err)
-		}
-	}
-
 	return nil
-}
-
-// AktiveBeitragsklassen liefert die Klassen, die aktuell zur Auswahl stehen,
-// aufsteigend nach Preis. Deaktivierte Klassen bleiben außen vor, damit ein
-// Formular sie nicht mehr anbietet — ihre Preishistorie bleibt aber erhalten.
-func (s *MemberService) AktiveBeitragsklassen() ([]Beitragsklasse, error) {
-	return s.beitragsklassenAbfragen(
-		`SELECT id, name, preis_monatlich_cents, aktiv
-		 FROM beitragsklasse
-		 WHERE aktiv = 1
-		 ORDER BY preis_monatlich_cents, id`)
-}
-
-// ListBeitragsklassen liefert alle Klassen, aufsteigend nach Preis — das
-// vollständige Preisverzeichnis des Vereins. Anders als AktiveBeitragsklassen
-// sind auch deaktivierte Klassen dabei: die Übersicht beschreibt, was der
-// Verein führt, nicht, was ein Formular anbietet. Wie viele Mitglieder einer
-// Klasse zugeordnet sind, spielt dabei keine Rolle — eine leere Klasse gehört
-// genauso in die Liste.
-func (s *MemberService) ListBeitragsklassen() ([]Beitragsklasse, error) {
-	return s.beitragsklassenAbfragen(
-		`SELECT id, name, preis_monatlich_cents, aktiv
-		 FROM beitragsklasse
-		 ORDER BY preis_monatlich_cents, id`)
-}
-
-// beitragsklassenAbfragen liest das Ergebnis einer Beitragsklassen-Abfrage aus.
-// Jeder Aufrufer bringt seine vollständige Anweisung mit — geteilt wird nur das
-// Auslesen der Zeilen, nicht ein zusammengesetztes SQL-Fragment.
-func (s *MemberService) beitragsklassenAbfragen(abfrage string) ([]Beitragsklasse, error) {
-	rows, err := s.db.Query(abfrage)
-	if err != nil {
-		return nil, fmt.Errorf("beitragsklassen lesen: %w", err)
-	}
-	defer rows.Close()
-
-	var klassen []Beitragsklasse
-	for rows.Next() {
-		var k Beitragsklasse
-		if err := rows.Scan(&k.ID, &k.Name, &k.PreisMonatlichCents, &k.Aktiv); err != nil {
-			return nil, fmt.Errorf("beitragsklasse lesen: %w", err)
-		}
-		klassen = append(klassen, k)
-	}
-
-	return klassen, rows.Err()
-}
-
-// Beitragsklasse liefert eine einzelne Klasse — auch eine deaktivierte, denn
-// bestehende Mitglieder können ihr weiterhin zugeordnet sein. Existiert die ID
-// nicht, ist der Fehler ErrNichtGefunden.
-func (s *MemberService) Beitragsklasse(id int64) (Beitragsklasse, error) {
-	var k Beitragsklasse
-
-	err := s.db.QueryRow(
-		`SELECT id, name, preis_monatlich_cents, aktiv
-		 FROM beitragsklasse WHERE id = ?`, id).
-		Scan(&k.ID, &k.Name, &k.PreisMonatlichCents, &k.Aktiv)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Beitragsklasse{}, fmt.Errorf("beitragsklasse %d: %w", id, ErrNichtGefunden)
-	}
-	if err != nil {
-		return Beitragsklasse{}, fmt.Errorf("beitragsklasse lesen: %w", err)
-	}
-
-	return k, nil
 }
 
 // Create legt ein Mitglied samt seiner ersten, noch laufenden Mitgliedschaft an
@@ -375,10 +291,10 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
-		 	(vorname, nachname, geburtsdatum, adresse, email, telefon, beitragsklasse_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		 	(vorname, nachname, geburtsdatum, adresse, email, telefon)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
-		n.Adresse, n.Email, n.Telefon, n.BeitragsklasseID)
+		n.Adresse, n.Email, n.Telefon)
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -389,8 +305,9 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 	}
 
 	_, err = tx.Exec(
-		`INSERT INTO mitgliedschaft (mitglied_id, eintritt) VALUES (?, ?)`,
-		id, n.Eintritt.Format(isoDatum))
+		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
+		 VALUES (?, ?, ?)`,
+		id, n.Eintritt.Format(isoDatum), n.BeitragCents)
 	if err != nil {
 		return 0, fmt.Errorf("mitgliedschaft anlegen: %w", err)
 	}
@@ -417,8 +334,8 @@ func (n NeuesMitglied) validieren() error {
 	if n.Eintritt.IsZero() {
 		fehler = append(fehler, "Eintrittsdatum darf nicht leer sein.")
 	}
-	if n.BeitragsklasseID == 0 {
-		fehler = append(fehler, "Bitte eine Beitragsklasse wählen.")
+	if n.BeitragCents < 0 {
+		fehler = append(fehler, negativerBeitrag)
 	}
 
 	if len(fehler) > 0 {
@@ -437,36 +354,76 @@ func (n NeuesMitglied) validieren() error {
 // Anlage nicht mehr änderbar (Tippfehler-Schutz). Der Eintritt gehört ohnehin
 // zur Mitgliedschaft, nicht zu den Stammdaten.
 type MitgliedPatch struct {
-	Vorname          *string
-	Nachname         *string
-	Adresse          *string
-	Email            *string
-	Telefon          *string
-	BeitragsklasseID *int64
+	Vorname  *string
+	Nachname *string
+	Adresse  *string
+	Email    *string
+	Telefon  *string
+
+	// BeitragCents gehört nicht zu den Stammdaten, sondern zur maßgeblichen
+	// Mitgliedschaft. Er steht trotzdem hier: das Bearbeitungsformular zeigt
+	// beides zusammen, und dann soll auch beides zusammen gespeichert werden —
+	// ganz oder gar nicht.
+	BeitragCents *int64
 }
 
 // Update schreibt die im Patch gesetzten Felder auf das Mitglied mit dieser ID.
 // Existiert die ID nicht, ist der Fehler ErrNichtGefunden — es wird in keinem
 // Fall ein neuer Datensatz angelegt.
+//
+// Stammdaten und Beitrag liegen in zwei Tabellen, gehören aber zu einem
+// Formular: geschrieben werden sie deshalb in einer Transaktion, damit keine
+// halbe Änderung stehen bleibt.
 func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 	if err := patch.validieren(); err != nil {
 		return err
 	}
 
-	zuweisungen, werte := patch.zuweisungen()
-	if len(zuweisungen) == 0 {
-		// Nichts zu schreiben. Die ID wird trotzdem geprüft, damit ein Aufruf auf
-		// ein nicht existierendes Mitglied auch dann auffällt.
-		return mitgliedPruefen(s.db, id)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("transaktion starten: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Geprüft wird immer, auch wenn der Patch nichts zu schreiben hat: ein
+	// Aufruf auf ein nicht existierendes Mitglied soll auch dann auffallen.
+	if err := mitgliedPruefen(tx, id); err != nil {
+		return err
 	}
 
-	// Die Spaltennamen stammen ausschließlich aus zuweisungen und sind dort
-	// Literale; die Werte gehen als Parameter in die Anweisung.
-	res, err := s.db.Exec(
-		`UPDATE mitglied SET `+strings.Join(zuweisungen, ", ")+` WHERE id = ?`,
-		append(werte, id)...)
+	if zuweisungen, werte := patch.zuweisungen(); len(zuweisungen) > 0 {
+		// Die Spaltennamen stammen ausschließlich aus zuweisungen und sind dort
+		// Literale; die Werte gehen als Parameter in die Anweisung.
+		if _, err := tx.Exec(
+			`UPDATE mitglied SET `+strings.Join(zuweisungen, ", ")+` WHERE id = ?`,
+			append(werte, id)...); err != nil {
+			return fmt.Errorf("mitglied %d aktualisieren: %w", id, err)
+		}
+	}
+
+	if patch.BeitragCents != nil {
+		if err := beitragSchreiben(tx, id, *patch.BeitragCents); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("transaktion abschließen: %w", err)
+	}
+
+	return nil
+}
+
+// beitragSchreiben setzt den Beitrag der maßgeblichen Mitgliedschaft — der
+// laufenden, und wenn keine läuft, der zuletzt begonnenen. Das ist derselbe
+// Zeitraum, den die Liste zeigt und den LetzteMitgliedschaft liefert: geändert
+// wird, was der Nutzer vor sich sieht.
+func beitragSchreiben(tx *sql.Tx, mitgliedID int64, cents int64) error {
+	res, err := tx.Exec(
+		`UPDATE mitgliedschaft SET beitrag_monatlich_cents = ?
+		 WHERE id = (`+massgeblicheMitgliedschaft+`)`, cents, mitgliedID)
 	if err != nil {
-		return fmt.Errorf("mitglied %d aktualisieren: %w", id, err)
+		return fmt.Errorf("beitrag von mitglied %d setzen: %w", mitgliedID, err)
 	}
 
 	betroffen, err := res.RowsAffected()
@@ -474,11 +431,22 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 		return fmt.Errorf("betroffene zeilen lesen: %w", err)
 	}
 	if betroffen == 0 {
-		return fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
+		// Regulär unerreichbar: Create legt Mitglied und Mitgliedschaft zusammen an.
+		return fmt.Errorf("mitglied %d hat keine mitgliedschaft: %w", mitgliedID, ErrNichtGefunden)
 	}
 
 	return nil
 }
+
+// massgeblicheMitgliedschaft wählt den Zeitraum aus, der für ein Mitglied gerade
+// gilt. Die Sortierung stellt eine laufende Mitgliedschaft vor jede beendete und
+// unter mehreren die zuletzt begonnene nach vorn — dieselbe Regel wie in
+// eintraegeAbfrage, damit Liste und Änderung denselben Zeitraum meinen.
+const massgeblicheMitgliedschaft = `
+	SELECT id FROM mitgliedschaft
+	WHERE mitglied_id = ?
+	ORDER BY austritt IS NULL DESC, eintritt DESC, id DESC
+	LIMIT 1`
 
 // validieren prüft die gesetzten Felder gegen dieselben Pflichtfeld-Regeln, die
 // auch bei der Neuanlage gelten: ein Pflichtfeld darf nachträglich nicht leer
@@ -493,8 +461,8 @@ func (p MitgliedPatch) validieren() error {
 	if p.Nachname != nil && *p.Nachname == "" {
 		fehler = append(fehler, "Nachname darf nicht leer sein.")
 	}
-	if p.BeitragsklasseID != nil && *p.BeitragsklasseID == 0 {
-		fehler = append(fehler, "Bitte eine Beitragsklasse wählen.")
+	if p.BeitragCents != nil && *p.BeitragCents < 0 {
+		fehler = append(fehler, negativerBeitrag)
 	}
 
 	if len(fehler) > 0 {
@@ -531,10 +499,6 @@ func (p MitgliedPatch) zuweisungen() ([]string, []any) {
 	if p.Telefon != nil {
 		setze("telefon", *p.Telefon)
 	}
-	if p.BeitragsklasseID != nil {
-		setze("beitragsklasse_id", *p.BeitragsklasseID)
-	}
-
 	return fragmente, werte
 }
 
@@ -571,11 +535,10 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 	)
 
 	err := s.db.QueryRow(
-		`SELECT id, vorname, nachname, geburtsdatum, adresse, email, telefon,
-		 	beitragsklasse_id, bezahlt_bis
+		`SELECT id, vorname, nachname, geburtsdatum, adresse, email, telefon, bezahlt_bis
 		 FROM mitglied WHERE id = ?`, id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum, &m.Adresse, &m.Email,
-			&m.Telefon, &m.BeitragsklasseID, &bezahltBis)
+			&m.Telefon, &bezahltBis)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
 	}
@@ -599,7 +562,7 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 
 func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, error) {
 	rows, err := s.db.Query(
-		`SELECT id, mitglied_id, eintritt, austritt
+		`SELECT id, mitglied_id, eintritt, austritt, beitrag_monatlich_cents
 		 FROM mitgliedschaft WHERE mitglied_id = ?
 		 ORDER BY eintritt, id`, mitgliedID)
 	if err != nil {
@@ -614,7 +577,7 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 			eintritt string
 			austritt sql.NullString
 		)
-		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &eintritt, &austritt); err != nil {
+		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &eintritt, &austritt, &ms.BeitragCents); err != nil {
 			return nil, fmt.Errorf("mitgliedschaft lesen: %w", err)
 		}
 
@@ -716,9 +679,14 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 		}}
 	}
 
+	// Der zuletzt vereinbarte Beitrag ist der Startwert der neuen Mitgliedschaft
+	// — änderbar wie jeder andere. Die alte behält ihren eigenen: das ist der
+	// Zweck der Aufteilung (ADR-0005).
 	if _, err := tx.Exec(
-		`INSERT INTO mitgliedschaft (mitglied_id, eintritt) VALUES (?, ?)`,
-		id, eintrittsText); err != nil {
+		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
+		 VALUES (?, ?, (SELECT beitrag_monatlich_cents FROM mitgliedschaft
+		                WHERE mitglied_id = ? ORDER BY eintritt DESC, id DESC LIMIT 1))`,
+		id, eintrittsText, id); err != nil {
 		return fmt.Errorf("wiedereintritt von mitglied %d eintragen: %w", id, err)
 	}
 
@@ -773,15 +741,15 @@ func laufendeMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, string, e
 }
 
 // Listeneintrag ist eine Zeile der Mitgliederliste. Er trägt bewusst nur die
-// Angaben, die die Liste anzeigt — samt aufgelöster Beitragsklasse und dem
-// Eintritt der laufenden Mitgliedschaft, damit die Adapter-Schicht die Zeile
-// ohne weitere Abfragen rendern kann. Das vollständige Mitglied mit seiner
-// Mitgliedschafts-Historie liefert Get.
+// Angaben, die die Liste anzeigt — samt Beitrag und Eintritt der maßgeblichen
+// Mitgliedschaft, damit die Adapter-Schicht die Zeile ohne weitere Abfragen
+// rendern kann. Das vollständige Mitglied mit seiner Mitgliedschafts-Historie
+// liefert Get.
 type Listeneintrag struct {
 	MitgliedID     int64
 	Vorname        string
 	Nachname       string
-	Beitragsklasse Beitragsklasse
+	BeitragCents   int64
 	BezahltBis     *time.Time
 	Zahlungsstatus Zahlungsstatus
 	Eintritt       time.Time
@@ -830,15 +798,11 @@ func (f Zahlungsfilter) trifft(status Zahlungsstatus) bool {
 	}
 }
 
-// Suchfilter grenzt die Mitgliederliste entlang dreier Dimensionen ein. Der
-// Nullwert ist bewusst die Standardansicht: alle Zahlungsstatus, alle
-// Beitragsklassen, nur aktive Mitglieder. Damit ist "Filter zurücksetzen"
-// nichts anderes als ein Suchfilter{}.
+// Suchfilter grenzt die Mitgliederliste ein. Der Nullwert ist bewusst die
+// Standardansicht: alle Zahlungsstatus, nur aktive Mitglieder. Damit ist
+// "Filter zurücksetzen" nichts anderes als ein Suchfilter{}.
 type Suchfilter struct {
 	Zahlungsstatus Zahlungsfilter
-	// BeitragsklasseID 0 bedeutet: alle Klassen. Eine unbekannte ID ist kein
-	// Fehler, sondern liefert schlicht keine Treffer.
-	BeitragsklasseID int64
 	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf.
 	AuchEhemalige bool
 }
@@ -908,10 +872,8 @@ func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
 // dabei immer vor eine beendete, damit ein Wiedereintritt als aktiv erscheint.
 const eintraegeAbfrage = `
 	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon, m.bezahlt_bis,
-		k.id, k.name, k.preis_monatlich_cents, k.aktiv,
-		ms.eintritt, ms.austritt
+		ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
 	FROM mitglied m
-	JOIN beitragsklasse k ON k.id = m.beitragsklasse_id
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
 		WHERE mitglied_id = m.id AND (? OR austritt IS NULL)
@@ -932,9 +894,6 @@ type suchzeile struct {
 // passtZu entscheidet, ob die Zeile ins Ergebnis gehört. Die Aktivität steht
 // hier nicht zur Debatte: über die entscheidet bereits die Abfrage.
 func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
-	if filter.BeitragsklasseID != 0 && z.eintrag.Beitragsklasse.ID != filter.BeitragsklasseID {
-		return false
-	}
 	if !filter.Zahlungsstatus.trifft(z.eintrag.Zahlungsstatus) {
 		return false
 	}
@@ -984,9 +943,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			austritt       sql.NullString
 		)
 		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon, &bezahltBis,
-			&e.Beitragsklasse.ID, &e.Beitragsklasse.Name,
-			&e.Beitragsklasse.PreisMonatlichCents, &e.Beitragsklasse.Aktiv,
-			&eintritt, &austritt); err != nil {
+			&eintritt, &austritt, &e.BeitragCents); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 

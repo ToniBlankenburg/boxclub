@@ -57,16 +57,14 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/austritt", a.austrittEintragen)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
-	mux.HandleFunc("GET /api/beitragsklassen", a.beitragsklassenUebersicht)
 
 	return mux
 }
 
 // Bereiche der App — die Ebene, auf der die Kopfzeilen-Navigation umschaltet.
-const (
-	bereichMitglieder      = "mitglieder"
-	bereichBeitragsklassen = "beitragsklassen"
-)
+// Seit dem Wegfall der Beitragsklassen-Ansicht (ADR-0005) gibt es nur noch
+// einen; die Umschaltung bleibt, weil die nächsten Bereiche anstehen.
+const bereichMitglieder = "mitglieder"
 
 // navigationseintrag ist ein Eintrag der Bereichsnavigation. Schluessel ist der
 // Bereich, den der Eintrag öffnet; er dient nur dem Vergleich in navigation und
@@ -83,7 +81,6 @@ type navigationseintrag struct {
 // und Pfade nicht als Textliterale ins Template wandern.
 var bereiche = []navigationseintrag{
 	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
-	{Schluessel: bereichBeitragsklassen, Beschriftung: "Beitragsklassen", Pfad: "/api/beitragsklassen"},
 }
 
 // navigation liefert die Navigationseinträge mit dem angegebenen Bereich als
@@ -109,24 +106,25 @@ func navigation(aktiv string) []navigationseintrag {
 // Bearbeiten sind sie unveränderlich und werden über formularDaten nur
 // angezeigt.
 type formularEingabe struct {
-	Vorname          string
-	Nachname         string
-	Geburtsdatum     string
-	Adresse          string
-	Email            string
-	Telefon          string
-	BeitragsklasseID string
-	Eintritt         string
+	Vorname      string
+	Nachname     string
+	Geburtsdatum string
+	Adresse      string
+	Email        string
+	Telefon      string
+	// Beitrag ist der getippte Euro-Betrag, so wie er im Feld steht — umgerechnet
+	// wird er im Service (service.BeitragAusEuro).
+	Beitrag  string
+	Eintritt string
 }
 
 // formularDaten speist das Formular-Template. Bearbeiten unterscheidet die
 // beiden Modi: Neuanlage (POST auf /api/mitglied) und Änderung eines
 // bestehenden Mitglieds (POST auf /api/mitglied/{id}).
 type formularDaten struct {
-	Bearbeiten      bool
-	MitgliedID      int64
-	Beitragsklassen []service.Beitragsklasse
-	Eingabe         formularEingabe
+	Bearbeiten bool
+	MitgliedID int64
+	Eingabe    formularEingabe
 
 	// Anzeigewerte der Felder, die beim Bearbeiten festliegen — fertig
 	// formatiert, weil sie nur gelesen und nicht zurückgeschickt werden.
@@ -158,7 +156,6 @@ const (
 type suchEingabe struct {
 	Query     string
 	Status    string
-	Klasse    string
 	Ehemalige bool
 }
 
@@ -171,7 +168,6 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
 		Ehemalige: werte.Get("ehemalige") != "",
 		Status:    werte.Get("status"),
-		Klasse:    werte.Get("klasse"),
 	}
 }
 
@@ -187,10 +183,6 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 		filter.Zahlungsstatus = service.ZahlungsfilterBezahlt
 	case statusNichtBezahlt:
 		filter.Zahlungsstatus = service.ZahlungsfilterNichtBezahlt
-	}
-
-	if id, err := strconv.ParseInt(e.Klasse, 10, 64); err == nil {
-		filter.BeitragsklasseID = id
 	}
 
 	return filter
@@ -216,11 +208,10 @@ var zahlungsstatusoptionen = []filteroption{
 // listeDaten trägt das Suchergebnis, die Werte der Filterleiste und optional
 // eine Rückmeldung.
 type listeDaten struct {
-	Eintraege       []service.Listeneintrag
-	Meldung         meldung
-	Suche           suchEingabe
-	Beitragsklassen []service.Beitragsklasse
-	Navigation      []navigationseintrag
+	Eintraege  []service.Listeneintrag
+	Meldung    meldung
+	Suche      suchEingabe
+	Navigation []navigationseintrag
 }
 
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
@@ -249,23 +240,6 @@ func (d listeDaten) Statusoptionen() []filteroption {
 		}
 	}
 	optionen[gewaehlt].Gewaehlt = true
-
-	return optionen
-}
-
-// Klassenoptionen listet die Beitragsklassen so, wie die Datenbank sie führt —
-// die Auswahl wächst also mit, wenn eine Klasse dazukommt.
-func (d listeDaten) Klassenoptionen() []filteroption {
-	optionen := []filteroption{{Beschriftung: "Alle Beitragsklassen", Gewaehlt: d.Suche.Klasse == ""}}
-
-	for _, k := range d.Beitragsklassen {
-		wert := strconv.FormatInt(k.ID, 10)
-		optionen = append(optionen, filteroption{
-			Wert:         wert,
-			Beschriftung: k.Name,
-			Gewaehlt:     d.Suche.Klasse == wert,
-		})
-	}
 
 	return optionen
 }
@@ -314,54 +288,17 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		return listeDaten{}, false
 	}
 
-	klassen, err := a.svc.AktiveBeitragsklassen()
-	if err != nil {
-		fehlerAntwort(w, err)
-		return listeDaten{}, false
-	}
-
 	return listeDaten{
-		Eintraege:       eintraege,
-		Meldung:         m,
-		Suche:           eingabe,
-		Beitragsklassen: klassen,
-		Navigation:      navigation(bereichMitglieder),
+		Eintraege:  eintraege,
+		Meldung:    m,
+		Suche:      eingabe,
+		Navigation: navigation(bereichMitglieder),
 	}, true
 }
 
-// beitragsklassenDaten speist die Preisübersicht. Sie ist in v1 bewusst nur
-// lesend: gepflegt werden die Klassen noch nicht.
-type beitragsklassenDaten struct {
-	Klassen    []service.Beitragsklasse
-	Navigation []navigationseintrag
-}
-
-// beitragsklassenUebersicht zeigt das Preisverzeichnis des Vereins. Anders als
-// die Auswahllisten der Formulare listet es alle Klassen, auch deaktivierte und
-// solche, denen gerade niemand zugeordnet ist.
-func (a *App) beitragsklassenUebersicht(w http.ResponseWriter, r *http.Request) {
-	klassen, err := a.svc.ListBeitragsklassen()
-	if err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
-	a.rendern(w, "beitragsklassen", beitragsklassenDaten{
-		Klassen:    klassen,
-		Navigation: navigation(bereichBeitragsklassen),
-	})
-}
-
 func (a *App) mitgliedFormular(w http.ResponseWriter, r *http.Request) {
-	klassen, err := a.svc.AktiveBeitragsklassen()
-	if err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
 	a.rendern(w, "mitglied-formular", formularDaten{
-		Beitragsklassen: klassen,
-		Eingabe:         formularEingabe{Eintritt: time.Now().Format(isoDatum)},
+		Eingabe: formularEingabe{Eintritt: time.Now().Format(isoDatum)},
 	})
 }
 
@@ -392,18 +329,11 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 		fehler = validierung.Meldungen
 	}
 
-	klassen, err := a.svc.AktiveBeitragsklassen()
-	if err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
 	// Fehlerhafte Eingabe: Formular mit Werten und Meldungen zurückgeben. Bewusst
 	// mit Status 200 — htmx tauscht Antworten mit Fehlerstatus standardmäßig nicht ein.
 	a.rendern(w, "mitglied-formular", formularDaten{
-		Beitragsklassen: klassen,
-		Eingabe:         eingabe,
-		Fehler:          fehler,
+		Eingabe: eingabe,
+		Fehler:  fehler,
 	})
 }
 
@@ -461,34 +391,32 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		return
 	}
 
-	klassen, err := a.svc.AktiveBeitragsklassen()
-	if err != nil {
-		fehlerAntwort(w, err)
-		return
+	// Welcher Zeitraum maßgeblich ist, entscheidet der Service — auch bei einem
+	// ausgetretenen Mitglied, dessen letzter Eintritt und Beitrag hier stehen
+	// sollen. Denselben Zeitraum ändert Update auch wieder.
+	var (
+		eintritt *time.Time
+		beitrag  string
+	)
+	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
+		eintritt = &letzte.Eintritt
+		beitrag = service.BeitragAlsEuro(letzte.BeitragCents)
 	}
 
 	if eingabe == nil {
 		eingabe = &formularEingabe{
-			Vorname:          m.Vorname,
-			Nachname:         m.Nachname,
-			Adresse:          m.Adresse,
-			Email:            m.Email,
-			Telefon:          m.Telefon,
-			BeitragsklasseID: strconv.FormatInt(m.BeitragsklasseID, 10),
+			Vorname:  m.Vorname,
+			Nachname: m.Nachname,
+			Adresse:  m.Adresse,
+			Email:    m.Email,
+			Telefon:  m.Telefon,
+			Beitrag:  beitrag,
 		}
-	}
-
-	// Welcher Zeitraum maßgeblich ist, entscheidet der Service — auch bei einem
-	// ausgetretenen Mitglied, dessen letzter Eintritt hier stehen soll.
-	var eintritt *time.Time
-	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
-		eintritt = &letzte.Eintritt
 	}
 
 	a.rendern(w, "mitglied-formular", formularDaten{
 		Bearbeiten:          true,
 		MitgliedID:          m.ID,
-		Beitragsklassen:     klassen,
 		Eingabe:             *eingabe,
 		GeburtsdatumAnzeige: datumAnzeige(m.Geburtsdatum),
 		EintrittAnzeige:     datumAnzeige(eintritt),
@@ -761,14 +689,14 @@ func aufListeUmleiten(w http.ResponseWriter) {
 // formularEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
 func formularEingabeLesen(r *http.Request) formularEingabe {
 	return formularEingabe{
-		Vorname:          r.FormValue("vorname"),
-		Nachname:         r.FormValue("nachname"),
-		Geburtsdatum:     r.FormValue("geburtsdatum"),
-		Adresse:          r.FormValue("adresse"),
-		Email:            r.FormValue("email"),
-		Telefon:          r.FormValue("telefon"),
-		BeitragsklasseID: r.FormValue("beitragsklasse_id"),
-		Eintritt:         r.FormValue("eintritt"),
+		Vorname:      r.FormValue("vorname"),
+		Nachname:     r.FormValue("nachname"),
+		Geburtsdatum: r.FormValue("geburtsdatum"),
+		Adresse:      r.FormValue("adresse"),
+		Email:        r.FormValue("email"),
+		Telefon:      r.FormValue("telefon"),
+		Beitrag:      r.FormValue("beitrag"),
+		Eintritt:     r.FormValue("eintritt"),
 	}
 }
 
@@ -819,11 +747,11 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 		}
 	}
 
-	beitragsklasseID, fehlermeldung := e.beitragsklasseID()
-	if fehlermeldung != "" {
-		fehler = append(fehler, fehlermeldung)
+	cents, err := service.BeitragAusEuro(e.Beitrag)
+	if err != nil {
+		fehler = append(fehler, err.Error())
 	}
-	neu.BeitragsklasseID = beitragsklasseID
+	neu.BeitragCents = cents
 
 	return neu, fehler
 }
@@ -842,29 +770,15 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		Telefon:  &e.Telefon,
 	}
 
-	beitragsklasseID, fehlermeldung := e.beitragsklasseID()
-	if fehlermeldung != "" {
-		fehler = append(fehler, fehlermeldung)
+	// Ein unlesbarer Beitrag hält den ganzen Patch auf: er würde sonst
+	// stillschweigend auf 0 € stehen bleiben, und 0 € ist ein gültiger Betrag.
+	cents, err := service.BeitragAusEuro(e.Beitrag)
+	if err != nil {
+		return patch, append(fehler, err.Error())
 	}
-	patch.BeitragsklasseID = &beitragsklasseID
+	patch.BeitragCents = &cents
 
 	return patch, fehler
-}
-
-// beitragsklasseID parst die gewählte Klasse. Ein leeres Feld bleibt die
-// Null-ID und fällt damit in die Pflichtfeld-Prüfung des Service; nur ein
-// unparsebarer Wert ist ein Adapter-Problem.
-func (e formularEingabe) beitragsklasseID() (int64, string) {
-	if e.BeitragsklasseID == "" {
-		return 0, ""
-	}
-
-	id, err := strconv.ParseInt(e.BeitragsklasseID, 10, 64)
-	if err != nil {
-		return 0, "Bitte eine Beitragsklasse wählen."
-	}
-
-	return id, ""
 }
 
 func (a *App) rendern(w http.ResponseWriter, name string, daten any) {
@@ -917,9 +831,10 @@ func datumAnzeige(d any) string {
 }
 
 var templateFunktionen = template.FuncMap{
-	// euro formatiert einen Cent-Betrag als "60,00 €".
+	// euro formatiert einen Cent-Betrag als "60,00 €" — dieselbe Schreibweise,
+	// die das Formular zur Bearbeitung anbietet, nur mit Währungszeichen.
 	"euro": func(cents int64) string {
-		return fmt.Sprintf("%d,%02d €", cents/100, cents%100)
+		return service.BeitragAlsEuro(cents) + " €"
 	},
 	"datum": datumAnzeige,
 	// isodatum liefert den Wert für ein <input type="date">; nil wird zu "".

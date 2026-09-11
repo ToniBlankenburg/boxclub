@@ -81,14 +81,14 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 	bezahltBis := datum(t, "2026-12-31")
 
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Nina",
-		Nachname:         "Klein",
-		Geburtsdatum:     &geburtsdatum,
-		Adresse:          "Kanalstraße 12, 12043 Berlin",
-		Email:            "nina.klein@example.org",
-		Telefon:          "0160 4443322",
-		BeitragsklasseID: beitragsklassen(t, svc)[1].ID,
-		Eintritt:         datum(t, "2026-01-05"),
+		Vorname:      "Nina",
+		Nachname:     "Klein",
+		Geburtsdatum: &geburtsdatum,
+		Adresse:      "Kanalstraße 12, 12043 Berlin",
+		Email:        "nina.klein@example.org",
+		Telefon:      "0160 4443322",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-01-05"),
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)

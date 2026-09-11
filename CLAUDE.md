@@ -42,11 +42,12 @@ go test ./service/... -run TestMemberService_Create
 - `app/` — HTTP handlers for the htmx frontend: thin 1:1 wrappers over `MemberService`/`ExcelImporter` that return HTML fragments. They hang off `assetserver.Options.Handler`; Wails bindings are **not** used (see ADR-0002).
 - `templates/` — Go `html/template` files rendering htmx fragments (member rows, forms, error lists).
 
-**SQLite schema (three tables):**
+**SQLite schema (two tables):** nothing is seeded — a fresh database is empty.
 
-- `beitragsklasse(id, name, preis_monatlich_cents, aktiv)` — seeded on first start with two classes (60 €/mo and 80 €/mo, stored in cents)
-- `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, beitragsklasse_id, bezahlt_bis)` — person master data; one row per person even across re-entries
-- `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL)` — time-bound membership period; `austritt IS NULL` means currently active
+- `mitglied(id, vorname, nachname, geburtsdatum, adresse, email, telefon, bezahlt_bis)` — person master data; one row per person even across re-entries
+- `mitgliedschaft(id, mitglied_id, eintritt, austritt NULL, beitrag_monatlich_cents)` — time-bound membership period; `austritt IS NULL` means currently active
+
+The monthly fee hangs on the **membership**, not on the person, and is individually agreed — there are no fee classes (see ADR-0005). 0 € is a valid fee, not a missing one. Euro input is converted to cents in `service.BeitragAusEuro`; there is no migration mechanism, so a schema change means deleting the dev database.
 
 Payment status is derived on the fly: `bezahlt` if `bezahlt_bis >= today`, `nicht bezahlt` otherwise, and `nicht gesetzt` while `bezahlt_bis` is NULL. Never stored.
 

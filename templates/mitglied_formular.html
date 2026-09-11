@@ -30,19 +30,10 @@
         {{template "feld" feld "Adresse" "adresse" "text" .Eingabe.Adresse false true}}
         {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
         {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
-
-        <label class="flex flex-col gap-1.5 sm:col-span-2">
-            <span class="text-sm text-neutral-600">Beitragsklasse<span class="text-red-700">*</span></span>
-            <select name="beitragsklasse_id" required
-                    class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
-                <option value="" disabled {{if not .Eingabe.BeitragsklasseID}}selected{{end}}>Bitte wählen …</option>
-                {{range .Beitragsklassen}}
-                    <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Eingabe.BeitragsklasseID}}selected{{end}}>
-                        {{.Name}} — {{euro .PreisMonatlichCents}}/Monat
-                    </option>
-                {{end}}
-            </select>
-        </label>
+        {{/* Der Beitrag ist frei vereinbart, keine Auswahl aus Stufen (ADR-0005).
+             0 ist ein gültiger Betrag — Trainer zahlen nichts —, deshalb ist das
+             Feld Pflicht: die Null gehört hingeschrieben. */}}
+        {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
     </div>
 
     <div class="mt-6 flex items-center gap-3">

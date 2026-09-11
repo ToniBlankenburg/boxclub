@@ -70,3 +70,29 @@ Formular die Navigation nicht anfasst und dass eine leere Navigation gar kein
 danach gelöscht — laut CLAUDE.md werden `app/`-Handler nicht unit-getestet.
 `go test ./...`, `go vet`, `gofmt` und `wails build` sind unter Linux sauber;
 Windows und macOS stehen noch aus.
+
+### Überholt: es gibt keine Beitragsklassen (2026-09-11)
+
+Dieses Ticket ist umgesetzt und wird **ersatzlos zurückgebaut**. Die
+Bestandsaufnahme der echten Excel-Tabelle
+([excel-vorlage.md](../excel-vorlage.md)) führt zwei unabhängige Spalten:
+`Beitrag` mit 18 gepflegten Werten von 0 bis 144 € und `1x 2x Woche` mit der
+Trainingsfrequenz. Betrag und Frequenz variieren getrennt — zwei Mitglieder mit
+derselben Frequenz zahlen unterschiedlich viel. Die Annahme "die Staffelung
+ergibt sich ausschließlich aus der Trainingsfrequenz" und damit das ganze
+Klassen-Konzept ist widerlegt.
+
+Zurückgebaut in **Ticket 13** (Beitrag individuell). Begründung, Alternativen
+und Kostenseite in
+[ADR-0005](../../../docs/adr/0005-beitrag-individuell-statt-beitragsklasse.md) —
+insbesondere, warum der naheliegende Kompromiss (Tabelle behalten, 18 Zeilen
+seeden) an Story 13 scheitert: eine Preisänderung an der Klasse "60 €" würde
+stillschweigend den Beitrag aller Mitglieder darin ändern, auch derjenigen,
+deren 60 € eine individuelle Zusage sind.
+
+Der Filter nach Beitragsklasse wird in **Ticket 15** durch einen Filter nach
+Trainingsfrequenz ersetzt. Der Rückbau ist **kein Bug** — er ist die Entscheidung.
+
+**Rückbau erledigt (Ticket 13).** Ansicht, Template, Route, Navigationseintrag,
+Testdatei, Tabelle und Seeding sind weg; in der Mitgliederliste steht jetzt der
+individuell vereinbarte Beitrag.

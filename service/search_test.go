@@ -10,13 +10,11 @@ import (
 
 // suchBestand ist der Mitgliederbestand, an dem die Such- und Filtertests
 // arbeiten. Er ist bewusst klein und so geschnitten, dass jede Filterdimension
-// für sich beobachtbar ist: beide Beitragsklassen, alle drei Zahlungsstatus
-// (inklusive "nicht gesetzt") und je ein aktives wie ein ausgetretenes Mitglied
-// kommen darin vor. Umlaute und ein Bindestrich stecken in den Namen.
+// für sich beobachtbar ist: alle drei Zahlungsstatus (inklusive "nicht
+// gesetzt") und je ein aktives wie ein ausgetretenes Mitglied kommen darin vor.
+// Umlaute und ein Bindestrich stecken in den Namen; die Beiträge sind
+// verschieden, damit eine vertauschte Zeile auffiele.
 type suchBestand struct {
-	EinMalWoche  service.Beitragsklasse
-	ZweiMalWoche service.Beitragsklasse
-
 	// IDs der angelegten Mitglieder, benannt nach ihrem Nachnamen.
 	Berger, Oeztuerk, MeierSchmidt, Wagner, Klein int64
 }
@@ -24,19 +22,18 @@ type suchBestand struct {
 func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 	t.Helper()
 
-	klassen := beitragsklassen(t, svc)
-	b := suchBestand{EinMalWoche: klassen[0], ZweiMalWoche: klassen[1]}
+	var b suchBestand
 
-	anlegen := func(vorname, nachname, email, telefon string, klasse service.Beitragsklasse) int64 {
+	anlegen := func(vorname, nachname, email, telefon string, beitragCents int64) int64 {
 		t.Helper()
 
 		id, err := svc.Create(service.NeuesMitglied{
-			Vorname:          vorname,
-			Nachname:         nachname,
-			Email:            email,
-			Telefon:          telefon,
-			BeitragsklasseID: klasse.ID,
-			Eintritt:         datum(t, "2026-01-05"),
+			Vorname:      vorname,
+			Nachname:     nachname,
+			Email:        email,
+			Telefon:      telefon,
+			BeitragCents: beitragCents,
+			Eintritt:     datum(t, "2026-01-05"),
 		})
 		if err != nil {
 			t.Fatalf("Create(%s %s): %v", vorname, nachname, err)
@@ -54,21 +51,21 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 		}
 	}
 
-	b.Berger = anlegen("Anna", "Berger", "anna.berger@example.org", "030 1234567", b.ZweiMalWoche)
+	b.Berger = anlegen("Anna", "Berger", "anna.berger@example.org", "030 1234567", 8000)
 	bezahltBis(b.Berger, 30)
 
-	b.Oeztuerk = anlegen("Mehmet", "Öztürk", "m.oeztuerk@example.org", "0171 9876543", b.EinMalWoche)
+	b.Oeztuerk = anlegen("Mehmet", "Öztürk", "m.oeztuerk@example.org", "0171 9876543", 6000)
 	bezahltBis(b.Oeztuerk, -5)
 
 	// Jörg Meier-Schmidt bleibt ohne Zahlungsangabe: "nicht gesetzt".
-	b.MeierSchmidt = anlegen("Jörg", "Meier-Schmidt", "joerg.meier-schmidt@example.org", "030 5550101", b.ZweiMalWoche)
+	b.MeierSchmidt = anlegen("Jörg", "Meier-Schmidt", "joerg.meier-schmidt@example.org", "030 5550101", 0)
 
-	b.Wagner = anlegen("Paul", "Wagner", "paul.wagner@example.org", "030 7778899", b.ZweiMalWoche)
+	b.Wagner = anlegen("Paul", "Wagner", "paul.wagner@example.org", "030 7778899", 13500)
 	bezahltBis(b.Wagner, -3)
 
 	// Nina Klein ist ausgetreten — sonst würde sie in denselben Filter fallen
 	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen.
-	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", b.ZweiMalWoche)
+	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", 4500)
 	bezahltBis(b.Klein, -20)
 	if err := svc.MarkExit(b.Klein, datum(t, "2026-06-30")); err != nil {
 		t.Fatalf("MarkExit: %v", err)
@@ -198,30 +195,6 @@ func TestSearch_FiltertNachZahlungsstatus(t *testing.T) {
 	}
 }
 
-func TestSearch_FiltertNachBeitragsklasse(t *testing.T) {
-	svc := neuerService(t)
-	b := suchbestandAnlegen(t, svc)
-
-	faelle := []struct {
-		name     string
-		klasseID int64
-		erwartet []string
-	}{
-		{"alle Klassen", 0, alleAktiven},
-		{b.EinMalWoche.Name, b.EinMalWoche.ID, []string{"Öztürk, Mehmet"}},
-		{b.ZweiMalWoche.Name, b.ZweiMalWoche.ID, []string{"Berger, Anna", "Meier-Schmidt, Jörg", "Wagner, Paul"}},
-	}
-
-	for _, f := range faelle {
-		t.Run(f.name, func(t *testing.T) {
-			gefunden := suchen(t, svc, "", service.Suchfilter{BeitragsklasseID: f.klasseID})
-			if !slices.Equal(gefunden, f.erwartet) {
-				t.Errorf("Beitragsklassenfilter %q = %v, erwartet %v", f.name, gefunden, f.erwartet)
-			}
-		})
-	}
-}
-
 func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAuchEhemalige(t *testing.T) {
 	svc := neuerService(t)
 	b := suchbestandAnlegen(t, svc)
@@ -263,42 +236,39 @@ func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAuchEhemalige(t *testin
 	}
 }
 
-// Der Fall aus dem Ticket: "aktive Erwachsen 2×/Woche mit unbezahltem Status".
+// Der Fall aus dem Ticket: "aktive Mitglieder mit unbezahltem Status".
 func TestSearch_KombiniertSucheUndFilter(t *testing.T) {
 	svc := neuerService(t)
-	b := suchbestandAnlegen(t, svc)
+	suchbestandAnlegen(t, svc)
 
-	aktiveZweiMalUnbezahlt := service.Suchfilter{
-		Zahlungsstatus:   service.ZahlungsfilterNichtBezahlt,
-		BeitragsklasseID: b.ZweiMalWoche.ID,
-	}
+	aktiveUnbezahlt := service.Suchfilter{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt}
 
 	// Klein passt in jede Filterdimension außer der Aktivität und muss deshalb
-	// fehlen; Öztürk ist unbezahlt, aber in der anderen Klasse.
-	gefunden := suchen(t, svc, "", aktiveZweiMalUnbezahlt)
-	if !slices.Equal(gefunden, []string{"Wagner, Paul"}) {
-		t.Errorf("aktive 2×/Woche mit unbezahltem Status = %v, erwartet [Wagner, Paul]", gefunden)
+	// fehlen.
+	gefunden := suchen(t, svc, "", aktiveUnbezahlt)
+	if !slices.Equal(gefunden, []string{"Öztürk, Mehmet", "Wagner, Paul"}) {
+		t.Errorf("aktive mit unbezahltem Status = %v, erwartet [Öztürk, Mehmet Wagner, Paul]", gefunden)
 	}
 
-	// Dieselben Filter, jetzt auch mit den Ehemaligen: Klein kommt dazu.
-	mitEhemaligen := aktiveZweiMalUnbezahlt
+	// Derselbe Filter, jetzt auch mit den Ehemaligen: Klein kommt dazu.
+	mitEhemaligen := aktiveUnbezahlt
 	mitEhemaligen.AuchEhemalige = true
 
 	gefunden = suchen(t, svc, "", mitEhemaligen)
-	if !slices.Equal(gefunden, []string{"Klein, Nina", "Wagner, Paul"}) {
-		t.Errorf("dieselben Filter inkl. Ehemaliger = %v, erwartet [Klein, Nina Wagner, Paul]", gefunden)
+	if !slices.Equal(gefunden, []string{"Klein, Nina", "Öztürk, Mehmet", "Wagner, Paul"}) {
+		t.Errorf("derselbe Filter inkl. Ehemaliger = %v, erwartet [Klein, Nina Öztürk, Mehmet Wagner, Paul]", gefunden)
 	}
 
 	// Query und Filter müssen beide zutreffen.
-	gefunden = suchen(t, svc, "wagner", aktiveZweiMalUnbezahlt)
+	gefunden = suchen(t, svc, "wagner", aktiveUnbezahlt)
 	if !slices.Equal(gefunden, []string{"Wagner, Paul"}) {
-		t.Errorf("Search(\"wagner\", aktive 2× unbezahlt) = %v, erwartet [Wagner, Paul]", gefunden)
+		t.Errorf("Search(\"wagner\", aktive unbezahlt) = %v, erwartet [Wagner, Paul]", gefunden)
 	}
 
 	// Berger trifft den Query, fällt aber durch den Zahlungsfilter.
-	gefunden = suchen(t, svc, "berger", aktiveZweiMalUnbezahlt)
+	gefunden = suchen(t, svc, "berger", aktiveUnbezahlt)
 	if len(gefunden) != 0 {
-		t.Errorf("Search(\"berger\", aktive 2× unbezahlt) = %v, erwartet kein Ergebnis", gefunden)
+		t.Errorf("Search(\"berger\", aktive unbezahlt) = %v, erwartet kein Ergebnis", gefunden)
 	}
 }
 
@@ -306,16 +276,14 @@ func TestSearch_KombiniertSucheUndFilter(t *testing.T) {
 // gefiltert worden — auch dann, wenn im Suchfeld nur Leerzeichen stehen.
 func TestSearch_LeererQueryEntsprichtFilterOhneSuche(t *testing.T) {
 	svc := neuerService(t)
-	b := suchbestandAnlegen(t, svc)
+	suchbestandAnlegen(t, svc)
 
 	filter := []service.Suchfilter{
 		{},
 		{Zahlungsstatus: service.ZahlungsfilterBezahlt},
 		{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt},
-		{BeitragsklasseID: b.EinMalWoche.ID},
-		{BeitragsklasseID: b.ZweiMalWoche.ID},
 		{AuchEhemalige: true},
-		{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt, BeitragsklasseID: b.ZweiMalWoche.ID, AuchEhemalige: true},
+		{Zahlungsstatus: service.ZahlungsfilterNichtBezahlt, AuchEhemalige: true},
 	}
 
 	for _, f := range filter {
@@ -343,9 +311,6 @@ func TestSearch_LeererQueryEntsprichtFilterOhneSuche(t *testing.T) {
 func pruefeFilter(t *testing.T, e service.Listeneintrag, f service.Suchfilter) {
 	t.Helper()
 
-	if f.BeitragsklasseID != 0 && e.Beitragsklasse.ID != f.BeitragsklasseID {
-		t.Errorf("%s: Beitragsklasse %d, erwartet %d", e.Nachname, e.Beitragsklasse.ID, f.BeitragsklasseID)
-	}
 	if !f.AuchEhemalige && e.Austritt != nil {
 		t.Errorf("%s: ausgetreten, gehört ohne AuchEhemalige nicht ins Ergebnis", e.Nachname)
 	}
@@ -404,17 +369,6 @@ func TestSearch_OhneMitgliederIstLeer(t *testing.T) {
 	}
 	if len(liste) != 0 {
 		t.Errorf("Search = %+v, erwartet leer bei frischer Datenbank", liste)
-	}
-}
-
-// Eine unbekannte Beitragsklasse ist kein Fehler, sondern schlicht kein Treffer.
-func TestSearch_UnbekannteBeitragsklasseLiefertKeineTreffer(t *testing.T) {
-	svc := neuerService(t)
-	suchbestandAnlegen(t, svc)
-
-	gefunden := suchen(t, svc, "", service.Suchfilter{BeitragsklasseID: 9999})
-	if len(gefunden) != 0 {
-		t.Errorf("Search mit unbekannter Beitragsklasse = %v, erwartet kein Ergebnis", gefunden)
 	}
 }
 

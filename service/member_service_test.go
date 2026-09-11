@@ -30,51 +30,9 @@ func neuerService(t *testing.T) *service.MemberService {
 	return svc
 }
 
-// beitragsklassen liefert die geseedeten Klassen, aufsteigend nach Preis —
-// die Tests brauchen deren IDs, um Mitglieder anlegen zu können.
-func beitragsklassen(t *testing.T, svc *service.MemberService) []service.Beitragsklasse {
-	t.Helper()
-
-	k, err := svc.AktiveBeitragsklassen()
-	if err != nil {
-		t.Fatalf("AktiveBeitragsklassen: %v", err)
-	}
-
-	return k
-}
-
-func TestOpen_SeedetDieBeidenBeitragsklassen(t *testing.T) {
-	svc := neuerService(t)
-
-	klassen, err := svc.AktiveBeitragsklassen()
-	if err != nil {
-		t.Fatalf("AktiveBeitragsklassen: %v", err)
-	}
-
-	if len(klassen) != 2 {
-		t.Fatalf("erwarte 2 geseedete Beitragsklassen, bekam %d: %+v", len(klassen), klassen)
-	}
-
-	erwartet := []struct {
-		name  string
-		cents int64
-	}{
-		{"Erwachsen 1×/Woche", 6000},
-		{"Erwachsen 2×/Woche", 8000},
-	}
-	for i, e := range erwartet {
-		if klassen[i].Name != e.name {
-			t.Errorf("Klasse %d: Name = %q, erwartet %q", i, klassen[i].Name, e.name)
-		}
-		if klassen[i].PreisMonatlichCents != e.cents {
-			t.Errorf("Klasse %d (%s): PreisMonatlichCents = %d, erwartet %d",
-				i, e.name, klassen[i].PreisMonatlichCents, e.cents)
-		}
-		if !klassen[i].Aktiv {
-			t.Errorf("Klasse %d (%s): Aktiv = false, erwartet true", i, e.name)
-		}
-	}
-}
+// beitragImTest ist der Beitrag, den die Fixtures vereinbaren, wo der Betrag
+// selbst nichts zur Sache tut — 65,00 €.
+const beitragImTest = 6500
 
 // datum parst ein ISO-Datum für Testfixtures.
 func datum(t *testing.T, iso string) time.Time {
@@ -91,21 +49,18 @@ func datum(t *testing.T, iso string) time.Time {
 func TestCreate_LegtMitgliedUndAktiveMitgliedschaftAn(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
-	zweiMalWoche := klassen[1]
-
 	geburtsdatum := datum(t, "1990-04-17")
 	eintritt := datum(t, "2026-01-15")
 
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Anna",
-		Nachname:         "Berger",
-		Geburtsdatum:     &geburtsdatum,
-		Adresse:          "Ringstraße 5, 12043 Berlin",
-		Email:            "anna.berger@example.org",
-		Telefon:          "030 1234567",
-		BeitragsklasseID: zweiMalWoche.ID,
-		Eintritt:         eintritt,
+		Vorname:      "Anna",
+		Nachname:     "Berger",
+		Geburtsdatum: &geburtsdatum,
+		Adresse:      "Ringstraße 5, 12043 Berlin",
+		Email:        "anna.berger@example.org",
+		Telefon:      "030 1234567",
+		BeitragCents: 8000,
+		Eintritt:     eintritt,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -137,9 +92,6 @@ func TestCreate_LegtMitgliedUndAktiveMitgliedschaftAn(t *testing.T) {
 	if m.Telefon != "030 1234567" {
 		t.Errorf("Telefon = %q", m.Telefon)
 	}
-	if m.BeitragsklasseID != zweiMalWoche.ID {
-		t.Errorf("BeitragsklasseID = %d, erwartet %d", m.BeitragsklasseID, zweiMalWoche.ID)
-	}
 	if m.BezahltBis != nil {
 		t.Errorf("BezahltBis = %v, erwartet nil bei Neuanlage", m.BezahltBis)
 	}
@@ -157,34 +109,21 @@ func TestCreate_LegtMitgliedUndAktiveMitgliedschaftAn(t *testing.T) {
 	if ms.MitgliedID != id {
 		t.Errorf("MitgliedID = %d, erwartet %d", ms.MitgliedID, id)
 	}
-}
-
-func TestCreate_LehntUnbekannteBeitragsklasseAb(t *testing.T) {
-	svc := neuerService(t)
-
-	_, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Carl",
-		Nachname:         "Dietrich",
-		BeitragsklasseID: 999,
-		Eintritt:         datum(t, "2026-02-01"),
-	})
-	if err == nil {
-		t.Fatal("Create mit unbekannter BeitragsklasseID muss fehlschlagen")
+	if ms.BeitragCents != 8000 {
+		t.Errorf("BeitragCents = %d, erwartet 8000", ms.BeitragCents)
 	}
 }
 
 func TestCreate_ErlaubtNamensgleichheitBeiGleichemGeburtsdatum(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
-
 	geburtsdatum := datum(t, "2001-09-03")
 	stammdaten := service.NeuesMitglied{
-		Vorname:          "Max",
-		Nachname:         "Müller",
-		Geburtsdatum:     &geburtsdatum,
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         datum(t, "2026-03-01"),
+		Vorname:      "Max",
+		Nachname:     "Müller",
+		Geburtsdatum: &geburtsdatum,
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-03-01"),
 	}
 
 	ersteID, err := svc.Create(stammdaten)
@@ -211,7 +150,7 @@ func TestGet_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
 	}
 }
 
-func TestOpen_BestehendeDatenbankBehaeltMitgliederUndSeedetNichtDoppelt(t *testing.T) {
+func TestOpen_BestehendeDatenbankBehaeltIhreMitglieder(t *testing.T) {
 	dbPfad := filepath.Join(t.TempDir(), "boxclub.db")
 
 	ersteSitzung, err := service.Open(dbPfad)
@@ -219,13 +158,11 @@ func TestOpen_BestehendeDatenbankBehaeltMitgliederUndSeedetNichtDoppelt(t *testi
 		t.Fatalf("service.Open (erste Sitzung): %v", err)
 	}
 
-	klassen := beitragsklassen(t, ersteSitzung)
-
 	id, err := ersteSitzung.Create(service.NeuesMitglied{
-		Vorname:          "Elif",
-		Nachname:         "Yilmaz",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         datum(t, "2026-04-20"),
+		Vorname:      "Elif",
+		Nachname:     "Yilmaz",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-04-20"),
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -255,13 +192,9 @@ func TestOpen_BestehendeDatenbankBehaeltMitgliederUndSeedetNichtDoppelt(t *testi
 	if len(m.Mitgliedschaften) != 1 {
 		t.Errorf("Mitgliedschaften nach Neustart = %d, erwartet 1", len(m.Mitgliedschaften))
 	}
-
-	nachNeustart, err := zweiteSitzung.AktiveBeitragsklassen()
-	if err != nil {
-		t.Fatalf("AktiveBeitragsklassen nach Neustart: %v", err)
-	}
-	if len(nachNeustart) != 2 {
-		t.Errorf("Beitragsklassen nach Neustart = %d, erwartet 2 (Seed darf nicht doppeln)", len(nachNeustart))
+	if m.Mitgliedschaften[0].BeitragCents != beitragImTest {
+		t.Errorf("BeitragCents nach Neustart = %d, erwartet %d",
+			m.Mitgliedschaften[0].BeitragCents, beitragImTest)
 	}
 }
 
@@ -279,7 +212,6 @@ func TestCreate_MeldetAlleFehlendenPflichtangabenAufEinmal(t *testing.T) {
 		"Vorname darf nicht leer sein.",
 		"Nachname darf nicht leer sein.",
 		"Eintrittsdatum darf nicht leer sein.",
-		"Bitte eine Beitragsklasse wählen.",
 	}
 	if len(validierung.Meldungen) != len(erwartet) {
 		t.Fatalf("Meldungen = %q, erwartet %d Stück", validierung.Meldungen, len(erwartet))
@@ -291,40 +223,19 @@ func TestCreate_MeldetAlleFehlendenPflichtangabenAufEinmal(t *testing.T) {
 	}
 }
 
-func TestBeitragsklasse_LiefertEinzelneKlasseUndMeldetUnbekannte(t *testing.T) {
-	svc := neuerService(t)
-
-	klassen := beitragsklassen(t, svc)
-
-	klasse, err := svc.Beitragsklasse(klassen[1].ID)
-	if err != nil {
-		t.Fatalf("Beitragsklasse: %v", err)
-	}
-	if klasse != klassen[1] {
-		t.Errorf("Beitragsklasse(%d) = %+v, erwartet %+v", klassen[1].ID, klasse, klassen[1])
-	}
-
-	if _, err := svc.Beitragsklasse(999); !errors.Is(err, service.ErrNichtGefunden) {
-		t.Fatalf("Beitragsklasse(999) = %v, erwartet ErrNichtGefunden", err)
-	}
-}
-
 func TestList_LiefertAktiveMitgliederNachNamenSortiert(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
-	einMalWoche, zweiMalWoche := klassen[0], klassen[1]
-
 	// Bewusst in einer Reihenfolge angelegt, die weder der erwarteten Sortierung
 	// noch der ID-Reihenfolge entspricht.
-	anlegen := func(vorname, nachname string, klasse service.Beitragsklasse, eintritt string) int64 {
+	anlegen := func(vorname, nachname string, beitragCents int64, eintritt string) int64 {
 		t.Helper()
 
 		id, err := svc.Create(service.NeuesMitglied{
-			Vorname:          vorname,
-			Nachname:         nachname,
-			BeitragsklasseID: klasse.ID,
-			Eintritt:         datum(t, eintritt),
+			Vorname:      vorname,
+			Nachname:     nachname,
+			BeitragCents: beitragCents,
+			Eintritt:     datum(t, eintritt),
 		})
 		if err != nil {
 			t.Fatalf("Create(%s %s): %v", vorname, nachname, err)
@@ -333,9 +244,9 @@ func TestList_LiefertAktiveMitgliederNachNamenSortiert(t *testing.T) {
 		return id
 	}
 
-	schmidtID := anlegen("Bea", "Schmidt", zweiMalWoche, "2026-02-10")
-	bergerAnnaID := anlegen("Anna", "Berger", einMalWoche, "2026-01-15")
-	bergerZoeID := anlegen("Zoe", "Berger", zweiMalWoche, "2026-03-01")
+	schmidtID := anlegen("Bea", "Schmidt", 8000, "2026-02-10")
+	bergerAnnaID := anlegen("Anna", "Berger", 6000, "2026-01-15")
+	bergerZoeID := anlegen("Zoe", "Berger", 0, "2026-03-01")
 
 	liste, err := svc.List()
 	if err != nil {
@@ -346,12 +257,12 @@ func TestList_LiefertAktiveMitgliederNachNamenSortiert(t *testing.T) {
 		id       int64
 		vorname  string
 		nachname string
-		klasse   service.Beitragsklasse
+		beitrag  int64
 		eintritt string
 	}{
-		{bergerAnnaID, "Anna", "Berger", einMalWoche, "2026-01-15"},
-		{bergerZoeID, "Zoe", "Berger", zweiMalWoche, "2026-03-01"},
-		{schmidtID, "Bea", "Schmidt", zweiMalWoche, "2026-02-10"},
+		{bergerAnnaID, "Anna", "Berger", 6000, "2026-01-15"},
+		{bergerZoeID, "Zoe", "Berger", 0, "2026-03-01"},
+		{schmidtID, "Bea", "Schmidt", 8000, "2026-02-10"},
 	}
 	if len(liste) != len(erwartet) {
 		t.Fatalf("List = %d Einträge, erwartet %d: %+v", len(liste), len(erwartet), liste)
@@ -365,8 +276,8 @@ func TestList_LiefertAktiveMitgliederNachNamenSortiert(t *testing.T) {
 		if eintrag.Vorname != e.vorname || eintrag.Nachname != e.nachname {
 			t.Errorf("Eintrag %d: Name = %q %q, erwartet %q %q", i, eintrag.Vorname, eintrag.Nachname, e.vorname, e.nachname)
 		}
-		if eintrag.Beitragsklasse != e.klasse {
-			t.Errorf("Eintrag %d (%s): Beitragsklasse = %+v, erwartet %+v", i, e.nachname, eintrag.Beitragsklasse, e.klasse)
+		if eintrag.BeitragCents != e.beitrag {
+			t.Errorf("Eintrag %d (%s): BeitragCents = %d, erwartet %d", i, e.nachname, eintrag.BeitragCents, e.beitrag)
 		}
 		if !eintrag.Eintritt.Equal(datum(t, e.eintritt)) {
 			t.Errorf("Eintrag %d (%s): Eintritt = %v, erwartet %s", i, e.nachname, eintrag.Eintritt, e.eintritt)
@@ -380,23 +291,21 @@ func TestList_LiefertAktiveMitgliederNachNamenSortiert(t *testing.T) {
 func TestList_LaesstMitgliederOhneLaufendeMitgliedschaftAus(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
-
 	geblieben, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Nora",
-		Nachname:         "Wagner",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         datum(t, "2026-01-05"),
+		Vorname:      "Nora",
+		Nachname:     "Wagner",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-01-05"),
 	})
 	if err != nil {
 		t.Fatalf("Create (bleibendes Mitglied): %v", err)
 	}
 
 	ausgetreten, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Olaf",
-		Nachname:         "Vogel",
-		BeitragsklasseID: klassen[1].ID,
-		Eintritt:         datum(t, "2026-01-05"),
+		Vorname:      "Olaf",
+		Nachname:     "Vogel",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-01-05"),
 	})
 	if err != nil {
 		t.Fatalf("Create (austretendes Mitglied): %v", err)
@@ -439,13 +348,12 @@ func TestList_OhneMitgliederIstLeer(t *testing.T) {
 func TestList_SortiertUmlauteNachDeutschenRegeln(t *testing.T) {
 	svc := neuerService(t)
 
-	klasse := beitragsklassen(t, svc)[0]
 	for _, nachname := range []string{"Zimmermann", "Öztürk", "Ärmel", "Adler"} {
 		if _, err := svc.Create(service.NeuesMitglied{
-			Vorname:          "Kim",
-			Nachname:         nachname,
-			BeitragsklasseID: klasse.ID,
-			Eintritt:         datum(t, "2026-01-05"),
+			Vorname:      "Kim",
+			Nachname:     nachname,
+			BeitragCents: beitragImTest,
+			Eintritt:     datum(t, "2026-01-05"),
 		}); err != nil {
 			t.Fatalf("Create(%s): %v", nachname, err)
 		}
@@ -482,25 +390,24 @@ func zeiger[T any](v T) *T {
 func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
 	geburtsdatum := datum(t, "1988-11-02")
 	eintritt := datum(t, "2026-01-15")
 
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Jonas",
-		Nachname:         "Krüger",
-		Geburtsdatum:     &geburtsdatum,
-		Adresse:          "Hauptstraße 1, 10115 Berlin",
-		Email:            "jonas@example.org",
-		Telefon:          "030 111111",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         eintritt,
+		Vorname:      "Jonas",
+		Nachname:     "Krüger",
+		Geburtsdatum: &geburtsdatum,
+		Adresse:      "Hauptstraße 1, 10115 Berlin",
+		Email:        "jonas@example.org",
+		Telefon:      "030 111111",
+		BeitragCents: beitragImTest,
+		Eintritt:     eintritt,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	// Nur zwei der sechs bearbeitbaren Felder werden gesetzt.
+	// Nur zwei der sechs bearbeitbaren Angaben werden gesetzt.
 	if err := svc.Update(id, service.MitgliedPatch{
 		Nachname: zeiger("Krüger-Wolf"),
 		Email:    zeiger("jonas.krueger-wolf@example.org"),
@@ -530,9 +437,6 @@ func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
 	if m.Telefon != "030 111111" {
 		t.Errorf("Telefon = %q, erwartet unverändert %q", m.Telefon, "030 111111")
 	}
-	if m.BeitragsklasseID != klassen[0].ID {
-		t.Errorf("BeitragsklasseID = %d, erwartet unverändert %d", m.BeitragsklasseID, klassen[0].ID)
-	}
 	if m.Geburtsdatum == nil || !m.Geburtsdatum.Equal(geburtsdatum) {
 		t.Errorf("Geburtsdatum = %v, erwartet unverändert %v", m.Geburtsdatum, geburtsdatum)
 	}
@@ -549,6 +453,10 @@ func TestUpdate_SchreibtNurDieGesetztenFelder(t *testing.T) {
 	}
 	if m.Mitgliedschaften[0].Austritt != nil {
 		t.Errorf("Austritt = %v, erwartet unverändert nil", m.Mitgliedschaften[0].Austritt)
+	}
+	if m.Mitgliedschaften[0].BeitragCents != beitragImTest {
+		t.Errorf("BeitragCents = %d, erwartet unverändert %d",
+			m.Mitgliedschaften[0].BeitragCents, beitragImTest)
 	}
 }
 
@@ -570,85 +478,22 @@ func TestUpdate_UnbekannteIDMeldetNichtGefundenUndLegtNichtsAn(t *testing.T) {
 	}
 }
 
-func TestUpdate_WechseltBeitragsklasseUndListeZeigtSie(t *testing.T) {
-	svc := neuerService(t)
-
-	klassen := beitragsklassen(t, svc)
-	einMalWoche, zweiMalWoche := klassen[0], klassen[1]
-
-	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Lena",
-		Nachname:         "Hoffmann",
-		BeitragsklasseID: einMalWoche.ID,
-		Eintritt:         datum(t, "2026-02-01"),
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := svc.Update(id, service.MitgliedPatch{BeitragsklasseID: &zweiMalWoche.ID}); err != nil {
-		t.Fatalf("Update (Klassenwechsel): %v", err)
-	}
-
-	liste, err := svc.List()
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(liste) != 1 {
-		t.Fatalf("List = %d Einträge, erwartet 1", len(liste))
-	}
-	if liste[0].Beitragsklasse != zweiMalWoche {
-		t.Errorf("Beitragsklasse in der Liste = %+v, erwartet %+v", liste[0].Beitragsklasse, zweiMalWoche)
-	}
-}
-
-func TestUpdate_LehntUnbekannteBeitragsklasseAbUndLaesstDieAlteStehen(t *testing.T) {
-	svc := neuerService(t)
-
-	klassen := beitragsklassen(t, svc)
-
-	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Timo",
-		Nachname:         "Ludwig",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         datum(t, "2026-02-01"),
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := svc.Update(id, service.MitgliedPatch{BeitragsklasseID: zeiger(int64(999))}); err == nil {
-		t.Fatal("Update mit unbekannter BeitragsklasseID muss fehlschlagen")
-	}
-
-	m, err := svc.Get(id)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if m.BeitragsklasseID != klassen[0].ID {
-		t.Errorf("BeitragsklasseID = %d, erwartet unverändert %d", m.BeitragsklasseID, klassen[0].ID)
-	}
-}
-
 func TestUpdate_MeldetLeeregemachtePflichtfelderAufEinmal(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
-
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Sara",
-		Nachname:         "Neumann",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         datum(t, "2026-02-01"),
+		Vorname:      "Sara",
+		Nachname:     "Neumann",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-02-01"),
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
 	err = svc.Update(id, service.MitgliedPatch{
-		Vorname:          zeiger(""),
-		Nachname:         zeiger(""),
-		BeitragsklasseID: zeiger(int64(0)),
+		Vorname:  zeiger(""),
+		Nachname: zeiger(""),
 	})
 
 	var validierung *service.ValidierungsFehler
@@ -659,7 +504,6 @@ func TestUpdate_MeldetLeeregemachtePflichtfelderAufEinmal(t *testing.T) {
 	erwartet := []string{
 		"Vorname darf nicht leer sein.",
 		"Nachname darf nicht leer sein.",
-		"Bitte eine Beitragsklasse wählen.",
 	}
 	if len(validierung.Meldungen) != len(erwartet) {
 		t.Fatalf("Meldungen = %q, erwartet %d Stück", validierung.Meldungen, len(erwartet))
@@ -683,13 +527,11 @@ func TestUpdate_MeldetLeeregemachtePflichtfelderAufEinmal(t *testing.T) {
 func TestUpdate_LeererPatchAendertNichtsUndPrueftTrotzdemDieID(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
-
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Pia",
-		Nachname:         "Roth",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         datum(t, "2026-02-01"),
+		Vorname:      "Pia",
+		Nachname:     "Roth",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-02-01"),
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -709,7 +551,7 @@ func TestUpdate_LeererPatchAendertNichtsUndPrueftTrotzdemDieID(t *testing.T) {
 		t.Fatalf("Get (nachher): %v", err)
 	}
 	if nachher.Vorname != vorher.Vorname || nachher.Nachname != vorher.Nachname ||
-		nachher.BeitragsklasseID != vorher.BeitragsklasseID {
+		nachher.Mitgliedschaften[0] != vorher.Mitgliedschaften[0] {
 		t.Errorf("Mitglied = %+v, erwartet unverändert %+v", nachher, vorher)
 	}
 
@@ -722,14 +564,13 @@ func TestUpdate_LeererPatchAendertNichtsUndPrueftTrotzdemDieID(t *testing.T) {
 func TestLaufendeMitgliedschaft_LiefertDenOffenenZeitraumUndNachAustrittNil(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
 	eintritt := datum(t, "2026-01-15")
 
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Ida",
-		Nachname:         "Sommer",
-		BeitragsklasseID: klassen[0].ID,
-		Eintritt:         eintritt,
+		Vorname:      "Ida",
+		Nachname:     "Sommer",
+		BeitragCents: beitragImTest,
+		Eintritt:     eintritt,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -777,10 +618,10 @@ func mitgliedAnlegen(t *testing.T, svc *service.MemberService, vorname, nachname
 	t.Helper()
 
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          vorname,
-		Nachname:         nachname,
-		BeitragsklasseID: beitragsklassen(t, svc)[0].ID,
-		Eintritt:         datum(t, "2026-01-05"),
+		Vorname:      vorname,
+		Nachname:     nachname,
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-01-05"),
 	})
 	if err != nil {
 		t.Fatalf("Create(%s %s): %v", vorname, nachname, err)
@@ -890,18 +731,17 @@ func TestSetBezahltBis_IstBeiWiederholungIdempotent(t *testing.T) {
 func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 	svc := neuerService(t)
 
-	klassen := beitragsklassen(t, svc)
 	geburtsdatum := datum(t, "1994-07-19")
 
 	id, err := svc.Create(service.NeuesMitglied{
-		Vorname:          "Lina",
-		Nachname:         "Fischer",
-		Geburtsdatum:     &geburtsdatum,
-		Adresse:          "Hauptstraße 3, 10115 Berlin",
-		Email:            "lina@example.org",
-		Telefon:          "030 123456",
-		BeitragsklasseID: klassen[1].ID,
-		Eintritt:         datum(t, "2026-02-01"),
+		Vorname:      "Lina",
+		Nachname:     "Fischer",
+		Geburtsdatum: &geburtsdatum,
+		Adresse:      "Hauptstraße 3, 10115 Berlin",
+		Email:        "lina@example.org",
+		Telefon:      "030 123456",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-02-01"),
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -932,8 +772,7 @@ func TestSetBezahltBis_LaesstAlleAnderenFelderUnberuehrt(t *testing.T) {
 	erwartet.BezahltBis = nachher.BezahltBis
 	if nachher.ID != erwartet.ID || nachher.Vorname != erwartet.Vorname ||
 		nachher.Nachname != erwartet.Nachname || nachher.Adresse != erwartet.Adresse ||
-		nachher.Email != erwartet.Email || nachher.Telefon != erwartet.Telefon ||
-		nachher.BeitragsklasseID != erwartet.BeitragsklasseID {
+		nachher.Email != erwartet.Email || nachher.Telefon != erwartet.Telefon {
 		t.Errorf("Stammdaten = %+v, erwartet unverändert %+v", nachher, erwartet)
 	}
 	if nachher.Geburtsdatum == nil || !nachher.Geburtsdatum.Equal(geburtsdatum) {
@@ -990,7 +829,7 @@ func TestEintrag_LiefertDieselbeZeileWieDieListe(t *testing.T) {
 		t.Fatalf("Eintrag: %v", err)
 	}
 	if eintrag.MitgliedID != liste[0].MitgliedID || eintrag.Vorname != liste[0].Vorname ||
-		eintrag.Nachname != liste[0].Nachname || eintrag.Beitragsklasse != liste[0].Beitragsklasse ||
+		eintrag.Nachname != liste[0].Nachname || eintrag.BeitragCents != liste[0].BeitragCents ||
 		eintrag.Zahlungsstatus != liste[0].Zahlungsstatus ||
 		!eintrag.Eintritt.Equal(liste[0].Eintritt) ||
 		eintrag.BezahltBis == nil || !eintrag.BezahltBis.Equal(*liste[0].BezahltBis) {
