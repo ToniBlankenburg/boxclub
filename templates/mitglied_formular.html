@@ -2,8 +2,19 @@
 <form class="rounded-lg border border-neutral-200 bg-white p-6"
       hx-post="{{if .Bearbeiten}}/api/mitglied/{{.MitgliedID}}{{else}}/api/mitglied{{end}}"
       hx-target="#inhalt" hx-swap="innerHTML">
-    <h2 class="mb-5 text-base font-semibold">
+    <h2 class="mb-5 flex flex-wrap items-baseline gap-2 text-base font-semibold">
         {{if .Bearbeiten}}Mitglied bearbeiten{{else}}Neues Mitglied anlegen{{end}}
+        {{/* Die Mitglieds-ID steht in der Überschrift und nicht als Feld im
+             Raster: sie ist keine Angabe, die man pflegt, sondern die, unter der
+             das Mitglied im Verein geführt wird (CONTEXT.md → Mitglieds-ID). Ein
+             Feld — auch ein nur lesendes — verspräche das Gegenteil und schöbe
+             außerdem Vor- und Nachnamen auseinander, die im zweispaltigen Raster
+             nebeneinander gehören. Vergeben wird die Nummer einmal und nie neu,
+             deshalb gibt es sie beim Anlegen noch gar nicht. */}}
+        {{if .Bearbeiten}}
+            <span class="font-normal text-neutral-500 tabular-nums"
+                  title="Mitglieds-ID — einmal vergeben und nie neu verwendet">Nr.&nbsp;{{.MitgliedID}}</span>
+        {{end}}
     </h2>
 
     {{if .Fehler}}

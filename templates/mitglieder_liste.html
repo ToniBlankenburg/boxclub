@@ -87,6 +87,16 @@
         <table class="w-full text-left">
             <thead>
                 <tr class="border-b border-neutral-200 text-sm text-neutral-600">
+                    {{/* Die Mitglieds-ID steht als eigene, schmale Spalte vor dem
+                         Namen. Sie ist dreistellig und kostet mit w-px nur ihre
+                         eigene Breite — die sieben bestehenden Spalten verlieren
+                         dadurch nichts. Über dem Namen in dessen Zelle wäre sie
+                         zwar noch sparsamer, aber dann keine Spalte mehr: die
+                         Nummern stünden untereinander verschieden weit eingerückt
+                         und ließen sich beim Durchsehen nicht mehr an der Kante
+                         entlang vergleichen. Genau das ist ihr Zweck, solange der
+                         Verein beide Systeme nebeneinander führt. */}}
+                    <th class="w-px px-4 py-2 font-medium" title="Mitglieds-ID">Nr.</th>
                     <th class="px-4 py-2 font-medium">Name</th>
                     <th class="px-4 py-2 font-medium">Status</th>
                     <th class="px-4 py-2 font-medium">Anschrift</th>
@@ -129,6 +139,12 @@
     hx-get="/api/mitglied/{{.MitgliedID}}/formular"
     hx-target="#inhalt" hx-swap="innerHTML"
     hx-trigger="click, keyup[key=='Enter']">
+    {{/* Die Mitglieds-ID ist die Nummer, unter der der Verein das Mitglied kennt
+         (CONTEXT.md → Mitglieds-ID) — seit dem Excel-Import die echte aus der
+         alten Tabelle. Sie fährt in jeder htmx-Adresse dieser Zeile ohnehin mit;
+         hier wird sie bloß endlich sichtbar. Zurückhaltend gesetzt: sie ist die
+         Angabe zum Nachschlagen, nicht die, an der man die Zeile erkennt. */}}
+    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
     <td class="px-4 py-2">
         {{.Nachname}}, {{.Vorname}}
         {{/* Die Google-Bewertung ist die einzige der freiwilligen Angaben, die in
@@ -288,6 +304,7 @@
 {{define "mitglied-kuendigung-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
+    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
     <td class="px-4 py-2" colspan="6">
         <form class="flex flex-wrap items-center gap-2"
@@ -332,6 +349,7 @@
 {{define "mitglied-wiedereintritt-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
+    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
     <td class="px-4 py-2" colspan="6">
         <form class="flex flex-wrap items-center gap-2"
@@ -407,6 +425,7 @@
 {{define "mitglied-rueckstand-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input[name=notiz]').focus()">
+    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
     <td class="px-4 py-2" colspan="6">
         <form class="flex flex-wrap items-center gap-2"
