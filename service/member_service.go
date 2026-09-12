@@ -348,6 +348,22 @@ CREATE TABLE IF NOT EXISTS trainingsslot (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trainingsslot_mitgliedschaft ON trainingsslot(mitgliedschaft_id);
+
+-- Der Stundenplan des Vereins (ADR-0008). Er steht für sich: kein Fremdschlüssel
+-- auf eine Mitgliedschaft, denn ein Termin gibt es auch dann, wenn niemand dafür
+-- angemeldet ist. Der Wochentag ist eine Zahl (Montag = 1 … Sonntag = 7) und
+-- keine Bezeichnung, sonst sortierte die Liste nach dem Alphabet statt nach der
+-- Woche; die Uhrzeiten stehen als "HH:MM" da, was in dieser Form ebenfalls
+-- richtig sortiert. Ein Index fehlt bewusst: ein Verein hat eine Handvoll
+-- Termine, und die liest die Ansicht ohnehin am Stück.
+CREATE TABLE IF NOT EXISTS trainingstermin (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	wochentag   INTEGER NOT NULL,
+	beginn      TEXT    NOT NULL,
+	ende        TEXT,
+	bezeichnung TEXT    NOT NULL DEFAULT '',
+	archiviert  INTEGER NOT NULL DEFAULT 0
+);
 `
 
 func (s *MemberService) migrate() error {

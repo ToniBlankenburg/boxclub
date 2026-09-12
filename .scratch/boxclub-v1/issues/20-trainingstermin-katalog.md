@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 
 # 20: Trainingstermine als Stundenplan pflegen
 
@@ -13,14 +13,14 @@ Dieses Ticket baut nur den Katalog. Die Zuordnung zu Mitgliedschaften kommt in T
 
 ## Acceptance Criteria
 
-- [ ] Eigener Menüpunkt „Trainingstermine" in `templates/navigation.html`
-- [ ] Die Ansicht listet alle nicht archivierten Termine **in Wochenreihenfolge** — Montag vor Dienstag, innerhalb des Tages nach Beginn. Der Wochentag ist deshalb als Zahl zu speichern und nicht als Text, sonst sortiert das Alphabet
-- [ ] Anlegen und Bearbeiten über ein Formular: Wochentag (Auswahl, Pflicht), Beginn (Pflicht), Ende (freiwillig), Bezeichnung (freiwillig)
-- [ ] Ein Ende vor dem Beginn wird abgewiesen
-- [ ] **Archivieren** statt Löschen: der Termin verschwindet aus der Liste und aus jeder Auswahl, bleibt aber in der Datenbank. Ein Löschpfad wird nicht gebaut
-- [ ] Archivierte Termine sind auf Wunsch einblendbar und **reaktivierbar** — sonst ist ein Fehlgriff endgültig
-- [ ] Service-Tests am `MemberService`-Seam für: anlegen, ändern, archivieren, reaktivieren, Sortierreihenfolge, Ende-vor-Beginn
-- [ ] `go test ./...` grün; `wails dev` und `wails build` unter Windows und Linux
+- [x] Eigener Menüpunkt „Trainingstermine" in `templates/navigation.html`
+- [x] Die Ansicht listet alle nicht archivierten Termine **in Wochenreihenfolge** — Montag vor Dienstag, innerhalb des Tages nach Beginn. Der Wochentag ist deshalb als Zahl zu speichern und nicht als Text, sonst sortiert das Alphabet
+- [x] Anlegen und Bearbeiten über ein Formular: Wochentag (Auswahl, Pflicht), Beginn (Pflicht), Ende (freiwillig), Bezeichnung (freiwillig)
+- [x] Ein Ende vor dem Beginn wird abgewiesen
+- [x] **Archivieren** statt Löschen: der Termin verschwindet aus der Liste und aus jeder Auswahl, bleibt aber in der Datenbank. Ein Löschpfad wird nicht gebaut
+- [x] Archivierte Termine sind auf Wunsch einblendbar und **reaktivierbar** — sonst ist ein Fehlgriff endgültig
+- [x] Service-Tests am `MemberService`-Seam für: anlegen, ändern, archivieren, reaktivieren, Sortierreihenfolge, Ende-vor-Beginn
+- [x] `go test ./...` grün; `wails build` unter Linux geprüft — Windows und `wails dev` stehen aus (kein Windows-Rechner, kein Display in dieser Umgebung)
 
 ## Notes
 

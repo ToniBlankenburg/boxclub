@@ -1,0 +1,206 @@
+{{/* trainingstermine ist der Stundenplan des Vereins (CONTEXT.md →
+     Trainingstermin, ADR-0008) — eine eigene Bereichsansicht, weil die Termine
+     für sich existieren und nicht an einem Mitglied hängen.
+
+     Die Liste steht in Wochenreihenfolge; sortiert hat sie der Service. Zu
+     jedem Eintrag gehören genau zwei Wege: bearbeiten (die ganze Zeile) und
+     archivieren bzw. zurückholen (die Schaltfläche). Einen Löschpfad gibt es
+     nicht und soll es nicht geben — er nähme jeder angemeldeten Mitgliedschaft
+     still ihre Trainingsfrequenz.
+
+     Die Daten sind trainingstermineDaten. */}}
+{{define "trainingstermine"}}
+{{with .Navigation}}{{template "navigation" .}}{{end}}
+<div>
+    <div class="mb-5 flex items-center justify-between gap-4">
+        <h2 class="text-base font-semibold">Trainingstermine</h2>
+        <button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                hx-get="/api/trainingstermin/formular{{.Anhaengsel}}" hx-target="#inhalt" hx-swap="innerHTML">
+            Neuer Trainingstermin
+        </button>
+    </div>
+
+    {{if .Meldung.Text}}
+        <p class="mb-5 rounded-md border px-3 py-2 text-sm {{if .Meldung.Warnung}}border-amber-600 bg-amber-50 text-amber-800{{else}}border-green-700 bg-green-50 text-green-800{{end}}"
+           role="status">{{.Meldung.Text}}</p>
+    {{end}}
+
+    {{/* Archivierte Termine sind aus dem Stundenplan genommen, aber nicht
+         verloren: eingeblendet stehen sie an ihrem Platz in der Woche, und von
+         dort führt derselbe Weg wieder zurück. Ohne diese Einblendung wäre ein
+         Fehlgriff endgültig. */}}
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+        <form hx-get="/api/trainingstermine" hx-target="#inhalt" hx-swap="innerHTML"
+              hx-trigger="change">
+            <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700">
+                {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt
+                     ist — genau das macht den gepflegten Stundenplan zum Standard. */}}
+                <input name="archivierte" type="checkbox" value="1"
+                       class="accent-red-700" {{if .AuchArchivierte}}checked{{end}}>
+                Archivierte anzeigen
+            </label>
+        </form>
+    </div>
+
+    {{if .Termine}}
+        <p class="mb-2 text-sm text-neutral-500" role="status" aria-live="polite">
+            {{len .Termine}} {{if eq (len .Termine) 1}}Termin{{else}}Termine{{end}}
+        </p>
+        <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="border-b border-neutral-200 text-sm text-neutral-600">
+                        <th class="px-4 py-2 font-medium">Termin</th>
+                        <th class="px-4 py-2 text-right font-medium">Stundenplan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Termine}}
+                        {{/* $ ist die Ansicht: die Zeile braucht daraus den Stand
+                             der Einblendung, damit eine Aktion in dieselbe
+                             Ansicht zurückführt. */}}
+                        <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-red-700"
+                            tabindex="0" title="Bearbeiten"
+                            aria-label="{{.Anzeige}} bearbeiten"
+                            hx-get="/api/trainingstermin/{{.ID}}/formular{{$.Anhaengsel}}"
+                            hx-target="#inhalt" hx-swap="innerHTML"
+                            hx-trigger="click, keyup[key=='Enter']">
+                            {{/* Die Schreibweise des Termins entsteht im Service
+                                 (Trainingstermin.Anzeige), damit Stundenplan,
+                                 Meldung und die spätere Auswahl an der
+                                 Mitgliedschaft dieselbe zeigen. */}}
+                            <td class="px-4 py-2">
+                                <span {{if .Archiviert}}class="text-neutral-500"{{end}}>{{.Anzeige}}</span>
+                                {{if .Archiviert}}
+                                    <span class="ml-2 inline-flex items-center rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600"
+                                          title="Archiviert — nicht mehr im Stundenplan und in keiner Auswahl. Bestehende Anmeldungen bleiben bestehen.">
+                                        archiviert
+                                    </span>
+                                {{end}}
+                            </td>
+                            <td class="px-4 py-2 text-right">
+                                {{/* Die Adresse trägt den gewünschten Zustand und
+                                     den Stand der Einblendung; gebaut wird sie in
+                                     Go (terminzeilen). Ihr Ereignis hält die
+                                     Schaltfläche bei sich, sonst öffnete der Klick
+                                     das Formular. */}}
+                                <button type="button"
+                                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                                        aria-label="{{.Anzeige}} {{if .Archiviert}}wieder in den Stundenplan aufnehmen{{else}}archivieren{{end}}"
+                                        hx-post="{{.ArchivPfad}}"
+                                        hx-target="#inhalt" hx-swap="innerHTML"
+                                        hx-on:click="event.stopPropagation()"
+                                        hx-on:keyup="event.stopPropagation()">
+                                    {{if .Archiviert}}Zurückholen{{else}}Archivieren{{end}}
+                                </button>
+                            </td>
+                        </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    {{else}}
+        <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500"
+           role="status" aria-live="polite">
+            {{if .AuchArchivierte}}
+                Kein Trainingstermin erfasst.
+            {{else}}
+                Kein Trainingstermin im Stundenplan.
+            {{end}}
+            {{/* Der Import legt selbst keine Termine an, sondern ordnet den
+                 Freitext der Excel-Spalten vorhandenen zu (ADR-0008) — deshalb
+                 steht der Hinweis hier und nicht erst im Fehlerbericht. */}}
+            <span class="mt-1 block text-sm">Vor dem ersten Excel-Import sollte der Stundenplan stehen: der Import legt keine Termine an.</span>
+        </p>
+    {{end}}
+</div>
+{{end}}
+
+{{/* trainingstermin-formular legt einen Termin an oder ändert einen
+     bestehenden. Geprüft wird nichts hier: dass der Wochentag gewählt und der
+     Beginn gefüllt sein muss und das Ende nicht davor liegen darf, entscheidet
+     der Service — das <select> und die beiden Zeitfelder nehmen dem Nutzer nur
+     das Tippen ab.
+
+     Die Daten sind terminformularDaten. */}}
+{{define "trainingstermin-formular"}}
+<form class="rounded-lg border border-neutral-200 bg-white p-6"
+      hx-post="/api/trainingstermin{{if .Bearbeiten}}/{{.TerminID}}{{end}}{{.Anhaengsel}}"
+      hx-target="#inhalt" hx-swap="innerHTML">
+    <h2 class="mb-5 text-base font-semibold">
+        {{if .Bearbeiten}}Trainingstermin bearbeiten{{else}}Neuen Trainingstermin anlegen{{end}}
+    </h2>
+
+    {{if .Fehler}}
+        <ul class="mb-5 list-disc rounded-md border border-red-700 bg-red-50 py-3 pr-3 pl-8 text-sm text-red-800"
+            role="alert">
+            {{range .Fehler}}
+                <li>{{.}}</li>
+            {{end}}
+        </ul>
+    {{end}}
+
+    {{/* Ein archivierter Termin lässt sich korrigieren, ohne dadurch zurück in
+         die Auswahl zu rutschen — zurückgeholt wird er in der Liste. */}}
+    {{if .Archiviert}}
+        <p class="mb-5 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm text-neutral-600"
+           role="status">
+            Dieser Termin ist archiviert: er steht nicht im Stundenplan und in
+            keiner Auswahl. Das Speichern ändert daran nichts.
+        </p>
+    {{end}}
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        {{/* Der Wochentag ist eine feste Auswahl und kein Freitext: aus ihm
+             entsteht die Wochenreihenfolge der Liste, und die verträgt keine
+             Schreibvarianten (ADR-0008). */}}
+        {{template "feld-auswahl" auswahlfeld "Wochentag" "wochentag" .Wochentagsoptionen true}}
+        {{/* Damit die Beschriftungen in einer Reihe bleiben, steht neben dem
+             Wochentag ein leeres Feld — Beginn und Ende gehören nebeneinander. */}}
+        <div class="hidden sm:block"></div>
+        {{template "feld" feld "Beginn" "beginn" "time" .Eingabe.Beginn true false}}
+        {{template "feld" feld "Ende" "ende" "time" .Eingabe.Ende false false}}
+        {{/* Die Bezeichnung ist freier Text. Trainer und Ort stehen bewusst
+             nicht als eigene Felder daneben, sondern passen hier hinein,
+             solange es eine Halle gibt (ADR-0008). */}}
+        {{template "feld" feld "Bezeichnung" "bezeichnung" "text" .Eingabe.Bezeichnung false true}}
+    </div>
+
+    <p class="mt-4 text-sm text-neutral-500">
+        Das Ende ist freiwillig. Ein Termin ist wiederkehrend und kein Datum:
+        „Samstag 10:30“ gilt bis auf Weiteres.
+    </p>
+
+    <div class="mt-6 flex gap-2">
+        <button type="submit"
+                class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+            Speichern
+        </button>
+        <button type="button"
+                class="rounded-md px-4 py-2 font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
+                hx-get="/api/trainingstermine{{.Anhaengsel}}" hx-target="#inhalt" hx-swap="innerHTML">
+            Abbrechen
+        </button>
+    </div>
+</form>
+{{end}}
+
+{{/* feld-auswahl ist ein beschriftetes <select>. Es gehört zu denselben
+     Teil-Templates wie "feld" in mitglied_formular.html und steht nur deshalb
+     hier, weil der Stundenplan sein erster Nutzer ist.
+
+     Anders als "feld-mit-vorschlaegen" schränkt es ein: gespeichert wird
+     ausschließlich, was in der Liste steht. Beim Wochentag ist genau das
+     richtig — sieben Tage, mehr gibt es nicht. Die Daten sind
+     auswahlfeldDaten. */}}
+{{define "feld-auswahl"}}
+<label class="flex flex-col gap-1.5">
+    <span class="text-sm text-neutral-600">{{.Beschriftung}}{{if .Pflicht}}<span class="text-red-700">*</span>{{end}}</span>
+    <select name="{{.Name}}" {{if .Pflicht}}required{{end}}
+            class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+        {{range .Optionen}}
+            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+        {{end}}
+    </select>
+</label>
+{{end}}

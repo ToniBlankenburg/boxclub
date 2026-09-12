@@ -58,6 +58,12 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/ruhend", a.ruhendSchalten)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
+	mux.HandleFunc("GET /api/trainingstermine", a.trainingstermineListe)
+	mux.HandleFunc("GET /api/trainingstermin/formular", a.trainingsterminFormular)
+	mux.HandleFunc("POST /api/trainingstermin", a.trainingsterminAnlegen)
+	mux.HandleFunc("GET /api/trainingstermin/{id}/formular", a.trainingsterminBearbeitenFormular)
+	mux.HandleFunc("POST /api/trainingstermin/{id}", a.trainingsterminAktualisieren)
+	mux.HandleFunc("POST /api/trainingstermin/{id}/archiv", a.trainingsterminArchivSchalten)
 	mux.HandleFunc("GET /api/import", a.importFormular)
 	mux.HandleFunc("POST /api/import", a.importAusfuehren)
 
@@ -66,8 +72,9 @@ func (a *App) Handler() http.Handler {
 
 // Bereiche der App — die Ebene, auf der die Kopfzeilen-Navigation umschaltet.
 const (
-	bereichMitglieder = "mitglieder"
-	bereichImport     = "import"
+	bereichMitglieder       = "mitglieder"
+	bereichTrainingstermine = "trainingstermine"
+	bereichImport           = "import"
 )
 
 // navigationseintrag ist ein Eintrag der Bereichsnavigation. Schluessel ist der
@@ -85,6 +92,7 @@ type navigationseintrag struct {
 // und Pfade nicht als Textliterale ins Template wandern.
 var bereiche = []navigationseintrag{
 	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
+	{Schluessel: bereichTrainingstermine, Beschriftung: "Trainingstermine", Pfad: "/api/trainingstermine"},
 	{Schluessel: bereichImport, Beschriftung: "Excel-Import", Pfad: "/api/import"},
 }
 
@@ -971,14 +979,24 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 	}
 }
 
-// mitgliedID liest die Mitglied-ID aus dem Routen-Platzhalter. Ist das Ergebnis
-// nicht ok, wurde die Antwort bereits geschrieben — eine ID, die keine Zahl ist,
-// kann nur aus einem selbstgebauten Request stammen und ist deshalb, anders als
-// eine unbekannte ID, tatsächlich ein Fehlerstatus wert.
+// mitgliedID liest die Mitglied-ID aus dem Routen-Platzhalter.
 func mitgliedID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	return pfadID(w, r, "Mitglied-ID")
+}
+
+// terminID liest die Trainingstermin-ID aus dem Routen-Platzhalter.
+func terminID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	return pfadID(w, r, "Trainingstermin-ID")
+}
+
+// pfadID liest die ID aus dem Routen-Platzhalter. Ist das Ergebnis nicht ok,
+// wurde die Antwort bereits geschrieben — eine ID, die keine Zahl ist, kann nur
+// aus einem selbstgebauten Request stammen und ist deshalb, anders als eine
+// unbekannte ID, tatsächlich ein Fehlerstatus wert.
+func pfadID(w http.ResponseWriter, r *http.Request, was string) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		http.Error(w, "ungültige Mitglied-ID", http.StatusBadRequest)
+		http.Error(w, "ungültige "+was, http.StatusBadRequest)
 		return 0, false
 	}
 
@@ -1227,6 +1245,15 @@ var templateFunktionen = template.FuncMap{
 	// geschlechtVorschlaege reicht die Eintipphilfe aus dem Service ins
 	// Template — die Werte stehen dort, wo das Vokabular liegt.
 	"geschlechtVorschlaege": service.GeschlechtVorschlaege,
+	// auswahlfeld bündelt die Argumente für das Teil-Template "feld-auswahl".
+	"auswahlfeld": func(beschriftung, name string, optionen []filteroption, pflicht bool) auswahlfeldDaten {
+		return auswahlfeldDaten{
+			Beschriftung: beschriftung,
+			Name:         name,
+			Optionen:     optionen,
+			Pflicht:      pflicht,
+		}
+	},
 	// kontrollkaestchen bündelt die Argumente für das Teil-Template
 	// "feld-kontrollkaestchen". Text beschreibt, was ein Haken bedeutet, und
 	// kommt deshalb aus dem Service.
@@ -1252,6 +1279,16 @@ type vorschlagsfeldDaten struct {
 	Name         string
 	Wert         string
 	Vorschlaege  []string
+}
+
+// auswahlfeldDaten beschreibt eine Auswahlliste für das Teil-Template
+// "feld-auswahl". Anders als die Vorschläge eines Freitextfelds schränkt sie
+// ein: gespeichert wird ausschließlich, was in der Liste steht.
+type auswahlfeldDaten struct {
+	Beschriftung string
+	Name         string
+	Optionen     []filteroption
+	Pflicht      bool
 }
 
 // kontrollkaestchenDaten beschreibt einen zweiwertigen Haken für das

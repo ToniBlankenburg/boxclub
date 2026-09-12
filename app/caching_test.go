@@ -33,6 +33,14 @@ func TestFragmenteWerdenNichtZwischengespeichert(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
+	// Einen Termin des Stundenplans braucht es ebenso: sein Formular steht mit
+	// in der Liste unten.
+	if _, err := svc.CreateTrainingstermin(service.Trainingsterminangabe{
+		Wochentag: service.Samstag, Beginn: "10:30", Ende: "12:00", Bezeichnung: "Anfänger",
+	}); err != nil {
+		t.Fatalf("CreateTrainingstermin: %v", err)
+	}
+
 	a, err := New(svc)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -50,6 +58,10 @@ func TestFragmenteWerdenNichtZwischengespeichert(t *testing.T) {
 		"/api/mitglied/1/rueckstand",
 		"/api/mitglied/1/kuendigung",
 		"/api/mitglied/1/wiedereintritt",
+		"/api/trainingstermine",
+		"/api/trainingstermine?archivierte=1",
+		"/api/trainingstermin/formular",
+		"/api/trainingstermin/1/formular",
 		"/api/import",
 	} {
 		w := httptest.NewRecorder()
