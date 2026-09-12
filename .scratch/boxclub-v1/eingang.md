@@ -18,59 +18,81 @@ finanz überlick in extra view
 
 ## Einordnung
 
-| # | Anforderung | Scope | Weg |
-|---|---|---|---|
-| 1 | Vertrag als PDF am Mitglied speichern | v1 | `/grill-with-docs` → ADR → Ticket |
-| 2 | Trainingstermine als eigene Entität, eigene View, Zuordnung zur Mitgliedschaft | v1 | `/domain-modeling` → `/to-spec` → `/to-tickets` |
-| 3 | Mitglieds-ID in der Liste anzeigen | v1 | direkt Ticket |
-| 4 | Rechnungen erstellen | **v2** | vertagt, siehe `CLAUDE.md` → Out of scope |
-| 5 | Spalten ein- und ausblenden | v1 | Ticket, zusammen mit 6 |
-| 6 | Inhalt nach Spalte sortieren | v1 | Ticket, zusammen mit 5 |
-| 7 | Finanzüberblick in eigener View | **v2** | vertagt, hängt ohnehin an 4 |
+Aufgelöst am 12.09.2026 in einer Grilling-Sitzung. Alle sieben Punkte sind
+entschieden; jeder hat jetzt entweder ein Ticket oder einen Grund, keins zu haben.
+
+| # | Anforderung | Ergebnis |
+|---|---|---|
+| 1 | Vertrag als PDF am Mitglied speichern | Ticket 24 — am **Zeitraum**, nicht an der Person |
+| 2 | Trainingstermine als eigene Entität mit eigener View | Tickets 20, 21, 22 — [ADR-0008](../../docs/adr/0008-trainingstermine-als-wochenplan.md) |
+| 3 | Mitglieds-ID in der Liste anzeigen | **erledigt**, Ticket 19 |
+| 4 | Rechnungen erstellen | Ticket 25 (+ 23 für den Briefkopf) — **v1**, siehe unten |
+| 5 | Spalten ein- und ausblenden | Ticket 27 |
+| 6 | Inhalt nach Spalte sortieren | Ticket 27 |
+| 7 | Finanzüberblick in eigener View | Ticket 26 — als *Monatssoll* |
+
+Reihenfolge: **20 → 21 → 22**, dann **23 → 24 → 25**, danach 26 und 27. Der
+Terminblock zuerst, weil er als einziger bestehenden Code umbaut; zwischen 20 und
+22 ist der Excel-Import kaputt, die drei müssen zusammen fertig werden. 26 und 27
+hängen an nichts und sind jederzeit einschiebbar.
 
 ## Getroffene Entscheidungen
 
-**4 und 7 sind v2.** Rechnungen und Finanzüberblick führen das Zahlungsmodell
-ein, das [ADR-0006](../../docs/adr/0006-rueckstand-statt-bezahlt-bis.md) bewusst
-weggelassen hat. Sie brauchen einen eigenen ADR, der 0006 in Teilen ablöst —
-nicht ein Ticket, das man einfach baut. Festgehalten in `CLAUDE.md`.
+**4 und 7 sind doch v1 — weil sie anders gemeint waren.** Die frühere Einordnung
+als v2 beruhte auf der Annahme, „Rechnungen erstellen" heiße Forderungen
+verwalten. Gemeint ist das **Erzeugen eines PDFs** über Leistungen neben dem
+Beitrag (Einzeltrainings), ohne Rechnungsstatus und ohne Zahlungseingang; und der
+Finanzüberblick ist ein **Dashboard** aus Zahlen, die längst in der Datenbank
+stehen. Beides führt kein Zahlungsmodell ein.
+[ADR-0006](../../docs/adr/0006-rueckstand-statt-bezahlt-bis.md) wird dadurch
+**nicht abgelöst**, sondern präzisiert; das steht in
+[ADR-0009](../../docs/adr/0009-rechnungen-und-monatssoll-ohne-zahlungsmodell.md).
+Der Absatz in `CLAUDE.md` ist entsprechend umgeschrieben.
 
-**2 ist ein Terminkatalog und keine Anwesenheitsverfolgung.** Gepflegt wird eine
-Liste echter Trainingstermine, der Mitgliedschaften zugeordnet werden; *wer wann
-da war*, wird nicht festgehalten. Damit fällt es nicht unter das in `CLAUDE.md`
-ausgeschlossene *attendance tracking* und ist v1-tauglich. Festgehalten in
-`CLAUDE.md`.
+**2 ist ein Wochenplan und keine Anwesenheitsverfolgung.** Gepflegt wird eine
+Liste **wiederkehrender** Wochentermine, für die sich Mitgliedschaften anmelden —
+keine datierten Einheiten. Das ist die Grenze zum ausgeschlossenen attendance
+tracking: ein Wochenplan hat keine Stelle, an der stehen könnte, wer da war.
+Termine werden **archiviert, nie gelöscht**, und der Excel-Import legt selbst
+keine an, sondern meldet Unbekanntes im Fehlerbericht
+([ADR-0008](../../docs/adr/0008-trainingstermine-als-wochenplan.md)).
 
-## Was vor den Tickets noch fehlt
+**PDFs liegen als Blob in der Datenbank**, nicht als Dateien daneben. Der
+Vereinsadmin sichert, indem er eine Datei kopiert
+([ADR-0007](../../docs/adr/0007-dokumente-als-blob-in-sqlite.md)).
 
-**Zu 2:** Das Material von Angelo („schickt angelo"). Ohne seine Vorstellung von
-der eigenen View ist die Anforderung nicht scharf genug für ein Ticket.
+**Ein Vertrag hängt an der Mitgliedschaft, eine Rechnung am Mitglied.** Wer
+austritt und wiederkommt, unterschreibt einen neuen Vertrag; ein Einzeltraining
+hat mit keinem Zeitraum zu tun.
 
-**Zu 2, unabhängig von Angelo:** `CONTEXT.md` führt heute **Trainingsslot** (der
-wöchentliche Termin als Freitext, an der Mitgliedschaft) und
-**Trainingsfrequenz** (die Anzahl, nie gespeichert). Ein Katalog macht aus dem
-Freitext einen Verweis — beide Glossareinträge müssen neu geschrieben werden,
-bevor Code entsteht, sonst heißen drei Dinge gleichzeitig „Training".
+**Die Rechnungsnummer wird eingetippt.** Der Verein führt seine Nummernfolge in
+der Buchhaltung; eine App, neben der noch anders Rechnungen entstehen, kann
+Lückenlosigkeit nicht versprechen.
 
-**Zu 2, technisch:** Der gerade gebaute Excel-Import (Ticket 09) liest die
-Spalten `Training - 1/2/3` als Freitext direkt in Slots. Werden Slots zu
-Verweisen auf einen Katalog, muss der Importer sich entscheiden: unbekannte
-Termine anlegen oder in den Fehlerbericht geben. Das Ticket zum Katalog muss den
-Importer ausdrücklich mit anfassen.
+**Das Dashboard zeigt ein Soll, keinen Verlauf.** Es gibt keine Beitragshistorie,
+also wäre jede Kurve eine Hochrechnung im Gewand einer Messung.
 
-**Zu 1:** Wo liegen die PDFs? Als Blob in SQLite oder als Datei neben der
-Datenbank? Was passiert beim Löschen eines Mitglieds? Wie verträgt sich das mit
-[ADR-0003](../../docs/adr/0003-datenbank-im-benutzer-konfigurationsordner.md) und
-mit „meine Mitgliederdaten verlassen die Festplatte nicht" (Spec, Story 37)? Das
-ist eine ADR-Frage, kein Implementierungsdetail.
+## Erledigte Vorbehalte
 
-**Zu 6:** Sortiert wird heute fest nach Nachname (`nachNamenSortieren`).
-Sortierung nach beliebiger Spalte fällt unter
-[ADR-0004](../../docs/adr/0004-suche-und-filter-im-speicher.md) — im Speicher,
-nicht in SQL.
+Die Punkte, die hier als offen standen, sind es nicht mehr:
 
-## Was sofort gehen würde
+**Angelos Material** wird nicht abgewartet. Was er liefert, ist das Aussehen der
+View und die konkreten Trainingszeiten — Oberfläche und Inhalt, nicht Modell. Die
+Frage, was ein Trainingstermin ist und woran er hängt, ist beantwortet.
 
-**3** ist ein Zehn-Zeilen-Ticket: `Listeneintrag.MitgliedID` existiert und wird in
-jeder htmx-URL der Liste benutzt, nur nirgends *angezeigt*. Seit Ticket 09 sind
-das die echten Vereinsnummern aus der Excel — der Wert steigt dadurch deutlich.
+**Die Glossareinträge** sind neu geschrieben: *Trainingstermin* kommt hinzu,
+*Trainingsslot* ist als abgelöst gekennzeichnet, *Trainingsfrequenz* zählt jetzt
+Termine. Dazu neu: *Dokument*, *Vertrag*, *Rechnung*, *Vereinsdaten*, *Monatssoll*.
+
+**Der Importer** wird ausdrücklich mit angefasst — dafür gibt es Ticket 22.
+
+**Der Ablageort der PDFs** ist entschieden (ADR-0007). Die Anschlussfrage „was
+passiert beim Löschen eines Mitglieds?" hat sich erledigt: die App hat keinen
+Löschpfad für Mitglieder, nirgends.
+
+**Die Sortierung** fällt wie vermutet unter ADR-0004 und läuft im Speicher; die
+Spaltenwahl dagegen bleibt im Browser, weil sie nur die Ansicht eines einzelnen
+Geräts betrifft (Ticket 27).
+
+**Die lose Datei `anforderungen`** im Wurzelverzeichnis ist gelöscht. Die Rohnotiz
+oben ist ihre wortwörtliche Kopie.

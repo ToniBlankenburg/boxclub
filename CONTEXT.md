@@ -34,15 +34,27 @@ Die Postanschrift eines Mitglieds. Sie besteht aus **drei getrennten Angaben** �
 
 **Nicht zu verwechseln mit:** einem einzelnen Adress-Textblock. _Vermeiden:_ „Adresse" als Sammelbegriff für die ganze Anschrift — Adresse ist hier nur die Straße mit Hausnummer.
 
+## Trainingstermin
+
+Ein wiederkehrender wöchentlicher Termin des Vereins: Wochentag, Beginn, dazu wahlweise ein Ende und eine Bezeichnung — "Samstag 10:30 – 12:00, Anfänger". Er existiert **für sich**, unabhängig davon, ob jemand dafür angemeldet ist. Der Verein pflegt seine Termine als Stundenplan, aus dem ausgewählt wird.
+
+Er ist **kein einzelnes Datum**. Der Termin am 15.09. um 10:30 ist keine eigene Sache, sondern dieser Termin in dieser Woche. Festgehalten wird der Plan, nie die einzelne Stunde und nie, wer da war; siehe [ADR-0008](docs/adr/0008-trainingstermine-als-wochenplan.md).
+
+Eine **Mitgliedschaft** ist für null bis drei Termine angemeldet — nicht die Person, denn welche Zeiten gelten, ist Teil der Vereinbarung eines Zeitraums. Bei einem Wiedereintritt wird deshalb neu ausgewählt: die neue Mitgliedschaft beginnt ohne Termine, die der alten bleiben als Historie stehen. Die Anmeldung selbst hat keinen eigenen Namen; man sagt, eine Mitgliedschaft ist für einen Termin angemeldet.
+
+Ein Termin, den es nicht mehr gibt, wird **archiviert**: er verschwindet aus der Auswahl, bestehende Anmeldungen bleiben lesbar. Gelöscht wird er nicht — das nähme jeder daran angemeldeten Mitgliedschaft still ihre Trainingsfrequenz.
+
+**Nicht zu verwechseln mit:** der Trainingsfrequenz — das ist die Anzahl. _Vermeiden:_ Trainingseinheit; das klingt nach der einzelnen Stunde am einzelnen Tag.
+
 ## Trainingsslot
 
-Ein konkreter wöchentlicher Trainingstermin, für den ein Mitglied angemeldet ist — bezeichnet durch Wochentag und Uhrzeit (z. B. "Samstag 10:30 Uhr"). Ein Mitglied hat null bis drei Slots.
-
-Slots gehören zur **Mitgliedschaft**, nicht zur Person: welche Zeiten gelten, ist Teil der Vereinbarung eines Zeitraums. Bei einem Wiedereintritt werden sie deshalb neu vereinbart — die neue Mitgliedschaft beginnt ohne Slots, und die der alten bleiben als Historie stehen.
+**Abgelöst:** der wöchentliche Termin als Freitext an der Mitgliedschaft ("Samstag 10:30 Uhr"). An seine Stelle tritt der Verweis auf einen *Trainingstermin* aus dem Stundenplan; siehe [ADR-0008](docs/adr/0008-trainingstermine-als-wochenplan.md). _Vermeiden:_ Slot, auch im Sinne von „Platz" — eine Platzzahl je Termin führt der Verein nicht.
 
 ## Trainingsfrequenz
 
-Wie oft pro Woche ein Mitglied trainieren darf: 1×, 2× oder 3×. Sie **ergibt sich aus der Anzahl der Trainingsslots** seiner Mitgliedschaft und ist keine davon unabhängige Angabe. Null Slots sind **keine Frequenz** und nicht "1×". _Vermeiden:_ Mitgliedschaft, Tarif, Paket.
+Wie oft pro Woche ein Mitglied trainieren darf: 1×, 2× oder 3×. Sie **ergibt sich aus der Anzahl der Trainingstermine**, für die seine Mitgliedschaft angemeldet ist, und ist keine davon unabhängige Angabe. Null Termine sind **keine Frequenz** und nicht "1×"; drei sind das Höchste, was der Verein vergibt — ein vierter ist ein Tippfehler, kein neuer Tarif.
+
+Ein **archivierter** Termin zählt weiter mit, solange die Anmeldung steht. Sonst änderte das Aufräumen des Stundenplans stillschweigend die Vereinbarungen der Mitglieder. _Vermeiden:_ Mitgliedschaft, Tarif, Paket.
 
 ## Anmeldedatum
 
@@ -101,3 +113,35 @@ Ein einzelnes Ereignis auf dem Vereinskonto, das einem Mitglied zugeordnet werde
 ## Google-Bewertung
 
 Ob ein Mitglied den Verein bei Google bewertet hat. Ja oder nein. **Nicht zu verwechseln mit:** einer Bewertung *des* Mitglieds — der Verein bewertet seine Mitglieder nicht.
+
+## Dokument
+
+Eine am Mitglied abgelegte PDF-Datei. Es gibt genau **zwei Arten**: den *Vertrag*, den der Verein einscannt und hochlädt, und die *Rechnung*, die die App selbst erzeugt. Andere Anhänge kennt v1 nicht — die Ablage ist ein Ort für Vereinsunterlagen und kein allgemeines Dateifach.
+
+Dokumente liegen **in der Datenbank**, nicht als Dateien daneben; siehe [ADR-0007](docs/adr/0007-dokumente-als-blob-in-sqlite.md). Sie lassen sich ersetzen und entfernen — ohne Papierkorb und ohne Versionen, denn das Papier liegt beim Verein ohnehin noch.
+
+## Vertrag
+
+Die unterschriebene Vereinbarung über eine Mitgliedschaft, als *Dokument* abgelegt.
+
+Er hängt an der **Mitgliedschaft**, nicht an der Person: wer austritt und Jahre später wiederkommt, unterschreibt einen neuen, und jeder Vertrag bleibt bei seinem Zeitraum. Am Mitglied abgelegt stünden zwei Verträge nebeneinander, ohne dass man sähe, welcher gilt.
+
+## Rechnung
+
+Ein vom Verein geschriebenes Dokument über eine Leistung **außerhalb des Beitrags** — typisch ein Einzeltraining. Sie entsteht von Hand: Empfänger, Positionen mit Menge und Einzelpreis, Steuersatz, Nummer. Die App setzt daraus ein PDF und legt es am *Mitglied* ab.
+
+Eine Rechnung ist hier ein **Dokument und kein offener Posten**. Die App führt weder einen Rechnungsstatus noch einen Zahlungseingang, und die fortlaufende Nummer vergibt der Verein in seiner Buchhaltung, nicht die App; siehe [ADR-0009](docs/adr/0009-rechnungen-und-monatssoll-ohne-zahlungsmodell.md). _Vermeiden:_ „offene Rechnung", „Rechnung bezahlt", Mahnung — davon gibt es in v1 nichts.
+
+Der **Empfänger** ist frei eintragbar und wird aus dem Mitglied vorbelegt: ein Einzeltraining nimmt auch, wer nie eintritt. Für einen Empfänger ohne Mitglied fällt das PDF nur heraus, statt abgelegt zu werden.
+
+**Nicht zu verwechseln mit:** dem *Beitrag*. Der wird per Lastschrift eingezogen und nie in Rechnung gestellt.
+
+## Vereinsdaten
+
+Name, Anschrift, Bankverbindung und Fußzeile des Vereins selbst — alles, was auf einer Rechnung über dem Inhalt steht. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
+
+## Monatssoll
+
+Die Summe der Beiträge, die im laufenden Monat eingezogen werden: alle aktiven Mitgliedschaften **einschließlich** derer in der Kündigungsfrist, **ohne** ruhende und ohne solche, deren Eintritt noch bevorsteht.
+
+Es ist ein **Soll und kein Ist**. Was tatsächlich einging, weiß die Bank; v1 kennt keine Zahlungen. Deshalb gibt es auch keinen Verlauf über Monate: die Datenbank führt je Mitgliedschaft einen Beitrag, den heutigen, und eine Kurve daraus wäre eine Hochrechnung im Gewand einer Messung. Siehe [ADR-0009](docs/adr/0009-rechnungen-und-monatssoll-ohne-zahlungsmodell.md). _Vermeiden:_ Einnahmen, Umsatz, Beitragsaufkommen.
