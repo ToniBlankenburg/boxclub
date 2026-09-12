@@ -50,6 +50,7 @@ func TestFragmenteWerdenNichtZwischengespeichert(t *testing.T) {
 		"/api/mitglied/1/rueckstand",
 		"/api/mitglied/1/kuendigung",
 		"/api/mitglied/1/wiedereintritt",
+		"/api/import",
 	} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("GET", pfad, nil))

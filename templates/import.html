@@ -1,0 +1,108 @@
+{{/* import-formular ist der Datei-Dialog. Die Auswahl läuft über ein
+     <input type="file">: der Assetserver spricht HTTP, und damit ist der Dialog
+     des Betriebssystems ohne Wails-Bindings zu haben (ADR-0002).
+
+     Die Daten sind importbericht — beim Fehlschlag um ein Feld Meldung
+     erweitert, das sagt, warum die Datei als Ganzes nicht zu gebrauchen war. */}}
+{{define "import-formular"}}
+{{with .Navigation}}{{template "navigation" .}}{{end}}
+<div>
+    <h2 class="mb-1 text-base font-semibold">Excel-Import</h2>
+    <p class="mb-5 max-w-2xl text-sm text-neutral-600">
+        Liest das Blatt „Verwaltung“ einer <code>.xlsx</code>-Datei. Der Import
+        lässt sich beliebig oft wiederholen: bestehende Mitglieder werden
+        aktualisiert, nicht doppelt angelegt. Was sich nicht zuordnen lässt,
+        steht danach zeilenweise im Bericht.
+    </p>
+
+    {{with .Meldung}}
+        <p class="mb-5 rounded-md border border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+           role="status">{{.}}</p>
+    {{end}}
+
+    <form class="flex flex-wrap items-center gap-3 rounded-md border border-neutral-200 bg-white p-4"
+          hx-post="/api/import" hx-target="#inhalt" hx-swap="innerHTML"
+          hx-encoding="multipart/form-data"
+          hx-indicator="#import-laeuft">
+        <input type="file" name="datei" accept=".xlsx" required
+               aria-label="Excel-Datei auswählen"
+               class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
+
+        <button type="submit"
+                class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+            Importieren
+        </button>
+
+        <span id="import-laeuft" class="htmx-indicator text-sm text-neutral-500">Wird gelesen …</span>
+    </form>
+</div>
+{{end}}
+
+{{/* import-bericht steht nach jedem Lauf. Er nennt vier Zahlen und darunter
+     jede gescheiterte Zeile einzeln — das ist das Werkzeug, mit dem der Verein
+     den Schmutz in seiner Tabelle sichtbar bekommt und sie korrigiert.
+
+     Die Daten sind importbericht. */}}
+{{define "import-bericht"}}
+{{with .Navigation}}{{template "navigation" .}}{{end}}
+<div>
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <h2 class="text-base font-semibold">Import-Bericht</h2>
+        <div class="flex gap-2">
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    hx-get="/api/import" hx-target="#inhalt" hx-swap="innerHTML">
+                Nochmal importieren
+            </button>
+            <button type="button"
+                    class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
+                Zu den Mitgliedern
+            </button>
+        </div>
+    </div>
+
+    <p class="mb-5 rounded-md border px-3 py-2 text-sm {{if .Erfolgreich}}border-green-700 bg-green-50 text-green-800{{else}}border-amber-600 bg-amber-50 text-amber-800{{end}}"
+       role="status">
+        {{with .Dateiname}}<span class="font-medium">{{.}}</span>: {{end}}
+        {{.Uebernommen}} Zeilen übernommen — davon {{.Neu}} neu angelegt und
+        {{.Aktualisiert}} aktualisiert. {{.Gescheitert}} gescheitert.
+    </p>
+
+    {{if .Fehler}}
+        <h3 class="mb-2 text-sm font-semibold">Gescheiterte Zeilen</h3>
+        <p class="mb-3 text-sm text-neutral-600">
+            Diese Zeilen wurden nicht übernommen. In Excel korrigieren und erneut
+            importieren — bereits übernommene Zeilen werden dabei nur aktualisiert.
+        </p>
+        <div class="overflow-hidden rounded-md border border-neutral-200 bg-white">
+            <table class="w-full text-left text-sm">
+                <thead class="border-b border-neutral-200 bg-neutral-50 text-neutral-600">
+                <tr>
+                    <th scope="col" class="w-24 px-3 py-2 font-medium">Zeile</th>
+                    <th scope="col" class="px-3 py-2 font-medium">Grund</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .Fehler}}
+                    <tr class="border-b border-neutral-100 last:border-0">
+                        <td class="px-3 py-2 tabular-nums text-neutral-500">{{.Zeile}}</td>
+                        <td class="px-3 py-2">
+                            {{/* Eine Zeile kann an mehreren Stellen klemmen; dann
+                                 steht jeder Grund einzeln da. */}}
+                            {{if eq (len .Gruende) 1}}
+                                {{index .Gruende 0}}
+                            {{else}}
+                                <ul class="list-disc space-y-0.5 pl-4">
+                                    {{range .Gruende}}<li>{{.}}</li>{{end}}
+                                </ul>
+                            {{end}}
+                        </td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+        </div>
+    {{end}}
+</div>
+{{end}}

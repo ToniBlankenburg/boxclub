@@ -58,14 +58,17 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/ruhend", a.ruhendSchalten)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
+	mux.HandleFunc("GET /api/import", a.importFormular)
+	mux.HandleFunc("POST /api/import", a.importAusfuehren)
 
 	return mux
 }
 
 // Bereiche der App — die Ebene, auf der die Kopfzeilen-Navigation umschaltet.
-// Seit dem Wegfall der Beitragsklassen-Ansicht (ADR-0005) gibt es nur noch
-// einen; die Umschaltung bleibt, weil die nächsten Bereiche anstehen.
-const bereichMitglieder = "mitglieder"
+const (
+	bereichMitglieder = "mitglieder"
+	bereichImport     = "import"
+)
 
 // navigationseintrag ist ein Eintrag der Bereichsnavigation. Schluessel ist der
 // Bereich, den der Eintrag öffnet; er dient nur dem Vergleich in navigation und
@@ -82,6 +85,7 @@ type navigationseintrag struct {
 // und Pfade nicht als Textliterale ins Template wandern.
 var bereiche = []navigationseintrag{
 	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
+	{Schluessel: bereichImport, Beschriftung: "Excel-Import", Pfad: "/api/import"},
 }
 
 // navigation liefert die Navigationseinträge mit dem angegebenen Bereich als
