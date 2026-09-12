@@ -10,7 +10,7 @@ Status: ready-for-human
 
 - [x] An der Mitgliedschaft: Kündigungsdatum und ein Ruhend-Kennzeichen
 - [x] Eine Kündigung lässt sich mit Kündigungsdatum **und** Austrittsdatum erfassen
-- [x] Das **Austrittsdatum wird nicht aus dem Kündigungsdatum berechnet**. Fristen haben Sonderfälle (Kulanz, Aufhebungsvertrag, Quartalsende); ein errechnetes Datum, das man überschreiben muss, ist lästiger als ein leeres Feld
+- [x] Das **Austrittsdatum wird nicht aus dem Kündigungsdatum berechnet**. Fristen haben Sonderfälle (Kulanz, Aufhebungsvertrag, Quartalsende); ein errechnetes Datum, das man überschreiben muss, ist lästiger als ein leeres Feld — **für das Speichern weiter gültig, für die Formular-Vorbelegung später umgedreht, siehe Nachtrag unten**
 - [x] Ein Austrittsdatum **darf in der Zukunft liegen** — das ist der Normalfall bei laufender Kündigungsfrist
 - [x] Ein Kündigungsdatum ohne Austrittsdatum ist erlaubt (Kündigung liegt vor, Termin noch offen)
 - [x] Ein Mitglied lässt sich ruhend schalten und wieder aktiv setzen
@@ -89,3 +89,47 @@ entfernt (CONTEXT.md → Ruhend führt es unter _Vermeiden_); das vollständige
 Ersetzen beider Spalten ist jetzt im Kommentar von `SetKuendigung` ausgesprochen
 und mit `TestSetKuendigung_ErsetztBeideAngabenVollstaendig` festgenagelt — es ist
 der Weg, eine irrtümlich erfasste Kündigungserklärung wieder wegzunehmen.
+
+---
+
+**Nachtrag: das Austrittsfeld ist mit der regulären Frist vorbelegt.** Auf Wunsch
+des Vereinsadmins schlägt das Kündigungsformular jetzt den Termin vor, statt das
+Feld leer zu lassen. Die Regel steht als `service.RegulaererAustritt` in
+[`service/kuendigung.go`](../../../service/kuendigung.go): drei Monate ab
+Kündigungstag, aufgerundet auf das **Monatsende** (`KuendigungsfristMonate`).
+Eine am 12.09. erklärte Kündigung wirkt damit zum 31.12.
+
+Gerechnet wird über das Monatsende und nicht taggenau — sonst wäre der
+30. November plus drei Monate der 30. Februar, den es nicht gibt, und
+`time.AddDate` schöbe ihn stillschweigend in den März. Die Randfälle
+(Monatsletzter, Jahreswechsel, Februar, Schaltjahr) stehen in
+`TestRegulaererAustritt_DreiMonateZumMonatsende`.
+
+**Was sich dadurch nicht ändert** — und was die obige Abnahme weiterhin trägt:
+
+- `SetKuendigung` leitet nach wie vor **nichts** ab. Gespeichert wird genau, was
+  abgeschickt wird; geprüft wird der Austritt nur gegen den Eintritt und nicht
+  gegen die Satzungsfrist. Eine kürzere Frist (Aufhebungsvertrag, Kulanz) bleibt
+  erfassbar — festgenagelt in `TestRegulaererAustritt_BindetSetKuendigungNicht`.
+- Wer das Feld **leert**, erfasst weiterhin eine Kündigung ohne Termin. Der
+  Vorschlag nimmt das Rechnen ab, nicht die Entscheidung.
+- Ein **bereits vereinbarter** Termin schlägt den Vorschlag. Das ist seit der
+  Kündigungsfrist (Ticket 18) wichtig: dort führt die Schaltfläche der Zeile
+  zurück in dieses Formular, und `SetKuendigung` schreibt beide Spalten zusammen
+  — ein frisch gerechneter Wert überschriebe sonst den vereinbarten Austritt.
+
+**Bewusst nicht gebaut:** der Austritt rechnet **nicht** nach, wenn im Formular
+das Kündigungsdatum geändert wird. Vorbelegt wird einmal beim Öffnen, aus dem
+Datum, das dann oben steht (bei einer bereits erfassten Kündigung also aus deren
+Tag, nicht aus heute). Ein Nachrechnen bräuchte einen eigenen htmx-Endpunkt und
+überschriebe dabei auch einen Termin, den jemand gerade von Hand eingetippt hat.
+
+Nachgezogen ist die Doku an allen Stellen, die das Gegenteil zusagten:
+[CLAUDE.md](../../../CLAUDE.md) (Kündigung-Absatz), [CONTEXT.md](../../../CONTEXT.md)
+→ Kündigungsdatum und → Kündigungsfrist, der Kommentar an `Kuendigung.Austritt`,
+`app.kuendigungsformular` und der Hinweistext unter dem Formular.
+
+**Rauchtest** gegen `app.Handler()` per `httptest`: ohne Kündigung (heute →
+31.12.), mit erfasster Kündigung ohne Termin (05.01.2026 → 30.04.2026, also aus
+dem erfassten Tag und nicht aus heute) und mit vereinbartem Termin (bleibt
+stehen). Der Harnisch ist danach gelöscht.

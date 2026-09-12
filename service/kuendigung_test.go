@@ -18,6 +18,61 @@ func austrittZum(austritt time.Time) service.Kuendigung {
 	return service.Kuendigung{Austritt: &austritt}
 }
 
+// Die reguläre Frist der Satzung: drei Monate, aufgerundet auf das Monatsende.
+// Gerechnet wird sie allein für den Vorschlag im Formular — gespeichert wird
+// weiterhin nur, was jemand abschickt (siehe
+// TestSetKuendigung_OhneAustrittLeitetKeinenAustrittAb).
+func TestRegulaererAustritt_DreiMonateZumMonatsende(t *testing.T) {
+	faelle := []struct {
+		gekuendigt string
+		austritt   string
+		warum      string
+	}{
+		{"2026-09-12", "2026-12-31", "Monatsmitte: drei Monate weiter ist der Dezember"},
+		{"2027-01-05", "2027-04-30", "Jahreswechsel spielt keine Rolle"},
+		{"2026-06-30", "2026-09-30", "am Monatsletzten erklärt, drei Monate später ebenso"},
+		{"2026-12-31", "2027-03-31", "über den Jahreswechsel hinweg"},
+
+		// Der Fall, an dem eine taggenaue Rechnung scheitert: der 30. November
+		// plus drei Monate ist der 30. Februar, den es nicht gibt. Weil auf das
+		// Monatsende aufgerundet wird, stellt sich die Frage hier gar nicht.
+		{"2026-11-30", "2027-02-28", "Februar hat keinen 30."},
+		{"2027-11-30", "2028-02-29", "und im Schaltjahr einen 29."},
+	}
+
+	for _, f := range faelle {
+		got := service.RegulaererAustritt(datum(t, f.gekuendigt))
+		if erwartet := datum(t, f.austritt); !got.Equal(erwartet) {
+			t.Errorf("RegulaererAustritt(%s) = %s, erwartet %s — %s",
+				f.gekuendigt, got.Format("2006-01-02"), f.austritt, f.warum)
+		}
+	}
+}
+
+// Der Vorschlag ist ein Vorschlag: er begrenzt nichts. Eine kürzere Frist
+// (Aufhebungsvertrag, Kulanz) bleibt erfassbar — das prüft SetKuendigung nicht
+// gegen die Satzung, sondern nur gegen den Eintritt.
+func TestRegulaererAustritt_BindetSetKuendigungNicht(t *testing.T) {
+	svc := neuerService(t)
+
+	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
+	gekuendigt := heuteVersetzt(0)
+	sofort := heuteVersetzt(1)
+
+	if err := svc.SetKuendigung(id, service.Kuendigung{Datum: &gekuendigt, Austritt: &sofort}); err != nil {
+		t.Fatalf("SetKuendigung mit kürzerer Frist als der regulären: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.Mitgliedschaften[0].Austritt == nil || !m.Mitgliedschaften[0].Austritt.Equal(sofort) {
+		t.Errorf("Austritt = %v, erwartet %v — gespeichert wird der erfasste Tag, nicht der reguläre",
+			m.Mitgliedschaften[0].Austritt, sofort)
+	}
+}
+
 // Der Normalfall des Tickets: gekündigt wird an einem Tag, wirksam wird der
 // Austritt an einem späteren. Beide Daten stehen nebeneinander an der
 // Mitgliedschaft.

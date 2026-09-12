@@ -275,9 +275,10 @@
 {{/* mitglied-kuendigung-formular ersetzt eine Zeile durch die Erfassung der
      Kündigung: zwei Datumsfelder nebeneinander. Die Daten sind kuendigungDaten.
 
-     Das Austrittsfeld zeigt den erfassten Termin, errechnet aber keinen (siehe
-     kuendigungsformular). Es darf leer bleiben: dann liegt die Kündigung vor
-     und der Termin ist noch offen.
+     Das Austrittsfeld zeigt den erfassten Termin und sonst den regulären nach
+     der Satzungsfrist — drei Monate zum Monatsende (siehe kuendigungsformular).
+     Das ist ein Vorschlag: er lässt sich überschreiben, und wer das Feld leert,
+     erfasst eine Kündigung, deren Termin noch offen ist.
 
      Zurück kommt je nach Eingabe die Zeile oder die ganze Liste: ist der Austritt
      bereits erreicht, gibt es die Zeile in der Standardansicht nicht mehr. Ein
@@ -313,8 +314,9 @@
                 Abbrechen
             </button>
             <span class="text-sm text-neutral-500">
-                Steht der Termin noch nicht fest, bleibt das Austrittsfeld leer —
-                bis dahin trainiert und zahlt das Mitglied weiter.
+                Vorgeschlagen ist die reguläre Frist von drei Monaten zum
+                Monatsende. Steht der Termin noch nicht fest, leere das
+                Austrittsfeld — bis dahin trainiert und zahlt das Mitglied weiter.
             </span>
             {{range .Fehler}}
                 <span class="text-sm text-red-800" role="alert">{{.}}</span>

@@ -22,13 +22,44 @@ type Kuendigung struct {
 	// Datum ist der Normalfall der Altbestände.
 	Datum *time.Time
 
-	// Austritt ist der Tag, zu dem die Mitgliedschaft endet. Er wird von Hand
-	// eingetragen und ausdrücklich **nicht** aus dem Kündigungsdatum berechnet:
-	// Fristen haben Sonderfälle (Kulanz, Aufhebungsvertrag, Quartalsende), und
-	// ein errechnetes Datum, das man überschreiben muss, ist lästiger als ein
-	// leeres Feld. Er darf in der Zukunft liegen — das ist der Normalfall bei
-	// laufender Kündigungsfrist.
+	// Austritt ist der Tag, zu dem die Mitgliedschaft endet. Gespeichert wird
+	// ausschließlich, was der Aufrufer mitbringt: aus dem Kündigungsdatum
+	// abgeleitet wird hier nichts, weil Fristen Sonderfälle haben (Kulanz,
+	// Aufhebungsvertrag) und eine Kündigung auch ganz ohne Termin erfasst werden
+	// können muss. Vorgeschlagen wird der reguläre Termin dagegen sehr wohl —
+	// siehe RegulaererAustritt, das allein das Formular vorbelegt.
+	//
+	// Er darf in der Zukunft liegen — das ist der Normalfall bei laufender
+	// Kündigungsfrist.
 	Austritt *time.Time
+}
+
+// KuendigungsfristMonate ist die reguläre Frist der Vereinssatzung: drei Monate
+// zum Monatsende.
+const KuendigungsfristMonate = 3
+
+// RegulaererAustritt liefert den Tag, zu dem eine an diesem Tag erklärte
+// Kündigung nach der Satzung regulär wirksam wird: KuendigungsfristMonate
+// weiter, aufgerundet auf das Monatsende. Eine am 12.09. erklärte Kündigung
+// wirkt damit zum 31.12.
+//
+// Das ist ein **Vorschlag und keine Regel**: gespeichert wird, was jemand
+// abschickt (siehe Kuendigung.Austritt), und SetKuendigung prüft den Austritt
+// nur gegen den Eintritt, nicht gegen diese Frist. Eine kürzere Frist gibt es
+// (Aufhebungsvertrag, Kulanz), eine abweichende auch — der vorbelegte Wert im
+// Formular lässt sich überschreiben und löschen.
+//
+// Gerechnet wird über das Monatsende und nicht taggenau, weil taggenau die
+// Frage aufwürfe, was der 30. November plus drei Monate ist: einen 30. Februar
+// gibt es nicht, und time.AddDate schöbe ihn stillschweigend in den März.
+func RegulaererAustritt(kuendigungsdatum time.Time) time.Time {
+	// Der letzte Tag eines Monats ist der "nullte" des folgenden; für das Ende
+	// des Monats KuendigungsfristMonate weiter also einer mehr. time.Date
+	// normalisiert den Überlauf ins nächste Jahr von sich aus.
+	return time.Date(
+		kuendigungsdatum.Year(),
+		kuendigungsdatum.Month()+KuendigungsfristMonate+1, 0,
+		0, 0, 0, 0, kuendigungsdatum.Location())
 }
 
 // fehlendesDatum ist die Meldung zur einzigen Eingabe, die gar nichts festhält.

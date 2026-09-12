@@ -60,11 +60,13 @@ Sie hängt an der **Mitgliedschaft**, nicht an der Person: jeder Zeitraum hatte 
 
 ## Kündigungsdatum
 
-Der Tag, an dem ein Mitglied seine Kündigung erklärt hat. Das Datum, zu dem die Mitgliedschaft dann tatsächlich endet, ist der *Austritt*; er wird von Hand eingetragen und nicht aus der Kündigungsfrist berechnet.
+Der Tag, an dem ein Mitglied seine Kündigung erklärt hat. Das Datum, zu dem die Mitgliedschaft dann tatsächlich endet, ist der *Austritt*; er wird von Hand eingetragen. Das Formular schlägt den regulären Termin nach der Satzungsfrist vor (drei Monate zum Monatsende), gespeichert wird aber immer nur der eingetragene Tag — abweichende Fristen (Aufhebungsvertrag, Kulanz) bleiben erfassbar, und ein leeres Feld heißt weiterhin „Kündigung liegt vor, Termin noch offen".
 
 ## Kündigungsfrist
 
 Der Zeitraum zwischen Kündigungsdatum und Austritt. Ein Mitglied in der Kündigungsfrist ist **noch aktiv** — es trainiert weiter und zahlt weiter.
+
+Die **reguläre** Frist der Satzung sind drei Monate zum Monatsende: eine am 12.09. erklärte Kündigung wirkt zum 31.12. Sie ist der Vorschlag des Formulars (`service.RegulaererAustritt`) und keine Schranke — die tatsächliche Frist steht im Einzelfall im Austrittsdatum, nicht in dieser Regel.
 
 ## Status
 

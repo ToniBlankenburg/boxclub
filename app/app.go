@@ -652,28 +652,42 @@ func (a *App) kuendigungFormular(w http.ResponseWriter, r *http.Request) {
 	a.rendern(w, "mitglied-kuendigung-formular", kuendigungsformular(eintrag, nil))
 }
 
-// kuendigungsformular belegt die Eingabe vor: das Kündigungsdatum mit dem
+// kuendigungsformular belegt beide Eingaben vor: das Kündigungsdatum mit dem
 // bereits erfassten, sonst mit dem heutigen Tag — gekündigt wird meist an dem
-// Tag, an dem man es einträgt.
+// Tag, an dem man es einträgt. Das Austrittsfeld zeigt den erfassten Termin
+// und, wenn keiner erfasst ist, den regulären nach der Satzungsfrist
+// (service.RegulaererAustritt).
 //
-// Das Austrittsfeld zeigt den erfassten Termin und bleibt leer, wenn keiner
-// erfasst ist. Errechnet wird es ausdrücklich nicht: Fristen haben Sonderfälle
-// (Kulanz, Aufhebungsvertrag, Quartalsende), und ein errechnetes Datum, das man
-// überschreiben muss, ist lästiger als ein leeres Feld. Einen bereits
-// eingetragenen Termin zu zeigen ist etwas anderes — und seit der
-// Kündigungsfrist notwendig: dort führt die Schaltfläche der Zeile zurück in
-// dieses Formular, und SetKuendigung schreibt beide Spalten zusammen. Käme das
-// Feld leer herauf, löschte eine Korrektur am Kündigungsdatum den Austritt mit.
+// Der erfasste Termin hat dabei Vorrang, und das ist seit der Kündigungsfrist
+// nötig: dort führt die Schaltfläche der Zeile zurück in dieses Formular, und
+// SetKuendigung schreibt beide Spalten zusammen. Käme das Feld leer oder mit
+// einem frisch gerechneten Wert herauf, überschriebe eine Korrektur am
+// Kündigungsdatum den vereinbarten Austritt.
+//
+// Gerechnet wird einmal beim Öffnen und aus dem Datum, das oben steht. Ändert
+// der Nutzer danach das Kündigungsdatum, zieht der Austritt **nicht** nach —
+// dafür bräuchte es einen eigenen Endpunkt, und der überschriebe dann auch den
+// Termin, den jemand gerade von Hand eingetippt hat.
+//
+// Bleiben soll der Termin trotzdem löschbar: ein geleertes Feld heißt weiterhin
+// "Kündigung liegt vor, Termin noch offen" (siehe kuendigungLesen). Der
+// Vorschlag nimmt dem Nutzer das Rechnen ab, nicht die Entscheidung.
 func kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendigungDaten {
-	kuendigungsdatum := isoDatumsWert(eintrag.Kuendigungsdatum)
-	if kuendigungsdatum == "" {
-		kuendigungsdatum = time.Now().Format(isoDatum)
+	kuendigungsdatum := time.Now()
+	if eintrag.Kuendigungsdatum != nil {
+		kuendigungsdatum = *eintrag.Kuendigungsdatum
+	}
+
+	austritt := eintrag.Austritt
+	if austritt == nil {
+		regulaer := service.RegulaererAustritt(kuendigungsdatum)
+		austritt = &regulaer
 	}
 
 	return kuendigungDaten{
 		Eintrag:          eintrag,
-		Kuendigungsdatum: kuendigungsdatum,
-		Austritt:         isoDatumsWert(eintrag.Austritt),
+		Kuendigungsdatum: kuendigungsdatum.Format(isoDatum),
+		Austritt:         austritt.Format(isoDatum),
 		Fehler:           fehler,
 	}
 }
