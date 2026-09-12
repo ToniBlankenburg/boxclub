@@ -1100,6 +1100,17 @@ func (a *App) rendern(w http.ResponseWriter, name string, daten any) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Jedes Fragment zeigt einen Stand aus der Datenbank und ist damit Daten,
+	// kein Inhalt. Ohne diese Kopfzeile darf das WebView es zwischenspeichern
+	// und liefert ein erneut geöffnetes Formular aus dem Cache — mit den Werten
+	// von vor der letzten Änderung. Wer es dann speichert, schreibt den alten
+	// Stand zurück; die Änderung ist weg, und einen Fehler hat niemand gesehen.
+	//
+	// Die Kopfzeile steht hier und nicht in den einzelnen Handlern: sie gilt für
+	// jedes Fragment, und eine neue Route soll sie nicht erst wieder brauchen.
+	w.Header().Set("Cache-Control", "no-store")
+
 	puffer.WriteTo(w)
 }
 
