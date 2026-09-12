@@ -64,8 +64,10 @@ type Mitglied struct {
 	Mitgliedschaften []Mitgliedschaft
 }
 
-// Mitgliedschaft ist ein Zeitraum, in dem ein Mitglied aktiv im Verein ist.
-// Austritt == nil bedeutet: die Mitgliedschaft läuft aktuell.
+// Mitgliedschaft ist ein Zeitraum, in dem ein Mitglied aktiv im Verein ist. Ob
+// er läuft, sagt nicht das Vorhandensein eines Austritts, sondern sein
+// Erreichtsein: ein erfasster, aber noch bevorstehender Austritt ist die
+// Kündigungsfrist und beendet nichts (siehe Status).
 //
 // Der Beitrag hängt hier und nicht am Mitglied: er ist Teil der Vereinbarung,
 // die mit dem Eintritt zustande kam. Ein Wiedereintritt bekommt dadurch seinen
@@ -118,15 +120,39 @@ func (ms Mitgliedschaft) Trainingsfrequenz() Trainingsfrequenz {
 	return trainingsfrequenzAus(ms.Trainingsslots)
 }
 
+// Status ist der Lebenszyklus-Zustand dieses Zeitraums am heutigen Tag.
+// Gespeichert wird er nicht (CONTEXT.md → Status); abgelesen wird er in
+// statusAus aus Eintritt, Kündigungsdatum und Austritt.
+func (ms Mitgliedschaft) Status() Status {
+	return ms.statusAm(heute())
+}
+
+// statusAm ist dasselbe zu einem bestimmten Tag. Den Tag durchzureichen lohnt
+// sich, wo mehrere Zeiträume nacheinander zu beurteilen sind: sonst fragte jede
+// Runde die Uhr erneut und könnte über Mitternacht eine andere Antwort bekommen.
+func (ms Mitgliedschaft) statusAm(heute string) Status {
+	return statusAus(ms.Eintritt, ms.Kuendigungsdatum, ms.Austritt, heute)
+}
+
 // LaufendeMitgliedschaft liefert den Zeitraum, in dem das Mitglied aktuell aktiv
 // ist, oder nil, wenn es derzeit keinem angehört. Gibt es — regulär
 // ausgeschlossen — mehrere offene Zeiträume, gilt der zuletzt begonnene; das ist
 // dieselbe Regel, nach der List ein Mitglied als aktiv führt.
+//
+// "Läuft" heißt: der Austritt ist nicht erreicht. Ein erfasster, aber noch
+// bevorstehender Austritt beendet nichts — das ist die Kündigungsfrist, in der
+// weiter trainiert und weiter gezahlt wird. Auch ein Zeitraum, dessen Eintritt
+// erst bevorsteht (Status Neu), läuft in diesem Sinn: begonnen hat er nicht,
+// beendet ist er aber ebenso wenig.
 func (m Mitglied) LaufendeMitgliedschaft() *Mitgliedschaft {
+	// Einmal die Uhr fragen und den Tag durchreichen: sonst könnten zwei
+	// Zeiträume derselben Schleife gegen verschiedene Tage beurteilt werden.
+	heute := heute()
+
 	// Mitgliedschaften liegen aufsteigend nach Eintritt vor, der zuletzt
 	// begonnene offene Zeitraum ist also der letzte passende.
 	for i := len(m.Mitgliedschaften) - 1; i >= 0; i-- {
-		if m.Mitgliedschaften[i].Austritt == nil {
+		if !m.Mitgliedschaften[i].statusAm(heute).Ausgetreten() {
 			return &m.Mitgliedschaften[i]
 		}
 	}
@@ -536,7 +562,7 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 func mitgliedschaftSchreiben(tx *sql.Tx, mitgliedID int64, z zuweisungssatz) error {
 	res, err := tx.Exec(
 		`UPDATE mitgliedschaft SET `+z.klausel()+`
-		 WHERE id = (`+massgeblicheMitgliedschaft+`)`, append(z.werte, mitgliedID)...)
+		 WHERE id = (`+massgeblicheMitgliedschaft+`)`, append(z.werte, mitgliedID, heute())...)
 	if err != nil {
 		return fmt.Errorf("mitgliedschaft von mitglied %d aktualisieren: %w", mitgliedID, err)
 	}
@@ -555,12 +581,16 @@ func mitgliedschaftSchreiben(tx *sql.Tx, mitgliedID int64, z zuweisungssatz) err
 
 // massgeblicheMitgliedschaft wählt den Zeitraum aus, der für ein Mitglied gerade
 // gilt. Die Sortierung stellt eine laufende Mitgliedschaft vor jede beendete und
-// unter mehreren die zuletzt begonnene nach vorn — dieselbe Regel wie in
-// eintraegeAbfrage, damit Liste und Änderung denselben Zeitraum meinen.
+// unter mehreren die zuletzt begonnene nach vorn — buchstäblich dieselbe Regel
+// wie in eintraegeAbfrage, bis hin zum gemeinsamen laeuftNoch, damit Liste und
+// Änderung denselben Zeitraum meinen. Liefen die beiden Sortierungen
+// auseinander, änderte der Nutzer einen anderen Zeitraum als den, den er sieht.
+//
+// Der zweite Platzhalter nimmt den heutigen Tag auf, der erste die Mitglieds-ID.
 const massgeblicheMitgliedschaft = `
 	SELECT id FROM mitgliedschaft
 	WHERE mitglied_id = ?
-	ORDER BY austritt IS NULL DESC, eintritt DESC, id DESC
+	ORDER BY ` + laeuftNoch + ` DESC, eintritt DESC, id DESC
 	LIMIT 1`
 
 // massgeblicheMitgliedschaftLesen liefert die ID des Zeitraums, der für das
@@ -569,7 +599,7 @@ const massgeblicheMitgliedschaft = `
 func massgeblicheMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, error) {
 	var id int64
 
-	err := q.QueryRow(massgeblicheMitgliedschaft, mitgliedID).Scan(&id)
+	err := q.QueryRow(massgeblicheMitgliedschaft, mitgliedID, heute()).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		// Regulär unerreichbar: Create legt Mitglied und Mitgliedschaft zusammen an.
 		return 0, fmt.Errorf("mitglied %d hat keine mitgliedschaft: %w", mitgliedID, ErrNichtGefunden)
@@ -897,10 +927,10 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 // Vorgang braucht; das Formular schickt den erfassten Wert deshalb immer mit
 // (siehe app.kuendigungsformular).
 //
-// Das Austrittsdatum dagegen kann nicht verloren gehen: sobald eines steht,
-// läuft der Zeitraum nicht mehr und der nächste Aufruf endet in ErrNichtAktiv.
-// Mit Ticket 18 ändert sich, was "läuft" heißt — dann wird aus dieser Sperre
-// eine Korrekturmöglichkeit während der Kündigungsfrist.
+// Solange der Austritt bevorsteht, läuft der Zeitraum weiter und lässt sich
+// erneut erfassen: ein falsch abgetippter Termin ist während der Kündigungsfrist
+// korrigierbar. Erst ab dem Austrittstag läuft nichts mehr, und der nächste
+// Aufruf endet in ErrNichtAktiv — ab da ist der Weg zurück der Wiedereintritt.
 func (s *MemberService) SetKuendigung(id int64, k Kuendigung) error {
 	// Der laufende Zeitraum wird gelesen, geprüft und beendet — das gehört in
 	// eine Transaktion, damit dazwischen keine andere Änderung dazwischenfunkt.
@@ -942,7 +972,8 @@ func (s *MemberService) SetKuendigung(id int64, k Kuendigung) error {
 //
 // Nur ein laufender Zeitraum lässt sich ruhend schalten: bei einem ausgetretenen
 // Mitglied gibt es keinen Einzug, den man aussetzen könnte — der Fehler ist dann
-// ErrNichtAktiv, wie beim Versuch, zweimal zu kündigen.
+// ErrNichtAktiv. Ein Mitglied in der Kündigungsfrist läuft dagegen noch und lässt
+// sich sehr wohl ruhend schalten; sein Beitrag wird ja bis zum Austritt eingezogen.
 //
 // Der Rückstand bleibt dabei unberührt. Für ein ruhendes Mitglied geht keine
 // Lastschrift los, es kann also kein *neuer* Rückstand entstehen; ein
@@ -1064,6 +1095,19 @@ func letztenAustrittLesen(q abfrager, mitgliedID int64) (string, error) {
 	return austritt.String, nil
 }
 
+// laeuftNoch ist die Bedingung "Austritt nicht erreicht" in SQL — die Lesart von
+// "aktiv", seit die Kündigungsfrist dazugehört (CONTEXT.md → Status). Der
+// Platzhalter nimmt den heutigen Tag in ISO-Form auf; ein fehlender Austritt
+// zählt mit, denn was kein Ende hat, hat es auch nicht erreicht.
+//
+// Es ist das SQL-Gegenstück zu statusAus' erster Prüfung und muss mit ihr
+// übereinstimmen: hier entscheidet die Bedingung, welcher Zeitraum eine Zeile
+// überhaupt bekommt, dort, wie er heißt. Getrennt sind sie, weil die Auswahl in
+// die Abfrage gehört und die Ableitung nach Go (ADR-0004); wer eine ändert,
+// ändert die andere mit. Beide Ränder sind einschließend — der Austrittstag
+// selbst zählt bereits als erreicht.
+const laeuftNoch = `(austritt IS NULL OR austritt > ?)`
+
 // laufendeMitgliedschaftLesen liefert ID und Eintritt des Zeitraums, in dem das
 // Mitglied gerade aktiv ist; gibt es keinen, ist der Fehler ErrNichtAktiv.
 //
@@ -1080,9 +1124,9 @@ func laufendeMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, string, e
 
 	err := q.QueryRow(
 		`SELECT id, eintritt FROM mitgliedschaft
-		 WHERE mitglied_id = ? AND austritt IS NULL
+		 WHERE mitglied_id = ? AND `+laeuftNoch+`
 		 ORDER BY eintritt DESC, id DESC
-		 LIMIT 1`, mitgliedID).Scan(&id, &eintritt)
+		 LIMIT 1`, mitgliedID, heute()).Scan(&id, &eintritt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, "", fmt.Errorf("mitglied %d: %w", mitgliedID, ErrNichtAktiv)
 	}
@@ -1120,12 +1164,14 @@ type Listeneintrag struct {
 
 	// Kuendigungsdatum ist der Tag, an dem gekündigt wurde, oder nil. Es steht
 	// in der Liste, weil eine erfasste Kündigung ohne Termin sonst unsichtbar
-	// wäre — die Zeile sähe aus wie jede andere aktive.
+	// wäre — die Zeile sähe aus wie jede andere aktive. Zusammen mit Eintritt
+	// und Austritt ergibt es den Status.
 	Kuendigungsdatum *time.Time
 
-	// Austritt ist nil, solange die Mitgliedschaft läuft. Gesetzt ist er nur in
-	// Ergebnissen, die Ehemalige einschließen — dort ist er die einzige Angabe,
-	// an der die Zeile als ehemalig erkennbar ist.
+	// Austritt ist der Tag, zu dem die Mitgliedschaft endet, oder nil. Er steht
+	// auch in der Standardansicht: ein noch bevorstehender Austritt ist die
+	// Kündigungsfrist, und dann zeigt die Zeile, wann der Zeitraum ausläuft.
+	// Abgelesen wird daraus der Status.
 	Austritt *time.Time
 
 	// Ruhend ist das Merkmal der maßgeblichen Mitgliedschaft. Es steht neben
@@ -1145,9 +1191,22 @@ func (e Listeneintrag) Trainingsfrequenz() Trainingsfrequenz {
 	return trainingsfrequenzAus(e.Trainingsslots)
 }
 
+// Status ist der Lebenszyklus-Zustand dieser Zeile — dieselbe Ableitung wie an
+// der Mitgliedschaft, aus denselben drei Datumsfeldern. Er steht bewusst nicht
+// als Feld in der Zeile: ein abgelesener Wert, der einmal mitgeschrieben wird,
+// ist morgen falsch.
+func (e Listeneintrag) Status() Status {
+	return statusAus(e.Eintritt, e.Kuendigungsdatum, e.Austritt, heute())
+}
+
 // List liefert alle aktiven Mitglieder, sortiert nach Nachname und Vorname.
-// Aktiv heißt: es existiert eine Mitgliedschaft ohne Austrittsdatum. Wer nur
-// beendete Mitgliedschaften hat, taucht hier nicht auf.
+// Aktiv heißt: es existiert eine Mitgliedschaft, deren Austritt nicht erreicht
+// ist. Wer nur beendete Mitgliedschaften hat, taucht hier nicht auf.
+//
+// Die Liste räumt sich damit von selbst auf: niemand muss ein Mitglied
+// "auf ausgetreten setzen", das Austrittsdatum erledigt das am Stichtag. Bis
+// dahin bleibt die Zeile stehen, auch wenn die Kündigung längst erfasst ist —
+// in der Kündigungsfrist wird weiter trainiert und weiter gezahlt.
 //
 // Das ist die Standardansicht — dieselbe, die Search ohne Suchbegriff und mit
 // dem Nullwert des Filters liefert.
@@ -1191,7 +1250,9 @@ type Suchfilter struct {
 	// Frequenz grenzt auf eine Trainingsfrequenz ein. Sie ist abgeleitet und
 	// wird deshalb wie der Rückstand in Go ausgewertet, nicht in SQL.
 	Frequenz Frequenzfilter
-	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf.
+	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf — also
+	// die, deren Austritt erreicht ist. Ein bevorstehender Austritt macht
+	// niemanden ehemalig; solche Zeilen stehen auch ohne dieses Kennzeichen da.
 	AuchEhemalige bool
 }
 
@@ -1259,6 +1320,12 @@ func (s *MemberService) Eintrag(id int64) (Listeneintrag, error) {
 // Verbundpartner ganz aus der Liste. Ist er wahr, kommen sie mit ihrem zuletzt
 // beendeten Zeitraum dazu — die Sortierung stellt eine laufende Mitgliedschaft
 // dabei immer vor eine beendete, damit ein Wiedereintritt als aktiv erscheint.
+//
+// Laufend heißt hier wie überall "Austritt nicht erreicht" (siehe laeuftNoch):
+// ein Mitglied in der Kündigungsfrist hat ein Austrittsdatum und steht trotzdem
+// in der Standardansicht, weil es weiter trainiert und weiter zahlt. Deshalb
+// steht der heutige Tag zweimal in der Abfrage — einmal im Filter, einmal in
+// der Sortierung.
 const eintraegeAbfrage = `
 	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon,
 		m.adresse, m.postleitzahl, m.ort,
@@ -1268,8 +1335,8 @@ const eintraegeAbfrage = `
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
-		WHERE mitglied_id = m.id AND (? OR austritt IS NULL)
-		ORDER BY austritt IS NULL DESC, eintritt DESC, id DESC
+		WHERE mitglied_id = m.id AND (? OR ` + laeuftNoch + `)
+		ORDER BY ` + laeuftNoch + ` DESC, eintritt DESC, id DESC
 		LIMIT 1
 	)`
 
@@ -1332,9 +1399,13 @@ func (z suchzeile) trifftBegriff(begriff string) bool {
 // ergänzt. Die Bedingung ist immer ein Literal aus diesem Package; die Werte
 // gehen als Parameter in die Anweisung.
 func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, werte ...any) ([]suchzeile, error) {
-	// Der Aktivitäts-Parameter steht in der Abfrage vor der Bedingung und
-	// gehört deshalb auch in der Parameterliste nach vorn.
-	rows, err := s.db.Query(eintraegeAbfrage+bedingung, append([]any{auchEhemalige}, werte...)...)
+	// Die Parameter der Abfrage stehen vor denen der Bedingung und gehören
+	// deshalb auch in der Parameterliste nach vorn: erst die Aktivität, dann
+	// der heutige Tag für Filter und Sortierung (siehe eintraegeAbfrage).
+	heute := heute()
+
+	rows, err := s.db.Query(eintraegeAbfrage+bedingung,
+		append([]any{auchEhemalige, heute, heute}, werte...)...)
 	if err != nil {
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
 	}

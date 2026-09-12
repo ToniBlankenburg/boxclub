@@ -162,20 +162,25 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 	}
 }
 
-// Zweimal austreten geht nicht: nach dem ersten Austritt gibt es keinen
+// Zweimal austreten geht nicht: nach einem *erreichten* Austritt gibt es keinen
 // laufenden Zeitraum mehr, den ein zweiter beenden könnte. Das stillschweigend
 // durchzuwinken würde das erste Austrittsdatum überschreiben.
+//
+// Erreicht muss er sein: solange er bevorsteht, läuft der Zeitraum weiter und
+// ein zweiter Aufruf ist die erlaubte Korrektur des Termins (siehe
+// TestSetKuendigung_LaesstSichWaehrendDerFristKorrigieren). Die Fixtures liegen
+// deshalb ausdrücklich vor heute.
 func TestSetKuendigung_ZweimalAustretenIstEinFehler(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
-	austritt := datum(t, "2026-06-30")
+	austritt := heuteVersetzt(-60)
 
 	if err := svc.SetKuendigung(id, austrittZum(austritt)); err != nil {
 		t.Fatalf("erste SetKuendigung: %v", err)
 	}
 
-	err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-07-31")))
+	err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(-30)))
 	if !errors.Is(err, service.ErrNichtAktiv) {
 		t.Fatalf("zweite SetKuendigung = %v, erwartet ErrNichtAktiv", err)
 	}

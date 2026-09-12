@@ -656,10 +656,14 @@ func (a *App) kuendigungFormular(w http.ResponseWriter, r *http.Request) {
 // bereits erfassten, sonst mit dem heutigen Tag — gekündigt wird meist an dem
 // Tag, an dem man es einträgt.
 //
-// Das Austrittsfeld bleibt dagegen leer. Es wird ausdrücklich nicht aus dem
-// Kündigungsdatum errechnet: Fristen haben Sonderfälle (Kulanz,
-// Aufhebungsvertrag, Quartalsende), und ein errechnetes Datum, das man
-// überschreiben muss, ist lästiger als ein leeres Feld.
+// Das Austrittsfeld zeigt den erfassten Termin und bleibt leer, wenn keiner
+// erfasst ist. Errechnet wird es ausdrücklich nicht: Fristen haben Sonderfälle
+// (Kulanz, Aufhebungsvertrag, Quartalsende), und ein errechnetes Datum, das man
+// überschreiben muss, ist lästiger als ein leeres Feld. Einen bereits
+// eingetragenen Termin zu zeigen ist etwas anderes — und seit der
+// Kündigungsfrist notwendig: dort führt die Schaltfläche der Zeile zurück in
+// dieses Formular, und SetKuendigung schreibt beide Spalten zusammen. Käme das
+// Feld leer herauf, löschte eine Korrektur am Kündigungsdatum den Austritt mit.
 func kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendigungDaten {
 	kuendigungsdatum := isoDatumsWert(eintrag.Kuendigungsdatum)
 	if kuendigungsdatum == "" {
@@ -669,6 +673,7 @@ func kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendig
 	return kuendigungDaten{
 		Eintrag:          eintrag,
 		Kuendigungsdatum: kuendigungsdatum,
+		Austritt:         isoDatumsWert(eintrag.Austritt),
 		Fehler:           fehler,
 	}
 }
@@ -709,16 +714,23 @@ func (a *App) kuendigungEintragen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ohne Austrittsdatum endet nichts: das Mitglied bleibt, wo es ist, und die
-	// Zeile kommt mit dem Kündigungsvermerk zurück.
-	if k.Austritt == nil {
+	// Solange der Austritt nicht erreicht ist, endet nichts: das Mitglied bleibt
+	// in der Standardansicht — auch mit erfasstem Termin, denn in der
+	// Kündigungsfrist trainiert und zahlt es weiter. Die Zeile kommt dann mit
+	// ihrem neuen Status zurück. Über beides entscheidet der Service, nicht das
+	// Vorhandensein eines Datums.
+	if !eintrag.Status().Ausgetreten() {
 		a.rendern(w, "mitglied-zeile", eintrag)
 		return
 	}
 
-	// Mit Austrittsdatum ist die Zeile nicht mehr der richtige Platz für die
-	// Antwort: in der Standardansicht gibt es sie nicht mehr. Deshalb kommt die
-	// ganze Liste zurück — und sagt zugleich, wo das Mitglied jetzt steht.
+	// Ist der Austritt dagegen schon erreicht — heute oder früher —, ist die
+	// Zeile nicht mehr der richtige Platz für die Antwort: in der
+	// Standardansicht gibt es sie nicht mehr. Deshalb kommt die ganze Liste
+	// zurück und sagt zugleich, wo das Mitglied jetzt steht.
+	//
+	// k.Austritt ist hier gesetzt: ausgetreten wird nur, wer ein erreichtes
+	// Austrittsdatum hat, und geschrieben hat es genau dieser Aufruf.
 	aufListeUmleiten(w)
 	a.listeRendern(w, meldung{Text: fmt.Sprintf(
 		"Für %s %s ist der Austritt zum %s erfasst; die Zeile steht jetzt unter »Auch Ehemalige«.",

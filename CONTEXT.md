@@ -68,7 +68,9 @@ Der Zeitraum zwischen Kündigungsdatum und Austritt. Ein Mitglied in der Kündig
 
 ## Status
 
-Der Lebenszyklus-Zustand eines Mitglieds. Er wird **nicht gepflegt, sondern abgelesen**: *Neu* (Eintritt liegt in der Zukunft), *Aktiv* (Eintritt erreicht, kein Austritt), *In Kündigungsfrist* (Kündigung erklärt, Austritt liegt in der Zukunft), *Ausgetreten* (Austritt erreicht). Einzige Ausnahme ist *ruhend*, das sich aus keinem Datum ergibt.
+Der Lebenszyklus-Zustand eines Mitglieds. Er wird **nicht gepflegt, sondern abgelesen**: *Neu* (Eintritt liegt in der Zukunft), *Aktiv* (Eintritt erreicht, Austritt nicht erreicht und keine Kündigung erfasst), *In Kündigungsfrist* (eine Kündigung ist erfasst, der Austritt aber noch nicht erreicht), *Ausgetreten* (Austritt erreicht). Einzige Ausnahme ist *ruhend*, das sich aus keinem Datum ergibt.
+
+Beide Ränder zählen einschließend: am Eintrittstag ist das Mitglied aktiv, am Austrittstag bereits ausgetreten. *Aktiv* heißt dabei „Austritt nicht erreicht" und nicht „kein Austrittsdatum gesetzt" — wer in der Kündigungsfrist steht, hat eines und bleibt trotzdem in der Standardansicht. Erfasst ist eine Kündigung, sobald **eines** der beiden Daten steht: ein Kündigungsdatum ohne Termin heißt „erklärt, Termin offen", ein Austritt ohne Kündigungsdatum ist der Normalfall der Altbestände.
 
 _Vermeiden:_ „Mitglied" und „Aktiv" als zwei verschiedene Zustände — das ist derselbe. Ebenso „Inaktiv" für ein ruhendes Mitglied.
 

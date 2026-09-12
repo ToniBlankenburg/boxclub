@@ -88,6 +88,7 @@
             <thead>
                 <tr class="border-b border-neutral-200 text-sm text-neutral-600">
                     <th class="px-4 py-2 font-medium">Name</th>
+                    <th class="px-4 py-2 font-medium">Status</th>
                     <th class="px-4 py-2 font-medium">Anschrift</th>
                     <th class="px-4 py-2 font-medium">Training</th>
                     <th class="px-4 py-2 text-right font-medium">Beitrag</th>
@@ -118,6 +119,10 @@
      Fragment, das nach dem Pflegen des Rückstands allein zurückkommt. Die Daten
      sind ein service.Listeneintrag. */}}
 {{define "mitglied-zeile"}}
+{{/* Einmal ablesen und weiterreichen: der Status fragt die Uhr, und die Zeile
+     soll ihn an allen vier Stellen gleich beantwortet bekommen — auch die, die
+     um Mitternacht gerendert wird. */}}
+{{$status := .Status}}
 <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-red-700"
     tabindex="0" title="Bearbeiten"
     aria-label="{{.Vorname}} {{.Nachname}} bearbeiten"
@@ -136,28 +141,31 @@
             <span class="ml-1 text-amber-500" title="Google-Bewertung: {{.GoogleBewertung.Bezeichnung}}"
                   aria-label="Google-Bewertung: {{.GoogleBewertung.Bezeichnung}}">&#9733;</span>
         {{end}}
-        {{/* Ein Austrittsdatum steht nur in Ergebnissen, die Ehemalige
-             einschließen — dann muss die Zeile sich als solche zu erkennen geben. */}}
+    </td>
+    {{/* Der Status wird nirgends gepflegt, sondern aus den Datumsfeldern
+         abgelesen (CONTEXT.md → Status) — er kann deshalb gar nicht erst im
+         Widerspruch zu ihnen stehen. Darunter steht das Datum, aus dem er sich
+         ergibt, sofern es nicht ohnehin in der Eintrittsspalte steht. */}}
+    <td class="px-4 py-2">
+        <div class="flex flex-wrap items-center gap-1.5">
+            {{template "statuskennzeichen" $status}}
+            {{/* Ruhend steht neben dem Lebenszyklus und nicht in ihm: ein ruhendes
+                 Mitglied ist ein aktives, von dem gerade nichts eingezogen wird
+                 (CONTEXT.md → Ruhend). Deshalb tritt es hier neben das
+                 Statuskennzeichen und nicht an seine Stelle. */}}
+            {{if .Ruhend}}
+                <span class="rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
+                      title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter">
+                    ruhend
+                </span>
+            {{end}}
+        </div>
         {{if .Austritt}}
-            <span class="ml-1.5 rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
-                ausgetreten {{datum .Austritt}}
-            </span>
+            <div class="mt-0.5 text-xs text-neutral-500">zum {{datum .Austritt}}</div>
         {{else if .Kuendigungsdatum}}
-            {{/* Eine Kündigung ohne Termin wäre sonst unsichtbar: die Zeile sähe
-                 aus wie jede andere aktive. Steht der Austritt fest, sagt das
-                 Kennzeichen daneben schon alles. */}}
-            <span class="ml-1.5 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
-                gekündigt {{datum .Kuendigungsdatum}}
-            </span>
-        {{end}}
-        {{/* Ruhend steht neben dem Lebenszyklus und nicht in ihm: ein ruhendes
-             Mitglied ist ein aktives, von dem gerade nichts eingezogen wird
-             (CONTEXT.md → Ruhend). */}}
-        {{if .Ruhend}}
-            <span class="ml-1.5 rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
-                  title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter">
-                ruhend
-            </span>
+            {{/* Eine Kündigung ohne Termin wäre sonst unsichtbar — der Status
+                 sagt "In Kündigungsfrist", aber nicht, seit wann. */}}
+            <div class="mt-0.5 text-xs text-neutral-500">gekündigt {{datum .Kuendigungsdatum}}</div>
         {{end}}
     </td>
     {{/* Zweizeilig — Straße oben, Postleitzahl und Ort darunter —, damit die
@@ -214,23 +222,29 @@
         <div class="flex items-center justify-between gap-3">
             {{datum .Eintritt}}
             <div class="flex flex-wrap justify-end gap-1">
-                {{/* Ein Austrittsdatum heißt: ehemalig. Dann ist Wiedereintritt die
-                     Aktion, und nur dann — ein aktives Mitglied kann nicht erneut eintreten. */}}
+                {{/* Über die Aktion entscheidet der Status und nicht das bloße
+                     Vorhandensein eines Austrittsdatums: erst ein *erreichter*
+                     Austritt macht ehemalig, und nur dann ist Wiedereintritt die
+                     Aktion. Während der Kündigungsfrist läuft die Mitgliedschaft
+                     noch — dort führt die Schaltfläche zurück ins
+                     Kündigungsformular, in dem sich ein falscher Termin
+                     korrigieren lässt. */}}
                 <button type="button"
                         class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
-                        aria-label="{{if .Austritt}}Wiedereintritt für{{else}}Kündigung erfassen für{{end}} {{.Vorname}} {{.Nachname}}"
-                        hx-get="/api/mitglied/{{.MitgliedID}}/{{if .Austritt}}wiedereintritt{{else}}kuendigung{{end}}"
+                        aria-label="{{if $status.Ausgetreten}}Wiedereintritt für{{else}}Kündigung erfassen für{{end}} {{.Vorname}} {{.Nachname}}"
+                        hx-get="/api/mitglied/{{.MitgliedID}}/{{if $status.Ausgetreten}}wiedereintritt{{else}}kuendigung{{end}}"
                         hx-target="closest tr" hx-swap="outerHTML"
                         hx-on:click="event.stopPropagation()"
                         hx-on:keyup="event.stopPropagation()">
-                    {{if .Austritt}}Wiedereintritt{{else}}Kündigung{{end}}
+                    {{if $status.Ausgetreten}}Wiedereintritt{{else}}Kündigung{{end}}
                 </button>
                 {{/* Ruhend schalten lässt sich nur, was läuft — bei einem Ehemaligen
-                     gibt es keinen Einzug, den man aussetzen könnte. Die
-                     Schaltfläche schickt den gewünschten Wert mit, nicht den
-                     aktuellen: so tut ein Klick aus einer veralteten Ansicht
-                     nicht das Gegenteil. */}}
-                {{if not .Austritt}}
+                     gibt es keinen Einzug, den man aussetzen könnte. In der
+                     Kündigungsfrist gibt es ihn sehr wohl, dort steht die
+                     Schaltfläche deshalb weiterhin. Sie schickt den gewünschten
+                     Wert mit, nicht den aktuellen: so tut ein Klick aus einer
+                     veralteten Ansicht nicht das Gegenteil. */}}
+                {{if not $status.Ausgetreten}}
                     <button type="button"
                             class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
                             aria-label="{{.Vorname}} {{.Nachname}} {{if .Ruhend}}wieder aktiv setzen{{else}}ruhend schalten{{end}}"
@@ -250,18 +264,20 @@
 {{/* mitglied-kuendigung-formular ersetzt eine Zeile durch die Erfassung der
      Kündigung: zwei Datumsfelder nebeneinander. Die Daten sind kuendigungDaten.
 
-     Das Austrittsfeld ist leer und nicht vorbelegt — das Datum wird nicht aus
-     der Frist errechnet (siehe kuendigungsformular). Es darf auch leer bleiben:
-     dann liegt die Kündigung vor und der Termin ist noch offen.
+     Das Austrittsfeld zeigt den erfassten Termin, errechnet aber keinen (siehe
+     kuendigungsformular). Es darf leer bleiben: dann liegt die Kündigung vor
+     und der Termin ist noch offen.
 
-     Zurück kommt je nach Eingabe die Zeile oder die ganze Liste: mit
-     Austrittsdatum gibt es die Zeile in der Standardansicht nicht mehr. Das Ziel
-     dafür setzt die Antwort selbst (HX-Retarget). */}}
+     Zurück kommt je nach Eingabe die Zeile oder die ganze Liste: ist der Austritt
+     bereits erreicht, gibt es die Zeile in der Standardansicht nicht mehr. Ein
+     Austritt, der noch bevorsteht, lässt sie dagegen stehen — dann ist das
+     Mitglied in der Kündigungsfrist und weiterhin aktiv. Das Ziel setzt die
+     Antwort selbst (HX-Retarget). */}}
 {{define "mitglied-kuendigung-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    <td class="px-4 py-2" colspan="5">
+    <td class="px-4 py-2" colspan="6">
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/kuendigung"
               hx-target="closest tr" hx-swap="outerHTML">
@@ -304,7 +320,7 @@
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    <td class="px-4 py-2" colspan="5">
+    <td class="px-4 py-2" colspan="6">
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/wiedereintritt"
               hx-target="closest tr" hx-swap="outerHTML">
@@ -334,6 +350,27 @@
 </tr>
 {{end}}
 
+{{/* statuskennzeichen rendert den abgelesenen Lebenszyklus-Zustand. Wie beim
+     Rückstandskennzeichen stehen die Farben hier und die Worte im Service:
+     Tailwind findet nur, was im Template steht, und die Beschriftung soll in
+     allen Ansichten dieselbe sein.
+
+     Gefragt wird über Methoden und nicht über einen Textvergleich —
+     html/template kennt die Go-Konstanten nicht, wohl aber s.Ausgetreten und
+     seine Geschwister. Geprüft wird vom Ende des Lebenszyklus her, in derselben
+     Reihenfolge wie in statusAus.
+
+     Ausgetreten bleibt grau: die Zeile ist Archiv, kein Fall zum Abarbeiten. In
+     Kündigungsfrist ist gelb, weil dort etwas ausläuft, worum man sich kümmern
+     kann. Die Daten sind ein service.Status. */}}
+{{define "statuskennzeichen"}}
+<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium
+             {{if .Ausgetreten}}border-neutral-300 bg-neutral-100 text-neutral-600
+             {{else if .InKuendigungsfrist}}border-amber-600/30 bg-amber-50 text-amber-800
+             {{else if .Neu}}border-indigo-700/30 bg-indigo-50 text-indigo-800
+             {{else}}border-green-700/30 bg-green-50 text-green-800{{end}}">{{.Bezeichnung}}</span>
+{{end}}
+
 {{/* rueckstandskennzeichen rendert das zweiwertige Kennzeichen: grün für in
      Ordnung, rot für im Rückstand. Einen neutralen dritten Zustand gibt es
      nicht — bei Lastschrifteinzug heißt "keine Rückgabe" tatsächlich "gezahlt"
@@ -358,7 +395,7 @@
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input[name=notiz]').focus()">
     <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
-    <td class="px-4 py-2" colspan="5">
+    <td class="px-4 py-2" colspan="6">
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.MitgliedID}}/rueckstand"
               hx-target="closest tr" hx-swap="outerHTML">
