@@ -212,8 +212,8 @@ func TestRejoin_NeueMitgliedschaftBekommtEigenenBeitrag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := svc.MarkExit(id, datum(t, "2021-12-31")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2021-12-31"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 	if err := svc.Rejoin(id, datum(t, "2026-02-01")); err != nil {
 		t.Fatalf("Rejoin: %v", err)
@@ -256,8 +256,8 @@ func TestUpdate_AendertDenBeitragAuchBeiEinemEhemaligenMitglied(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Olaf", "Vogel")
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	if err := svc.Update(id, service.MitgliedPatch{BeitragCents: zeiger(int64(4000))}); err != nil {

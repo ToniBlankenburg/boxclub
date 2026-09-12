@@ -45,7 +45,7 @@ go test ./service/... -run TestMemberService_Create
 **SQLite schema (three tables):** nothing is seeded — a fresh database is empty.
 
 - `mitglied(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon, iban, geschlecht, google_bewertung, digital, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries. The postal address is three separate columns (`adresse` is street + house number) — see `CONTEXT.md` → Anschrift
-- `mitgliedschaft(id, mitglied_id, anmeldedatum NULL, eintritt, austritt NULL, anmeldegebuehr_cents, beitrag_monatlich_cents)` — time-bound membership period; `austritt IS NULL` means currently active. `anmeldedatum` is the day the application was handed in and usually precedes `eintritt`; it is **not** the same day (see `CONTEXT.md` → Anmeldedatum)
+- `mitgliedschaft(id, mitglied_id, anmeldedatum NULL, eintritt, kuendigungsdatum NULL, austritt NULL, anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend)` — time-bound membership period; `austritt IS NULL` means currently active. `anmeldedatum` is the day the application was handed in and usually precedes `eintritt`; it is **not** the same day (see `CONTEXT.md` → Anmeldedatum)
 - `trainingsslot(id, mitgliedschaft_id, bezeichnung)` — zero to three weekly training slots per **membership**; `bezeichnung` is free text (weekday + time)
 
 The **Trainingsfrequenz** (1×/2×/3× per week) is never stored: it is the number of a membership's training slots, derived on every read — zero slots mean "no frequency", not "1×". A rejoin starts with no slots; the old membership keeps its own (see `CONTEXT.md` → Trainingsslot).
@@ -55,6 +55,10 @@ The **Trainingsfrequenz** (1×/2×/3× per week) is never stored: it is the numb
 The **Anmeldegebühr** is a one-off historical value in cents: it records what was actually paid at the time and is never recalculated. Like the fee it hangs on the membership, so a rejoin does not carry it over — a new period starts with neither Anmeldedatum nor Anmeldegebühr, just as it starts without training slots.
 
 The monthly fee hangs on the **membership**, not on the person, and is individually agreed — there are no fee classes (see ADR-0005). 0 € is a valid fee, not a missing one. Euro input is converted to cents in `service.BeitragAusEuro`; there is no migration mechanism, so a schema change means deleting the dev database.
+
+A **Kündigung** is recorded as two dates on the membership: `kuendigungsdatum` (the day it was declared) and `austritt` (the day it takes effect). The second is **never derived** from the first — cancellation periods have too many special cases — and either may be absent: a declared cancellation without a date yet, or a historical exit whose declaration day nobody wrote down. `austritt` may lie in the future; that is the normal case during the Kündigungsfrist. Both are written together in `MemberService.SetKuendigung`, which replaces both columns at once.
+
+`ruhend` hangs on the **membership**, because only a running period can be suspended (`MemberService.SetRuhend`, `ErrNichtAktiv` otherwise). It is a flag beside the lifecycle, not a state in it — a suspended member is an active one nobody collects from. It is independent of the Rückstand: no direct debit goes out for a suspended member, so no *new* arrears can arise, but an existing one stays.
 
 The club collects by SEPA direct debit, so there is no payment status to track — only **Rückstand**: a two-valued flag (`in Ordnung` / `im Rückstand`) plus a free-text note, both hand-maintained and both on the **person**, so an exit does not clear a debt (see ADR-0006). There is no neutral third state, and no payment history in v1.
 

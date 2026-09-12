@@ -13,14 +13,14 @@ import (
 // über die Service-API — dass zwei Mitgliedschaften entstanden sind, zeigt Get,
 // nicht ein Blick in die Tabelle.
 
-func TestMarkExit_BeendetDieLaufendeMitgliedschaft(t *testing.T) {
+func TestSetKuendigung_BeendetDieLaufendeMitgliedschaft(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
 	austritt := datum(t, "2026-06-30")
 
-	if err := svc.MarkExit(id, austritt); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(austritt)); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	m, err := svc.Get(id)
@@ -41,12 +41,12 @@ func TestMarkExit_BeendetDieLaufendeMitgliedschaft(t *testing.T) {
 
 // Der Sinn des Austritts aus Sicht des Nutzers: die Liste wird wieder übersichtlich,
 // ohne dass der Datensatz verloren geht.
-func TestMarkExit_NimmtDasMitgliedAusDerStandardansicht(t *testing.T) {
+func TestSetKuendigung_NimmtDasMitgliedAusDerStandardansicht(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	liste, err := svc.List()
@@ -102,8 +102,8 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 	}
 
 	austritt := datum(t, "2026-06-30")
-	if err := svc.MarkExit(id, austritt); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(austritt)); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	wiedereintritt := datum(t, "2026-09-01")
@@ -165,19 +165,19 @@ func TestRejoin_LegtNeueMitgliedschaftAmSelbenMitgliedAn(t *testing.T) {
 // Zweimal austreten geht nicht: nach dem ersten Austritt gibt es keinen
 // laufenden Zeitraum mehr, den ein zweiter beenden könnte. Das stillschweigend
 // durchzuwinken würde das erste Austrittsdatum überschreiben.
-func TestMarkExit_ZweimalIstEinFehler(t *testing.T) {
+func TestSetKuendigung_ZweimalAustretenIstEinFehler(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
 	austritt := datum(t, "2026-06-30")
 
-	if err := svc.MarkExit(id, austritt); err != nil {
-		t.Fatalf("erster MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(austritt)); err != nil {
+		t.Fatalf("erste SetKuendigung: %v", err)
 	}
 
-	err := svc.MarkExit(id, datum(t, "2026-07-31"))
+	err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-07-31")))
 	if !errors.Is(err, service.ErrNichtAktiv) {
-		t.Fatalf("zweiter MarkExit = %v, erwartet ErrNichtAktiv", err)
+		t.Fatalf("zweite SetKuendigung = %v, erwartet ErrNichtAktiv", err)
 	}
 
 	// Und das erste Austrittsdatum steht unverändert.
@@ -217,17 +217,17 @@ func TestRejoin_AufAktivesMitgliedIstEinFehler(t *testing.T) {
 
 // Ein Austritt vor dem Eintritt ergäbe einen Zeitraum negativer Länge. Das ist
 // immer ein Tippfehler und wird abgelehnt, statt still gespeichert zu werden.
-func TestMarkExit_VorDemEintrittIstEinFehler(t *testing.T) {
+func TestSetKuendigung_VorDemEintrittIstEinFehler(t *testing.T) {
 	svc := neuerService(t)
 
 	// mitgliedAnlegen setzt den Eintritt auf den 05.01.2026.
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
 
-	err := svc.MarkExit(id, datum(t, "2026-01-04"))
+	err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-01-04")))
 
 	var validierung *service.ValidierungsFehler
 	if !errors.As(err, &validierung) {
-		t.Fatalf("MarkExit = %v, erwartet einen ValidierungsFehler", err)
+		t.Fatalf("SetKuendigung = %v, erwartet einen ValidierungsFehler", err)
 	}
 	if len(validierung.Meldungen) == 0 {
 		t.Error("ValidierungsFehler ohne Meldung — das Formular hätte nichts anzuzeigen")
@@ -244,14 +244,14 @@ func TestMarkExit_VorDemEintrittIstEinFehler(t *testing.T) {
 
 // Der Eintrittstag selbst ist erlaubt: wer am Tag der Anmeldung wieder abspringt,
 // hat einen Zeitraum von einem Tag — ungewöhnlich, aber kein Fehler.
-func TestMarkExit_AmEintrittstagIstErlaubt(t *testing.T) {
+func TestSetKuendigung_AmEintrittstagIstErlaubt(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
 	eintritt := datum(t, "2026-01-05")
 
-	if err := svc.MarkExit(id, eintritt); err != nil {
-		t.Fatalf("MarkExit am Eintrittstag: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(eintritt)); err != nil {
+		t.Fatalf("SetKuendigung am Eintrittstag: %v", err)
 	}
 
 	m, err := svc.Get(id)
@@ -263,21 +263,19 @@ func TestMarkExit_AmEintrittstagIstErlaubt(t *testing.T) {
 	}
 }
 
-// Ohne Datum gibt es keinen Zeitraum. Die Regel liegt hier und nicht im
-// Formular, damit sie nur an einer Stelle steht.
-func TestAusUndWiedereintritt_OhneDatumIstEinFehler(t *testing.T) {
+// Ohne Datum gibt es keinen Zeitraum: ein Wiedereintritt braucht den Tag, an
+// dem er beginnt. Die Regel liegt hier und nicht im Formular, damit sie nur an
+// einer Stelle steht. Das Gegenstück für die Kündigung steht in
+// kuendigung_test.go — dort sind es zwei Daten, von denen eines genügt.
+func TestRejoin_OhneDatumIstEinFehler(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
 
 	var validierung *service.ValidierungsFehler
 
-	if err := svc.MarkExit(id, time.Time{}); !errors.As(err, &validierung) {
-		t.Errorf("MarkExit ohne Datum = %v, erwartet einen ValidierungsFehler", err)
-	}
-
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	if err := svc.Rejoin(id, time.Time{}); !errors.As(err, &validierung) {
@@ -291,8 +289,8 @@ func TestRejoin_VorDemLetztenAustrittIstEinFehler(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	err := svc.Rejoin(id, datum(t, "2026-06-29"))
@@ -316,8 +314,8 @@ func TestRejoin_VorDemLetztenAustrittIstEinFehler(t *testing.T) {
 func TestAusUndWiedereintritt_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
 	svc := neuerService(t)
 
-	if err := svc.MarkExit(4711, datum(t, "2026-06-30")); !errors.Is(err, service.ErrNichtGefunden) {
-		t.Errorf("MarkExit(4711) = %v, erwartet ErrNichtGefunden", err)
+	if err := svc.SetKuendigung(4711, austrittZum(datum(t, "2026-06-30"))); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Errorf("SetKuendigung(4711) = %v, erwartet ErrNichtGefunden", err)
 	}
 	if err := svc.Rejoin(4711, datum(t, "2026-09-01")); !errors.Is(err, service.ErrNichtGefunden) {
 		t.Errorf("Rejoin(4711) = %v, erwartet ErrNichtGefunden", err)
@@ -345,8 +343,8 @@ func TestLetzteMitgliedschaft_FolgtDemLebenszyklus(t *testing.T) {
 	}
 
 	// Ausgetreten: der zuletzt beendete Zeitraum bleibt der maßgebliche.
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 	if m, err = svc.Get(id); err != nil {
 		t.Fatalf("Get nach dem Austritt: %v", err)

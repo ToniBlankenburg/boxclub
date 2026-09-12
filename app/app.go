@@ -53,8 +53,9 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/mitglied/{id}/zeile", a.mitgliedZeile)
 	mux.HandleFunc("GET /api/mitglied/{id}/rueckstand", a.rueckstandFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/rueckstand", a.rueckstandSpeichern)
-	mux.HandleFunc("GET /api/mitglied/{id}/austritt", a.austrittFormular)
-	mux.HandleFunc("POST /api/mitglied/{id}/austritt", a.austrittEintragen)
+	mux.HandleFunc("GET /api/mitglied/{id}/kuendigung", a.kuendigungFormular)
+	mux.HandleFunc("POST /api/mitglied/{id}/kuendigung", a.kuendigungEintragen)
+	mux.HandleFunc("POST /api/mitglied/{id}/ruhend", a.ruhendSchalten)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
 
@@ -570,6 +571,13 @@ func (a *App) zeileLesen(w http.ResponseWriter, r *http.Request) (service.Listen
 		return service.Listeneintrag{}, false
 	}
 
+	return a.zeileLesenZuID(w, id)
+}
+
+// zeileLesenZuID ist dasselbe zur bereits bekannten ID — der Weg, den die
+// Fehlerpfade nehmen: wer dorthin kommt, hat die ID schon aus dem Pfad gelesen
+// und will sie nicht ein zweites Mal holen.
+func (a *App) zeileLesenZuID(w http.ResponseWriter, id int64) (service.Listeneintrag, bool) {
 	eintrag, err := a.svc.Eintrag(id)
 	if err != nil {
 		a.zeileNichtGefundenOderFehler(w, err)
@@ -614,53 +622,60 @@ func (a *App) rueckstandSpeichern(w http.ResponseWriter, r *http.Request) {
 	a.rendern(w, "mitglied-zeile", eintrag)
 }
 
-// mitgliedschaftDaten speist die Zeile, in der ein Aus- oder Wiedereintritt
-// datiert wird. Beide teilen sich Formular und Handler; welche der beiden
-// Aktionen gemeint ist, entscheidet allein Wiedereintritt.
-type mitgliedschaftDaten struct {
-	Eintrag        service.Listeneintrag
-	Wiedereintritt bool
-	Datum          string
-	Fehler         []string
+// kuendigungDaten speist die Zeile, in der eine Kündigung erfasst wird: zwei
+// Datumsfelder nebeneinander — der Tag der Kündigung und der Tag, zu dem der
+// Austritt wirksam wird.
+type kuendigungDaten struct {
+	Eintrag          service.Listeneintrag
+	Kuendigungsdatum string
+	Austritt         string
+	Fehler           []string
+}
+
+// wiedereintrittDaten speist die Zeile, in der ein Wiedereintritt datiert wird.
+// Hier genügt ein Datum: ein Eintritt beginnt einen Zeitraum, er beendet keinen.
+type wiedereintrittDaten struct {
+	Eintrag service.Listeneintrag
+	Datum   string
+	Fehler  []string
 }
 
 // Die Aktion steht in der Route und nicht im abgeschickten Formular: so trifft
 // ein Klick aus einer veralteten Ansicht auf den Fehler des Service
 // (ErrNichtAktiv bzw. ErrBereitsAktiv), statt still das Gegenteil zu tun.
-func (a *App) austrittFormular(w http.ResponseWriter, r *http.Request) {
-	a.mitgliedschaftFormular(w, r, false)
-}
-
-func (a *App) wiedereintrittFormular(w http.ResponseWriter, r *http.Request) {
-	a.mitgliedschaftFormular(w, r, true)
-}
-
-func (a *App) austrittEintragen(w http.ResponseWriter, r *http.Request) {
-	a.mitgliedschaftAendern(w, r, false)
-}
-
-func (a *App) wiedereintrittEintragen(w http.ResponseWriter, r *http.Request) {
-	a.mitgliedschaftAendern(w, r, true)
-}
-
-// mitgliedschaftFormular tauscht die Zeile gegen die Datumseingabe. Vorbelegt
-// ist der heutige Tag — der häufigste Fall ist "ab sofort".
-func (a *App) mitgliedschaftFormular(w http.ResponseWriter, r *http.Request, wiedereintritt bool) {
+func (a *App) kuendigungFormular(w http.ResponseWriter, r *http.Request) {
 	eintrag, ok := a.zeileLesen(w, r)
 	if !ok {
 		return
 	}
 
-	a.rendern(w, "mitglied-mitgliedschaft-formular", mitgliedschaftDaten{
-		Eintrag:        eintrag,
-		Wiedereintritt: wiedereintritt,
-		Datum:          time.Now().Format(isoDatum),
-	})
+	a.rendern(w, "mitglied-kuendigung-formular", kuendigungsformular(eintrag, nil))
 }
 
-// mitgliedschaftAendern trägt den Aus- bzw. Wiedereintritt ein. Ob das Datum
-// fachlich zulässig ist, entscheidet der Service; hier wird es nur geparst.
-func (a *App) mitgliedschaftAendern(w http.ResponseWriter, r *http.Request, wiedereintritt bool) {
+// kuendigungsformular belegt die Eingabe vor: das Kündigungsdatum mit dem
+// bereits erfassten, sonst mit dem heutigen Tag — gekündigt wird meist an dem
+// Tag, an dem man es einträgt.
+//
+// Das Austrittsfeld bleibt dagegen leer. Es wird ausdrücklich nicht aus dem
+// Kündigungsdatum errechnet: Fristen haben Sonderfälle (Kulanz,
+// Aufhebungsvertrag, Quartalsende), und ein errechnetes Datum, das man
+// überschreiben muss, ist lästiger als ein leeres Feld.
+func kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendigungDaten {
+	kuendigungsdatum := isoDatumsWert(eintrag.Kuendigungsdatum)
+	if kuendigungsdatum == "" {
+		kuendigungsdatum = time.Now().Format(isoDatum)
+	}
+
+	return kuendigungDaten{
+		Eintrag:          eintrag,
+		Kuendigungsdatum: kuendigungsdatum,
+		Fehler:           fehler,
+	}
+}
+
+// kuendigungEintragen erfasst die Kündigung. Welche Datumsangaben fachlich
+// zulässig sind, entscheidet der Service; hier werden sie nur gelesen.
+func (a *App) kuendigungEintragen(w http.ResponseWriter, r *http.Request) {
 	id, ok := mitgliedID(w, r)
 	if !ok {
 		return
@@ -671,23 +686,16 @@ func (a *App) mitgliedschaftAendern(w http.ResponseWriter, r *http.Request, wied
 		return
 	}
 
-	roh := r.FormValue("datum")
-
-	d, err := time.Parse(isoDatum, roh)
-	if err != nil {
-		a.mitgliedschaftFormularMitFehler(w, id, wiedereintritt, []string{"Das ist kein gültiges Datum."})
+	k, fehler := kuendigungLesen(r)
+	if len(fehler) > 0 {
+		a.kuendigungFormularMitFehler(w, id, fehler)
 		return
 	}
 
-	if wiedereintritt {
-		err = a.svc.Rejoin(id, d)
-	} else {
-		err = a.svc.MarkExit(id, d)
-	}
-	if err != nil {
+	if err := a.svc.SetKuendigung(id, k); err != nil {
 		var validierung *service.ValidierungsFehler
 		if errors.As(err, &validierung) {
-			a.mitgliedschaftFormularMitFehler(w, id, wiedereintritt, validierung.Meldungen)
+			a.kuendigungFormularMitFehler(w, id, validierung.Meldungen)
 			return
 		}
 
@@ -701,38 +709,166 @@ func (a *App) mitgliedschaftAendern(w http.ResponseWriter, r *http.Request, wied
 		return
 	}
 
-	// Nach dem Austritt ist die Zeile nicht mehr der richtige Platz für die
-	// Antwort: in der Standardansicht gibt es sie gar nicht mehr. Deshalb kommt
-	// die ganze Liste zurück — und sagt zugleich, wo das Mitglied jetzt steht.
-	text := fmt.Sprintf("%s %s ist zum %s ausgetreten und steht jetzt unter »Auch Ehemalige«.",
-		eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))
-	if wiedereintritt {
-		text = fmt.Sprintf("%s %s ist zum %s wieder eingetreten.",
-			eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))
-	}
-
-	aufListeUmleiten(w)
-	a.listeRendern(w, meldung{Text: text})
-}
-
-// mitgliedschaftFormularMitFehler zeigt die Datumseingabe erneut, mitsamt den
-// Meldungen des Service.
-//
-// Der abgelehnte Rohwert wird bewusst nicht zurückgereicht: <input type="date">
-// zeigt einen Wert, der kein Datum ist, ohnehin nicht an — das Feld beginnt
-// deshalb wieder beim heutigen Tag.
-func (a *App) mitgliedschaftFormularMitFehler(w http.ResponseWriter, id int64, wiedereintritt bool, fehler []string) {
-	eintrag, err := a.svc.Eintrag(id)
-	if err != nil {
-		a.zeileNichtGefundenOderFehler(w, err)
+	// Ohne Austrittsdatum endet nichts: das Mitglied bleibt, wo es ist, und die
+	// Zeile kommt mit dem Kündigungsvermerk zurück.
+	if k.Austritt == nil {
+		a.rendern(w, "mitglied-zeile", eintrag)
 		return
 	}
 
-	a.rendern(w, "mitglied-mitgliedschaft-formular", mitgliedschaftDaten{
-		Eintrag:        eintrag,
-		Wiedereintritt: wiedereintritt,
-		Datum:          time.Now().Format(isoDatum),
-		Fehler:         fehler,
+	// Mit Austrittsdatum ist die Zeile nicht mehr der richtige Platz für die
+	// Antwort: in der Standardansicht gibt es sie nicht mehr. Deshalb kommt die
+	// ganze Liste zurück — und sagt zugleich, wo das Mitglied jetzt steht.
+	aufListeUmleiten(w)
+	a.listeRendern(w, meldung{Text: fmt.Sprintf(
+		"Für %s %s ist der Austritt zum %s erfasst; die Zeile steht jetzt unter »Auch Ehemalige«.",
+		eintrag.Vorname, eintrag.Nachname, datumAnzeige(*k.Austritt))})
+}
+
+// kuendigungLesen sammelt die beiden Datumsfelder ein. Ein leeres Feld heißt
+// "nicht erfasst" — unlesbar ist deshalb nur, was gefüllt und trotzdem kein
+// Datum ist. Ob auch beide zugleich leer bleiben dürfen, entscheidet der
+// Service; diese Regel steht nur dort.
+func kuendigungLesen(r *http.Request) (service.Kuendigung, []string) {
+	var (
+		k      service.Kuendigung
+		fehler []string
+	)
+
+	if roh := r.FormValue("kuendigungsdatum"); roh != "" {
+		d, err := time.Parse(isoDatum, roh)
+		if err != nil {
+			fehler = append(fehler, "Kündigungsdatum ist kein gültiges Datum.")
+		} else {
+			k.Datum = &d
+		}
+	}
+
+	if roh := r.FormValue("austritt"); roh != "" {
+		d, err := time.Parse(isoDatum, roh)
+		if err != nil {
+			fehler = append(fehler, "Austrittsdatum ist kein gültiges Datum.")
+		} else {
+			k.Austritt = &d
+		}
+	}
+
+	return k, fehler
+}
+
+// kuendigungFormularMitFehler zeigt die Eingabe erneut, mitsamt den Meldungen
+// des Service.
+//
+// Die abgelehnten Rohwerte werden bewusst nicht zurückgereicht: <input
+// type="date"> zeigt einen Wert, der kein Datum ist, ohnehin nicht an — die
+// Felder beginnen deshalb wieder bei ihrer Vorbelegung.
+func (a *App) kuendigungFormularMitFehler(w http.ResponseWriter, id int64, fehler []string) {
+	eintrag, ok := a.zeileLesenZuID(w, id)
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglied-kuendigung-formular", kuendigungsformular(eintrag, fehler))
+}
+
+// ruhendSchalten setzt das Ruhend-Kennzeichen oder nimmt es zurück und antwortet
+// mit der aktualisierten Zeile. Ein Formular braucht das nicht: die Zeile zeigt
+// den aktuellen Wert, die Schaltfläche schickt den gewünschten mit.
+func (a *App) ruhendSchalten(w http.ResponseWriter, r *http.Request) {
+	id, ok := mitgliedID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	if err := a.svc.SetRuhend(id, r.FormValue("ruhend") != ""); err != nil {
+		a.veralteteAnsichtOderFehler(w, err)
+		return
+	}
+
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.veralteteAnsichtOderFehler(w, err)
+		return
+	}
+
+	a.rendern(w, "mitglied-zeile", eintrag)
+}
+
+// wiedereintrittFormular tauscht die Zeile gegen die Datumseingabe. Vorbelegt
+// ist der heutige Tag — der häufigste Fall ist "ab sofort".
+func (a *App) wiedereintrittFormular(w http.ResponseWriter, r *http.Request) {
+	eintrag, ok := a.zeileLesen(w, r)
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglied-wiedereintritt-formular", wiedereintrittDaten{
+		Eintrag: eintrag,
+		Datum:   time.Now().Format(isoDatum),
+	})
+}
+
+// wiedereintrittEintragen eröffnet den neuen Zeitraum. Ob das Datum fachlich
+// zulässig ist, entscheidet der Service; hier wird es nur geparst.
+func (a *App) wiedereintrittEintragen(w http.ResponseWriter, r *http.Request) {
+	id, ok := mitgliedID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	d, err := time.Parse(isoDatum, r.FormValue("datum"))
+	if err != nil {
+		a.wiedereintrittFormularMitFehler(w, id, []string{"Das ist kein gültiges Datum."})
+		return
+	}
+
+	if err := a.svc.Rejoin(id, d); err != nil {
+		var validierung *service.ValidierungsFehler
+		if errors.As(err, &validierung) {
+			a.wiedereintrittFormularMitFehler(w, id, validierung.Meldungen)
+			return
+		}
+
+		a.veralteteAnsichtOderFehler(w, err)
+		return
+	}
+
+	eintrag, err := a.svc.Eintrag(id)
+	if err != nil {
+		a.veralteteAnsichtOderFehler(w, err)
+		return
+	}
+
+	// Die Zeile stand unter »Auch Ehemalige« und gehört jetzt woandershin —
+	// deshalb antwortet auch hier die ganze Liste.
+	aufListeUmleiten(w)
+	a.listeRendern(w, meldung{Text: fmt.Sprintf("%s %s ist zum %s wieder eingetreten.",
+		eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))})
+}
+
+// wiedereintrittFormularMitFehler zeigt die Datumseingabe erneut, mitsamt den
+// Meldungen des Service — wie beim Kündigungsformular ohne den abgelehnten
+// Rohwert.
+func (a *App) wiedereintrittFormularMitFehler(w http.ResponseWriter, id int64, fehler []string) {
+	eintrag, ok := a.zeileLesenZuID(w, id)
+	if !ok {
+		return
+	}
+
+	a.rendern(w, "mitglied-wiedereintritt-formular", wiedereintrittDaten{
+		Eintrag: eintrag,
+		Datum:   time.Now().Format(isoDatum),
+		Fehler:  fehler,
 	})
 }
 

@@ -142,6 +142,22 @@
             <span class="ml-1.5 rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
                 ausgetreten {{datum .Austritt}}
             </span>
+        {{else if .Kuendigungsdatum}}
+            {{/* Eine Kündigung ohne Termin wäre sonst unsichtbar: die Zeile sähe
+                 aus wie jede andere aktive. Steht der Austritt fest, sagt das
+                 Kennzeichen daneben schon alles. */}}
+            <span class="ml-1.5 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                gekündigt {{datum .Kuendigungsdatum}}
+            </span>
+        {{end}}
+        {{/* Ruhend steht neben dem Lebenszyklus und nicht in ihm: ein ruhendes
+             Mitglied ist ein aktives, von dem gerade nichts eingezogen wird
+             (CONTEXT.md → Ruhend). */}}
+        {{if .Ruhend}}
+            <span class="ml-1.5 rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
+                  title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter">
+                ruhend
+            </span>
         {{end}}
     </td>
     {{/* Zweizeilig — Straße oben, Postleitzahl und Ort darunter —, damit die
@@ -197,45 +213,71 @@
              der Klick nicht das Bearbeitungsformular öffnet. */}}
         <div class="flex items-center justify-between gap-3">
             {{datum .Eintritt}}
-            {{/* Ein Austrittsdatum heißt: ehemalig. Dann ist Wiedereintritt die
-                 Aktion, und nur dann — ein aktives Mitglied kann nicht erneut eintreten. */}}
-            <button type="button"
-                    class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
-                    aria-label="{{if .Austritt}}Wiedereintritt für{{else}}Austritt eintragen für{{end}} {{.Vorname}} {{.Nachname}}"
-                    hx-get="/api/mitglied/{{.MitgliedID}}/{{if .Austritt}}wiedereintritt{{else}}austritt{{end}}"
-                    hx-target="closest tr" hx-swap="outerHTML"
-                    hx-on:click="event.stopPropagation()"
-                    hx-on:keyup="event.stopPropagation()">
-                {{if .Austritt}}Wiedereintritt{{else}}Austritt{{end}}
-            </button>
+            <div class="flex flex-wrap justify-end gap-1">
+                {{/* Ein Austrittsdatum heißt: ehemalig. Dann ist Wiedereintritt die
+                     Aktion, und nur dann — ein aktives Mitglied kann nicht erneut eintreten. */}}
+                <button type="button"
+                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                        aria-label="{{if .Austritt}}Wiedereintritt für{{else}}Kündigung erfassen für{{end}} {{.Vorname}} {{.Nachname}}"
+                        hx-get="/api/mitglied/{{.MitgliedID}}/{{if .Austritt}}wiedereintritt{{else}}kuendigung{{end}}"
+                        hx-target="closest tr" hx-swap="outerHTML"
+                        hx-on:click="event.stopPropagation()"
+                        hx-on:keyup="event.stopPropagation()">
+                    {{if .Austritt}}Wiedereintritt{{else}}Kündigung{{end}}
+                </button>
+                {{/* Ruhend schalten lässt sich nur, was läuft — bei einem Ehemaligen
+                     gibt es keinen Einzug, den man aussetzen könnte. Die
+                     Schaltfläche schickt den gewünschten Wert mit, nicht den
+                     aktuellen: so tut ein Klick aus einer veralteten Ansicht
+                     nicht das Gegenteil. */}}
+                {{if not .Austritt}}
+                    <button type="button"
+                            class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                            aria-label="{{.Vorname}} {{.Nachname}} {{if .Ruhend}}wieder aktiv setzen{{else}}ruhend schalten{{end}}"
+                            hx-post="/api/mitglied/{{.MitgliedID}}/ruhend{{if not .Ruhend}}?ruhend=1{{end}}"
+                            hx-target="closest tr" hx-swap="outerHTML"
+                            hx-on:click="event.stopPropagation()"
+                            hx-on:keyup="event.stopPropagation()">
+                        {{if .Ruhend}}Aktiv setzen{{else}}Ruhend{{end}}
+                    </button>
+                {{end}}
+            </div>
         </div>
     </td>
 </tr>
 {{end}}
 
-{{/* mitglied-mitgliedschaft-formular ersetzt eine Zeile durch die Datumseingabe
-     für Aus- oder Wiedereintritt. Beide Fälle teilen sich das Formular; welcher
-     gemeint ist, sagt .Wiedereintritt. Die Daten sind mitgliedschaftDaten.
+{{/* mitglied-kuendigung-formular ersetzt eine Zeile durch die Erfassung der
+     Kündigung: zwei Datumsfelder nebeneinander. Die Daten sind kuendigungDaten.
 
-     Anders als beim Rückstand kommt hier nicht die Zeile zurück, sondern die
-     ganze Liste: nach einem Austritt gibt es die Zeile in der Standardansicht
-     nicht mehr. Das Ziel dafür setzt die Antwort selbst (HX-Retarget). */}}
-{{define "mitglied-mitgliedschaft-formular"}}
+     Das Austrittsfeld ist leer und nicht vorbelegt — das Datum wird nicht aus
+     der Frist errechnet (siehe kuendigungsformular). Es darf auch leer bleiben:
+     dann liegt die Kündigung vor und der Termin ist noch offen.
+
+     Zurück kommt je nach Eingabe die Zeile oder die ganze Liste: mit
+     Austrittsdatum gibt es die Zeile in der Standardansicht nicht mehr. Das Ziel
+     dafür setzt die Antwort selbst (HX-Retarget). */}}
+{{define "mitglied-kuendigung-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
     <td class="px-4 py-2" colspan="5">
         <form class="flex flex-wrap items-center gap-2"
-              hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/{{if .Wiedereintritt}}wiedereintritt{{else}}austritt{{end}}"
+              hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/kuendigung"
               hx-target="closest tr" hx-swap="outerHTML">
             <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">{{if .Wiedereintritt}}Wiedereintritt zum{{else}}Austritt zum{{end}}</span>
-                <input name="datum" type="date" value="{{.Datum}}" required
+                <span class="text-sm text-neutral-600">Gekündigt am</span>
+                <input name="kuendigungsdatum" type="date" value="{{.Kuendigungsdatum}}"
+                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            </label>
+            <label class="flex items-center gap-2">
+                <span class="text-sm text-neutral-600">Austritt zum</span>
+                <input name="austritt" type="date" value="{{.Austritt}}"
                        class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
             </label>
             <button type="submit"
                     class="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
-                {{if .Wiedereintritt}}Wieder eintreten{{else}}Austritt eintragen{{end}}
+                Kündigung erfassen
             </button>
             <button type="button"
                     class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
@@ -244,11 +286,45 @@
                 Abbrechen
             </button>
             <span class="text-sm text-neutral-500">
-                {{if .Wiedereintritt}}
-                    Es entsteht eine neue Mitgliedschaft; Stammdaten und Historie bleiben erhalten.
-                {{else}}
-                    Der Datensatz bleibt erhalten — das Mitglied steht danach unter »Auch Ehemalige«.
-                {{end}}
+                Steht der Termin noch nicht fest, bleibt das Austrittsfeld leer —
+                bis dahin trainiert und zahlt das Mitglied weiter.
+            </span>
+            {{range .Fehler}}
+                <span class="text-sm text-red-800" role="alert">{{.}}</span>
+            {{end}}
+        </form>
+    </td>
+</tr>
+{{end}}
+
+{{/* mitglied-wiedereintritt-formular ersetzt eine Zeile durch die Datumseingabe
+     für den Wiedereintritt. Hier genügt ein Datum: ein Eintritt beginnt einen
+     Zeitraum, er beendet keinen. Die Daten sind wiedereintrittDaten. */}}
+{{define "mitglied-wiedereintritt-formular"}}
+<tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
+    hx-on::load="this.querySelector('input').focus()">
+    <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
+    <td class="px-4 py-2" colspan="5">
+        <form class="flex flex-wrap items-center gap-2"
+              hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/wiedereintritt"
+              hx-target="closest tr" hx-swap="outerHTML">
+            <label class="flex items-center gap-2">
+                <span class="text-sm text-neutral-600">Wiedereintritt zum</span>
+                <input name="datum" type="date" value="{{.Datum}}" required
+                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            </label>
+            <button type="submit"
+                    class="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                Wieder eintreten
+            </button>
+            <button type="button"
+                    class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
+                    hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/zeile"
+                    hx-target="closest tr" hx-swap="outerHTML">
+                Abbrechen
+            </button>
+            <span class="text-sm text-neutral-500">
+                Es entsteht eine neue Mitgliedschaft; Stammdaten und Historie bleiben erhalten.
             </span>
             {{range .Fehler}}
                 <span class="text-sm text-red-800" role="alert">{{.}}</span>

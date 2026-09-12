@@ -75,7 +75,25 @@ type Mitgliedschaft struct {
 	ID         int64
 	MitgliedID int64
 	Eintritt   time.Time
-	Austritt   *time.Time
+
+	// Kuendigungsdatum ist der Tag, an dem gekündigt wurde; nil heißt "keine
+	// Kündigung erfasst". Es steht neben dem Austritt und nicht in ihm, weil es
+	// etwas anderes tut: es hält einen Vorgang fest, während der Austritt den
+	// Zeitraum begrenzt. Erfasst werden beide zusammen (siehe Kuendigung).
+	Kuendigungsdatum *time.Time
+
+	Austritt *time.Time
+
+	// Ruhend sagt, dass das Mitglied vorübergehend nicht trainiert (Verletzung,
+	// Auslandsaufenthalt) und für diese Zeit kein Beitrag eingezogen wird. Die
+	// Mitgliedschaft läuft weiter — ruhend ist kein Austritt und auch kein
+	// Lebenszyklus-Zustand, sondern ein Merkmal daneben (CONTEXT.md → Ruhend).
+	//
+	// Es hängt an der Mitgliedschaft und nicht am Mitglied, weil sich nur
+	// ruhend schalten lässt, was läuft. Zum Rückstand ist es unabhängig: für ein
+	// ruhendes Mitglied geht keine Lastschrift los, es kann also kein neuer
+	// Rückstand entstehen — ein bestehender bleibt aber stehen.
+	Ruhend bool
 
 	// BeitragCents ist der monatliche Beitrag in Cent. 0 ist ein gültiger
 	// Betrag — Trainer zahlen nichts — und keine fehlende Angabe.
@@ -288,9 +306,11 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft (
 	mitglied_id             INTEGER NOT NULL REFERENCES mitglied(id) ON DELETE CASCADE,
 	anmeldedatum            TEXT,
 	eintritt                TEXT    NOT NULL,
+	kuendigungsdatum        TEXT,
 	austritt                TEXT,
 	anmeldegebuehr_cents    INTEGER NOT NULL DEFAULT 0,
-	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0
+	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0,
+	ruhend                  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_mitglied ON mitgliedschaft(mitglied_id);
@@ -800,8 +820,8 @@ func (s *MemberService) trainingsslotsLesen(mitgliedschaftIDs []int64) (map[int6
 
 func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, error) {
 	rows, err := s.db.Query(
-		`SELECT id, mitglied_id, anmeldedatum, eintritt, austritt,
-		 	anmeldegebuehr_cents, beitrag_monatlich_cents
+		`SELECT id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
+		 	anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend
 		 FROM mitgliedschaft WHERE mitglied_id = ?
 		 ORDER BY eintritt, id`, mitgliedID)
 	if err != nil {
@@ -812,13 +832,14 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 	var alle []Mitgliedschaft
 	for rows.Next() {
 		var (
-			ms           Mitgliedschaft
-			anmeldedatum sql.NullString
-			eintritt     string
-			austritt     sql.NullString
+			ms               Mitgliedschaft
+			anmeldedatum     sql.NullString
+			eintritt         string
+			kuendigungsdatum sql.NullString
+			austritt         sql.NullString
 		)
-		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &austritt,
-			&ms.Anmeldung.GebuehrCents, &ms.BeitragCents); err != nil {
+		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &kuendigungsdatum, &austritt,
+			&ms.Anmeldung.GebuehrCents, &ms.BeitragCents, &ms.Ruhend); err != nil {
 			return nil, fmt.Errorf("mitgliedschaft lesen: %w", err)
 		}
 
@@ -827,6 +848,9 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 		}
 		if ms.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
 			return nil, fmt.Errorf("eintritt von mitgliedschaft %d: %w", ms.ID, err)
+		}
+		if ms.Kuendigungsdatum, err = ausDatumsText(kuendigungsdatum); err != nil {
+			return nil, fmt.Errorf("kündigungsdatum von mitgliedschaft %d: %w", ms.ID, err)
 		}
 		if ms.Austritt, err = ausDatumsText(austritt); err != nil {
 			return nil, fmt.Errorf("austritt von mitgliedschaft %d: %w", ms.ID, err)
@@ -854,16 +878,30 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 	return alle, nil
 }
 
-// MarkExit beendet die laufende Mitgliedschaft eines Mitglieds zum angegebenen
-// Datum. Der Mitglied-Datensatz bleibt unangetastet — ausgetreten ist die
-// Mitgliedschaft, nicht die Person.
-func (s *MemberService) MarkExit(id int64, austritt time.Time) error {
-	// Geprüft wird vor der Transaktion — wie in Create liegt die Pflichtangabe
-	// vor allem, was die Datenbank dazu zu sagen hätte.
-	if austritt.IsZero() {
-		return &ValidierungsFehler{Meldungen: []string{"Austrittsdatum darf nicht leer sein."}}
-	}
-
+// SetKuendigung erfasst die Kündigung an der laufenden Mitgliedschaft: den Tag,
+// an dem gekündigt wurde, und den Tag, zu dem der Austritt wirksam wird. Der
+// Mitglied-Datensatz bleibt unangetastet — ausgetreten ist die Mitgliedschaft,
+// nicht die Person.
+//
+// Beide Angaben dürfen einzeln fehlen: eine Kündigung ohne Termin ist der Fall
+// "Kündigung liegt vor, Datum noch offen", ein Austritt ohne Kündigungsdatum der
+// Normalfall der Altbestände. Ein Austritt in der Zukunft ist ausdrücklich
+// erlaubt — das ist die laufende Kündigungsfrist, in der das Mitglied weiter
+// trainiert und weiter zahlt.
+//
+// Geschrieben werden beide Spalten, auch die nicht gesetzte: erfasst wird die
+// Kündigung als Ganzes, wie die Anmeldung im Patch. Das gilt ausdrücklich auch
+// fürs Leeren — ein Aufruf, der nur den Austritt mitbringt, löscht ein zuvor
+// erfasstes Kündigungsdatum. So lässt sich eine irrtümlich eingetragene
+// Kündigungserklärung wieder wegnehmen, ohne dass es dafür einen zweiten
+// Vorgang braucht; das Formular schickt den erfassten Wert deshalb immer mit
+// (siehe app.kuendigungsformular).
+//
+// Das Austrittsdatum dagegen kann nicht verloren gehen: sobald eines steht,
+// läuft der Zeitraum nicht mehr und der nächste Aufruf endet in ErrNichtAktiv.
+// Mit Ticket 18 ändert sich, was "läuft" heißt — dann wird aus dieser Sperre
+// eine Korrekturmöglichkeit während der Kündigungsfrist.
+func (s *MemberService) SetKuendigung(id int64, k Kuendigung) error {
 	// Der laufende Zeitraum wird gelesen, geprüft und beendet — das gehört in
 	// eine Transaktion, damit dazwischen keine andere Änderung dazwischenfunkt.
 	tx, err := s.db.Begin()
@@ -881,17 +919,55 @@ func (s *MemberService) MarkExit(id int64, austritt time.Time) error {
 		return err
 	}
 
-	austrittsText := austritt.Format(isoDatum)
-	if austrittsText < eintritt {
-		return &ValidierungsFehler{Meldungen: []string{
-			"Das Austrittsdatum darf nicht vor dem Eintrittsdatum liegen.",
-		}}
+	if fehler := k.pruefen(eintritt); len(fehler) > 0 {
+		return &ValidierungsFehler{Meldungen: fehler}
 	}
 
 	if _, err := tx.Exec(
-		`UPDATE mitgliedschaft SET austritt = ? WHERE id = ?`,
-		austrittsText, mitgliedschaftID); err != nil {
-		return fmt.Errorf("austritt von mitglied %d eintragen: %w", id, err)
+		`UPDATE mitgliedschaft SET kuendigungsdatum = ?, austritt = ? WHERE id = ?`,
+		alsDatumsText(k.Datum), alsDatumsText(k.Austritt), mitgliedschaftID); err != nil {
+		return fmt.Errorf("kündigung von mitglied %d eintragen: %w", id, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("transaktion abschließen: %w", err)
+	}
+
+	return nil
+}
+
+// SetRuhend schaltet die laufende Mitgliedschaft ruhend oder wieder aktiv. Für
+// die Zeit, in der sie ruht, wird kein Beitrag eingezogen; Mitglied bleibt das
+// Mitglied trotzdem (CONTEXT.md → Ruhend).
+//
+// Nur ein laufender Zeitraum lässt sich ruhend schalten: bei einem ausgetretenen
+// Mitglied gibt es keinen Einzug, den man aussetzen könnte — der Fehler ist dann
+// ErrNichtAktiv, wie beim Versuch, zweimal zu kündigen.
+//
+// Der Rückstand bleibt dabei unberührt. Für ein ruhendes Mitglied geht keine
+// Lastschrift los, es kann also kein *neuer* Rückstand entstehen; ein
+// bestehender bleibt stehen, denn ruhend zu schalten ist kein Schuldenerlass
+// (ADR-0006). Der Aufruf ist idempotent.
+func (s *MemberService) SetRuhend(id int64, ruhend bool) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("transaktion starten: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := mitgliedPruefen(tx, id); err != nil {
+		return err
+	}
+
+	mitgliedschaftID, _, err := laufendeMitgliedschaftLesen(tx, id)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE mitgliedschaft SET ruhend = ? WHERE id = ?`,
+		ruhend, mitgliedschaftID); err != nil {
+		return fmt.Errorf("ruhend von mitglied %d setzen: %w", id, err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -953,6 +1029,10 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// halten fest, was bei *diesem* Eintritt geschah. Die Werte des alten
 	// Zeitraums abzuschreiben hieße, eine Gebühr zu behaupten, die niemand
 	// gezahlt hat.
+	//
+	// Ebenso beginnt der neue Zeitraum ohne Kündigung und nicht ruhend: beides
+	// galt dem alten. Die Spalten stehen deshalb gar nicht erst in der
+	// Anweisung — sie bekommen ihren Vorgabewert.
 	if _, err := tx.Exec(
 		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
 		 VALUES (?, ?, (SELECT beitrag_monatlich_cents FROM mitgliedschaft
@@ -1038,10 +1118,20 @@ type Listeneintrag struct {
 	// Formular — sie helfen beim Überblick nicht und machten die Zeile nur breiter.
 	GoogleBewertung GoogleBewertung
 
+	// Kuendigungsdatum ist der Tag, an dem gekündigt wurde, oder nil. Es steht
+	// in der Liste, weil eine erfasste Kündigung ohne Termin sonst unsichtbar
+	// wäre — die Zeile sähe aus wie jede andere aktive.
+	Kuendigungsdatum *time.Time
+
 	// Austritt ist nil, solange die Mitgliedschaft läuft. Gesetzt ist er nur in
 	// Ergebnissen, die Ehemalige einschließen — dort ist er die einzige Angabe,
 	// an der die Zeile als ehemalig erkennbar ist.
 	Austritt *time.Time
+
+	// Ruhend ist das Merkmal der maßgeblichen Mitgliedschaft. Es steht neben
+	// dem Lebenszyklus und nicht in ihm: ein ruhendes Mitglied ist ein aktives,
+	// von dem gerade nichts eingezogen wird.
+	Ruhend bool
 
 	// Trainingsslots sind die Termine der maßgeblichen Mitgliedschaft — bei
 	// einem Ehemaligen also die seines letzten Zeitraums, wie Beitrag und
@@ -1173,7 +1263,8 @@ const eintraegeAbfrage = `
 	SELECT m.id, m.vorname, m.nachname, m.email, m.telefon,
 		m.adresse, m.postleitzahl, m.ort,
 		m.google_bewertung, m.rueckstand, m.rueckstand_notiz,
-		ms.id, ms.eintritt, ms.austritt, ms.beitrag_monatlich_cents
+		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt,
+		ms.beitrag_monatlich_cents, ms.ruhend
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
@@ -1256,17 +1347,22 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			email, telefon   string
 			mitgliedschaftID int64
 			eintritt         string
+			kuendigungsdatum sql.NullString
 			austritt         sql.NullString
 		)
 		if err := rows.Scan(&e.MitgliedID, &e.Vorname, &e.Nachname, &email, &telefon,
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.GoogleBewertung, &e.Rueckstand.Offen, &e.Rueckstand.Notiz,
-			&mitgliedschaftID, &eintritt, &austritt, &e.BeitragCents); err != nil {
+			&mitgliedschaftID, &eintritt, &kuendigungsdatum, &austritt,
+			&e.BeitragCents, &e.Ruhend); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 
 		if e.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
 			return nil, fmt.Errorf("eintritt von mitglied %d: %w", e.MitgliedID, err)
+		}
+		if e.Kuendigungsdatum, err = ausDatumsText(kuendigungsdatum); err != nil {
+			return nil, fmt.Errorf("kündigungsdatum von mitglied %d: %w", e.MitgliedID, err)
 		}
 		if e.Austritt, err = ausDatumsText(austritt); err != nil {
 			return nil, fmt.Errorf("austritt von mitglied %d: %w", e.MitgliedID, err)

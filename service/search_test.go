@@ -78,8 +78,8 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", 4500,
 		"Dienstag 19:30 Uhr", "Samstag 10:30 Uhr")
 	imRueckstand(b.Klein, "Rücklastschrift Juni, beim Austritt noch offen")
-	if err := svc.MarkExit(b.Klein, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(b.Klein, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	return b
@@ -544,8 +544,8 @@ func TestSearch_MitgliedsIDRespektiertDieFilter(t *testing.T) {
 	// Ohne Telefon und E-Mail, damit eine Ziffer nur über die ID treffen kann.
 	aktiv := mitgliedAnlegen(t, svc, "Paul", "Wagner")
 	ehemalig := mitgliedAnlegen(t, svc, "Nina", "Klein")
-	if err := svc.MarkExit(ehemalig, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(ehemalig, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 	if err := svc.SetRueckstand(aktiv, service.Rueckstand{Offen: true, Notiz: "Rücklastschrift Oktober"}); err != nil {
 		t.Fatalf("SetRueckstand: %v", err)

@@ -319,8 +319,8 @@ func TestList_LaesstMitgliederOhneLaufendeMitgliedschaftAus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create (austretendes Mitglied): %v", err)
 	}
-	if err := svc.MarkExit(ausgetreten, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(ausgetreten, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	liste, err := svc.List()
@@ -598,8 +598,8 @@ func TestLaufendeMitgliedschaft_LiefertDenOffenenZeitraumUndNachAustrittNil(t *t
 		t.Errorf("Eintritt = %v, erwartet %v", laufend.Eintritt, eintritt)
 	}
 
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	m, err = svc.Get(id)
@@ -783,8 +783,8 @@ func TestSetRueckstand_BleibtNachDemAustrittBestehen(t *testing.T) {
 		t.Fatalf("SetRueckstand: %v", err)
 	}
 
-	if err := svc.MarkExit(id, heuteVersetzt(-10)); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(-10))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)
@@ -980,8 +980,8 @@ func TestEintrag_LiefertAuchDieZeileEinesAusgetretenenMitglieds(t *testing.T) {
 
 	id := mitgliedAnlegen(t, svc, "Timo", "Vogel")
 	austritt := heuteVersetzt(-10)
-	if err := svc.MarkExit(id, austritt); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(austritt)); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)

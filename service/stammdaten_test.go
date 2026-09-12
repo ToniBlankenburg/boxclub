@@ -293,8 +293,8 @@ func TestRejoin_FuehrtAnmeldungNichtFort(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	if err := svc.MarkExit(id, datum(t, "2026-03-31")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-03-31"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 	if err := svc.Rejoin(id, datum(t, "2026-09-01")); err != nil {
 		t.Fatalf("Rejoin: %v", err)
@@ -330,8 +330,8 @@ func TestUpdate_SchreibtDieAnmeldungAnDieMassgeblicheMitgliedschaft(t *testing.T
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := svc.MarkExit(id, datum(t, "2026-03-31")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-03-31"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	anmeldedatum := datum(t, "2025-12-28")

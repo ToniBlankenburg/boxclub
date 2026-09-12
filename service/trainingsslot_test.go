@@ -198,8 +198,8 @@ func TestTrainingsslots_WiedereintrittLaesstDieAltenSlotsStehen(t *testing.T) {
 
 	id := mitSlotsAnlegen(t, svc, "Klein", "Montag 18:00 Uhr", "Samstag 10:30 Uhr")
 
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 	if err := svc.Rejoin(id, datum(t, "2027-01-01")); err != nil {
 		t.Fatalf("Rejoin: %v", err)
@@ -248,8 +248,8 @@ func TestTrainingsslots_ListeZeigtDieSlotsDerMassgeblichenMitgliedschaft(t *test
 	svc := neuerService(t)
 
 	id := mitSlotsAnlegen(t, svc, "Klein", "Montag 18:00 Uhr", "Samstag 10:30 Uhr")
-	if err := svc.MarkExit(id, datum(t, "2026-06-30")); err != nil {
-		t.Fatalf("MarkExit: %v", err)
+	if err := svc.SetKuendigung(id, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)

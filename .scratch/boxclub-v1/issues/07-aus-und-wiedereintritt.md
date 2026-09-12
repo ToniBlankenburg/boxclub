@@ -70,3 +70,7 @@ Harnisch ist danach gelöscht — laut [CLAUDE.md](../../../CLAUDE.md) werden
 `app/`-Handler nicht unit-getestet. Falls das doch bleiben soll, ist es billig
 wiederherzustellen. `go test ./...`, `go vet`, `gofmt` und `wails build` sind
 unter Linux sauber; Windows und macOS stehen noch aus.
+
+**Nachtrag (Ticket 17):** `MarkExit(id, datum)` gibt es nicht mehr. Ersetzt durch
+`SetKuendigung(id, service.Kuendigung{Datum, Austritt})` — dasselbe Verhalten,
+zusätzlich mit dem Kündigungsdatum. Die Regeln oben gelten unverändert.
