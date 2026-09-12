@@ -90,3 +90,7 @@ Issues and specs are local markdown files in `.scratch/<feature-slug>/`:
 ## Out of scope for v1
 
 MoneyMoney CSV import/auto-matching, multi-user/login, cloud/web deployment, Windows/Linux release builds, UI test automation, attendance tracking, boxing-specific fields (license, weight class).
+
+**Rechnungserstellung und Finanzübersicht** gehören ebenfalls nicht in v1. Der Verein zieht per Lastschrift ein; v1 hält deshalb nur den *Rückstand* als handgepflegtes Kennzeichen und kennt weder Zahlungen noch eine Historie ([ADR-0006](docs/adr/0006-rueckstand-statt-bezahlt-bis.md)). Rechnungen zu erzeugen hieße, genau das Zahlungsmodell einzuführen, das der ADR bewusst weggelassen hat — das ist v2 und braucht einen eigenen ADR, der 0006 in Teilen ablöst. Bis dahin bleibt 0006 unverändert gültig.
+
+Die Grenze zu *attendance tracking* verläuft dabei nicht dort, wo man sie vermutet: ein **gepflegter Katalog von Trainingsterminen**, dem Mitgliedschaften zugeordnet werden, ist v1-tauglich und löst den heutigen Freitext in `trainingsslot.bezeichnung` ab. Ausgeschlossen ist nur, **pro Termin festzuhalten, wer da war** — das ist die Anwesenheit, und die bringt eine Historie mit, die v1 nicht führt.
