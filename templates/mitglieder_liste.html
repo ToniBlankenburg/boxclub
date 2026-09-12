@@ -145,21 +145,32 @@
     {{/* Der Status wird nirgends gepflegt, sondern aus den Datumsfeldern
          abgelesen (CONTEXT.md → Status) — er kann deshalb gar nicht erst im
          Widerspruch zu ihnen stehen. Darunter steht das Datum, aus dem er sich
-         ergibt, sofern es nicht ohnehin in der Eintrittsspalte steht. */}}
+         ergibt, sofern es nicht ohnehin in der Eintrittsspalte steht.
+
+         Ruhend verdrängt das Statuskennzeichen, solange die Mitgliedschaft
+         läuft: ein ruhendes Mitglied soll in der Spalte als ruhend dastehen und
+         nicht als "aktiv, aber auch ruhend". Das ist eine reine Anzeige-
+         entscheidung und weicht bewusst vom Abnahmekriterium in Ticket 18 ab
+         ("Ruhend wird zusätzlich angezeigt, nicht anstelle des Status") — am
+         Modell ändert sie nichts: ruhend bleibt ein Merkmal neben dem
+         Lebenszyklus (CONTEXT.md → Ruhend) und wird weiterhin nicht aus Daten
+         abgeleitet. Damit der Lebenszyklus trotzdem nicht verloren geht, nennt
+         ihn der Tooltip.
+
+         Bei einem Ausgetretenen gilt das nicht: dort bleibt der Status stehen.
+         Ruhend kann ihm anhaften, wenn jemand während der Kündigungsfrist ruhend
+         geschaltet war und der Austrittstag darüber hinweggegangen ist — ein
+         Ehemaliger, der sich als "ruhend" ausgibt, wäre dann genau die Auskunft,
+         die dieses Ticket abschaffen wollte. */}}
     <td class="px-4 py-2">
-        <div class="flex flex-wrap items-center gap-1.5">
+        {{if and .Ruhend (not $status.Ausgetreten)}}
+            <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
+                  title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter (Status: {{$status.Bezeichnung}})">
+                ruhend
+            </span>
+        {{else}}
             {{template "statuskennzeichen" $status}}
-            {{/* Ruhend steht neben dem Lebenszyklus und nicht in ihm: ein ruhendes
-                 Mitglied ist ein aktives, von dem gerade nichts eingezogen wird
-                 (CONTEXT.md → Ruhend). Deshalb tritt es hier neben das
-                 Statuskennzeichen und nicht an seine Stelle. */}}
-            {{if .Ruhend}}
-                <span class="rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
-                      title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter">
-                    ruhend
-                </span>
-            {{end}}
-        </div>
+        {{end}}
         {{if .Austritt}}
             <div class="mt-0.5 text-xs text-neutral-500">zum {{datum .Austritt}}</div>
         {{else if .Kuendigungsdatum}}

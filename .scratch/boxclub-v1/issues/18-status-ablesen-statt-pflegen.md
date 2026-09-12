@@ -13,7 +13,7 @@ Status: ready-for-human
   - *Aktiv* — Eintritt erreicht, Austritt nicht erreicht
   - *In Kündigungsfrist* — Kündigungsdatum gesetzt, Austritt liegt in der Zukunft
   - *Ausgetreten* — Austritt erreicht
-- [x] *Ruhend* wird **zusätzlich** angezeigt, nicht anstelle des Status — es ist ein Merkmal, kein Lebenszyklus-Zustand
+- [ ] *Ruhend* wird **zusätzlich** angezeigt, nicht anstelle des Status — es ist ein Merkmal, kein Lebenszyklus-Zustand — **auf Wunsch des Vereinsadmins verworfen, siehe Kommentar**
 - [x] **"Aktiv" ändert seine Definition**: bisher "kein Austrittsdatum gesetzt", künftig "Austritt nicht erreicht"
 - [x] Der Aktivitätsfilter zieht nach: ein Mitglied mit **zukünftigem** Austrittsdatum erscheint in der Standardansicht "nur aktive"; erst ab dem Austrittstag verschwindet es dort
 - [x] Der Status ist pro Zeile in der Mitgliederliste sichtbar
@@ -59,10 +59,9 @@ Mitglied als schlicht *Aktiv* in der Liste und die einzige erfasste Angabe über
 sein Ausscheiden bliebe unsichtbar. *Aktiv* bleibt damit der Zustand, über
 dessen Ende nichts erfasst ist.
 
-**In der Liste** steht der Status als eigene Spalte hinter dem Namen. *Ruhend*
-sitzt als zweites Kennzeichen **daneben**, nicht an seiner Stelle; darunter das
-Datum, aus dem der Status sich ergibt. Die alten Ad-hoc-Kennzeichen
-(„ausgetreten am…", „gekündigt am…") sind darin aufgegangen. Auch die
+**In der Liste** steht der Status als eigene Spalte hinter dem Namen; darunter
+das Datum, aus dem er sich ergibt. Die alten Ad-hoc-Kennzeichen („ausgetreten
+am…", „gekündigt am…") sind darin aufgegangen. Auch die
 Schaltflächen der Zeile entscheiden jetzt über `Status.Ausgetreten` statt über
 das bloße Vorhandensein eines Austrittsdatums — in der Kündigungsfrist führen
 sie zurück ins Kündigungsformular und nicht zum Wiedereintritt.
@@ -99,3 +98,41 @@ offene Häkchen oben bleibt deshalb offen, bis das jemand nachholt.
 
 **Keine Schemaänderung** — der Status wird abgelesen, nicht gespeichert. Die
 Entwicklungs-Datenbank kann stehen bleiben.
+
+---
+
+**Nachtrag: *ruhend* ersetzt das Statuskennzeichen.** Zuerst stand *ruhend* wie
+im Abnahmekriterium verlangt **neben** dem Status — eine ruhende Zeile las sich
+`[Aktiv] [ruhend]`. Der Vereinsadmin hat das als Widerspruch gemeldet und nach
+Vorlage der Alternativen entschieden, dass in der Spalte nur noch `[ruhend]`
+stehen soll. Das Abnahmekriterium „*Ruhend* wird **zusätzlich** angezeigt, nicht
+anstelle des Status" ist damit bewusst nicht erfüllt und oben wieder
+ausgehakt.
+
+Das ist eine reine **Anzeigeentscheidung**; am Modell ändert sie nichts. `ruhend`
+bleibt ein Merkmal neben dem Lebenszyklus (CONTEXT.md → Ruhend), hängt weiter an
+der Mitgliedschaft und wird weiterhin nicht abgeleitet — `Status` kennt nach wie
+vor genau vier Werte und weiß von `ruhend` nichts. CONTEXT.md ist deshalb
+unverändert geblieben.
+
+Zwei Dinge sichern die Entscheidung ab:
+
+- **Der Lebenszyklus geht nicht verloren.** Der abgelesene Status steht im
+  Tooltip des Kennzeichens („Ruhend — kein Beitragseinzug, die Mitgliedschaft
+  läuft weiter (Status: In Kündigungsfrist)"), und die Datumszeile darunter
+  bleibt stehen. Das war der Einwand gegen diese Variante: ein ruhendes Mitglied
+  in der Kündigungsfrist sähe sonst aus wie jedes andere ruhende.
+- **Ausgetretene behalten ihren Status.** `ruhend` verdrängt das Kennzeichen nur,
+  solange die Mitgliedschaft läuft. Sonst entstünde ein echter Fehler: wer
+  während der Kündigungsfrist ruhend geschaltet war, behält das Flag, wenn der
+  Austrittstag darüber hinweggeht — die Zeile behauptete dann „ruhend", wo
+  „Ausgetreten" stehen muss.
+
+Nebenbei erledigt sich damit der eigentliche Auslöser der Meldung: neben dem
+Kennzeichen „Aktiv" stand die Schaltfläche „Aktiv setzen" und sah aus, als täte
+sie nichts. Ohne das Aktiv-Kennzeichen kollidiert die Beschriftung nicht mehr.
+
+Geprüft ist das über einen Rauchtest gegen `app.Handler()` per `httptest` mit
+allen fünf Kombinationen (aktiv, aktiv+ruhend, neu+ruhend, Kündigungsfrist+ruhend,
+ausgetreten mit stehengebliebenem ruhend); der Harnisch ist danach gelöscht
+(siehe [CLAUDE.md](../../../CLAUDE.md)).
