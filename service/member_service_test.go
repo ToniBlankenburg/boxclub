@@ -36,7 +36,7 @@ func neuerService(t *testing.T) *service.MemberService {
 const beitragImTest = 6500
 
 // mitgliedschaftText verdichtet eine Mitgliedschaft auf ihre Textform, um zwei
-// von ihnen zu vergleichen. Seit sie die Trainingsslots trägt, ist sie kein
+// von ihnen zu vergleichen. Seit sie die Trainingstermine trägt, ist sie kein
 // vergleichbarer Wert mehr — und die Textform zeigt ohnehin den Datumswert
 // hinter dem Austritts-Zeiger statt dessen Adresse.
 func mitgliedschaftText(ms service.Mitgliedschaft) string {

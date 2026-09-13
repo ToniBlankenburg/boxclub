@@ -209,7 +209,13 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 		return fmt.Errorf("mitgliedschaft-id lesen: %w", err)
 	}
 
-	return trainingsslotsSchreiben(tx, mitgliedschaftID, satz.Trainingsslots)
+	// Ein neuer Zeitraum fängt mit dem an, was die Zeile mitbringt — heute also
+	// mit nichts: der Importer füllt TrainingsterminIDs noch nicht, weil die
+	// Excel die Spalten „Training - 1/2/3" als Freitext führt und ein Termin
+	// seit ADR-0008 ein Verweis in den Stundenplan ist. Den Abgleich zwischen
+	// beidem bringt Ticket 22; bis dahin hat eine frisch importierte Zeile
+	// „keine Frequenz".
+	return trainingstermineSchreiben(tx, mitgliedschaftID, satz.TrainingsterminIDs)
 }
 
 // aktualisieren überschreibt Stammdaten und Mitgliedschaft eines vorhandenen
@@ -218,6 +224,12 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 // Der Rückstand bleibt dabei unangetastet: die Excel führt keine Quellspalte
 // dafür (ADR-0006), und was der Verein in der App von Hand gesetzt hat, darf
 // ein erneuter Import nicht stillschweigend zurücksetzen.
+//
+// Für die Trainingstermine gilt bis Ticket 22 dasselbe, und zwar aus genau
+// diesem Grund: der Importer bringt keine mit, und „ersetze durch nichts" wäre
+// hier kein Übernehmen, sondern ein Löschen. Ein zweiter Lauf nähme dem
+// Mitglied damit stillschweigend Trainingszeiten weg, die von Hand zugeordnet
+// wurden — dieselbe Falle wie beim Rückstand, deshalb dieselbe Antwort.
 func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 	if _, err := tx.Exec(
 		`UPDATE mitglied SET
@@ -250,7 +262,7 @@ func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 		return fmt.Errorf("mitgliedschaft %d aktualisieren: %w", mitgliedschaftID, err)
 	}
 
-	return trainingsslotsSchreiben(tx, mitgliedschaftID, satz.Trainingsslots)
+	return nil
 }
 
 // gleicherName vergleicht zwei Namensteile. Groß- und Kleinschreibung

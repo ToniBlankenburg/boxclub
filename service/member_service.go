@@ -106,18 +106,22 @@ type Mitgliedschaft struct {
 	// am Mitglied, weil jeder Zeitraum seine eigene Anmeldung hatte.
 	Anmeldung Anmeldung
 
-	// Trainingsslots sind die wöchentlichen Termine dieses Zeitraums, null bis
-	// MaxTrainingsslots, in der Reihenfolge, in der sie eingetragen wurden. Sie
-	// hängen wie der Beitrag an der Mitgliedschaft: welche Zeiten vereinbart
-	// sind, gehört zu der Vereinbarung, die mit dem Eintritt zustande kam.
-	Trainingsslots []string
+	// Trainingstermine sind die Termine des Stundenplans, für die dieser
+	// Zeitraum angemeldet ist — null bis MaxTrainingstermine, in
+	// Wochenreihenfolge. Sie hängen wie der Beitrag an der Mitgliedschaft: für
+	// welche Zeiten angemeldet wurde, gehört zu der Vereinbarung, die mit dem
+	// Eintritt zustande kam.
+	//
+	// Archivierte Termine stehen mit darin: sie sind aus dem Stundenplan
+	// genommen, aus der Vereinbarung nicht (ADR-0008).
+	Trainingstermine []Trainingstermin
 }
 
-// Trainingsfrequenz ist die Anzahl der Trainingsslots dieses Zeitraums.
+// Trainingsfrequenz ist die Anzahl der Trainingstermine dieses Zeitraums.
 // Gespeichert wird sie nicht (CONTEXT.md → Trainingsfrequenz); abgelesen wird
 // sie in trainingsfrequenzAus.
 func (ms Mitgliedschaft) Trainingsfrequenz() Trainingsfrequenz {
-	return trainingsfrequenzAus(ms.Trainingsslots)
+	return trainingsfrequenzAus(ms.Trainingstermine)
 }
 
 // Status ist der Lebenszyklus-Zustand dieses Zeitraums am heutigen Tag.
@@ -238,10 +242,11 @@ type NeuesMitglied struct {
 	// Eintritt beginnt. Beide Angaben darin sind freiwillig.
 	Anmeldung Anmeldung
 
-	// Trainingsslots sind die wöchentlichen Termine, höchstens
-	// MaxTrainingsslots. Leere Angaben zählen nicht mit — das Formular schickt
-	// auch die Felder mit, die der Nutzer frei gelassen hat.
-	Trainingsslots []string
+	// TrainingsterminIDs sind die Termine des Stundenplans, für die die erste
+	// Mitgliedschaft angemeldet wird — Verweise und kein Text, höchstens
+	// MaxTrainingstermine. Doppelte zählen einmal (siehe
+	// trainingsterminIDsNormalisieren).
+	TrainingsterminIDs []int64
 }
 
 // negativerBeitrag ist die Meldung zum einzigen Beitrag, den es nicht geben
@@ -341,14 +346,6 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft (
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_mitglied ON mitgliedschaft(mitglied_id);
 
-CREATE TABLE IF NOT EXISTS trainingsslot (
-	id                INTEGER PRIMARY KEY AUTOINCREMENT,
-	mitgliedschaft_id INTEGER NOT NULL REFERENCES mitgliedschaft(id) ON DELETE CASCADE,
-	bezeichnung       TEXT    NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_trainingsslot_mitgliedschaft ON trainingsslot(mitgliedschaft_id);
-
 -- Der Stundenplan des Vereins (ADR-0008). Er steht für sich: kein Fremdschlüssel
 -- auf eine Mitgliedschaft, denn ein Termin gibt es auch dann, wenn niemand dafür
 -- angemeldet ist. Der Wochentag ist eine Zahl (Montag = 1 … Sonntag = 7) und
@@ -364,6 +361,22 @@ CREATE TABLE IF NOT EXISTS trainingstermin (
 	bezeichnung TEXT    NOT NULL DEFAULT '',
 	archiviert  INTEGER NOT NULL DEFAULT 0
 );
+
+-- Wofür eine Mitgliedschaft angemeldet ist (ADR-0008). Der Schlüssel aus beiden
+-- Spalten macht die Doppelanmeldung unmöglich: derselbe Termin zweimal wäre eine
+-- Frequenz, die um eins zu hoch abgelesen würde.
+--
+-- Auf den Termin wirkt kein ON DELETE: er wird nie gelöscht, sondern archiviert,
+-- und bestehende Anmeldungen bleiben dabei bestehen. Auf die Mitgliedschaft
+-- dagegen schon — mit ihr ist auch die Vereinbarung fort.
+CREATE TABLE IF NOT EXISTS mitgliedschaft_trainingstermin (
+	mitgliedschaft_id  INTEGER NOT NULL REFERENCES mitgliedschaft(id) ON DELETE CASCADE,
+	trainingstermin_id INTEGER NOT NULL REFERENCES trainingstermin(id),
+	PRIMARY KEY (mitgliedschaft_id, trainingstermin_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_trainingstermin_termin
+	ON mitgliedschaft_trainingstermin(trainingstermin_id);
 `
 
 func (s *MemberService) migrate() error {
@@ -424,7 +437,7 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 		return 0, fmt.Errorf("mitgliedschaft-id lesen: %w", err)
 	}
 
-	if err := trainingsslotsSchreiben(tx, mitgliedschaftID, n.Trainingsslots); err != nil {
+	if err := trainingstermineSchreiben(tx, mitgliedschaftID, n.TrainingsterminIDs); err != nil {
 		return 0, err
 	}
 
@@ -456,7 +469,7 @@ func (n NeuesMitglied) validieren() error {
 	if n.Anmeldung.GebuehrCents < 0 {
 		fehler = append(fehler, negativeGebuehr)
 	}
-	fehler = append(fehler, trainingsslotsPruefen(n.Trainingsslots)...)
+	fehler = append(fehler, trainingsterminIDsPruefen(n.TrainingsterminIDs)...)
 
 	if len(fehler) > 0 {
 		return &ValidierungsFehler{Meldungen: fehler}
@@ -508,12 +521,12 @@ type MitgliedPatch struct {
 	// sich korrigieren lassen.
 	Anmeldung *Anmeldung
 
-	// Trainingsslots ersetzen die Termine der maßgeblichen Mitgliedschaft
-	// vollständig: Hinzufügen und Entfernen sind für den Nutzer derselbe
-	// Vorgang, er schickt die Slots, die danach gelten sollen. Ein Zeiger auf
-	// eine leere Liste heißt deshalb "gar keine mehr", nil dagegen "nicht
-	// angerührt" — wie bei jedem anderen Feld des Patches.
-	Trainingsslots *[]string
+	// TrainingsterminIDs ersetzen die Anmeldungen der maßgeblichen
+	// Mitgliedschaft vollständig: Ankreuzen und Abwählen sind für den Nutzer
+	// derselbe Vorgang, er schickt die Termine, die danach gelten sollen. Ein
+	// Zeiger auf eine leere Liste heißt deshalb "gar keine mehr", nil dagegen
+	// "nicht angerührt" — wie bei jedem anderen Feld des Patches.
+	TrainingsterminIDs *[]int64
 }
 
 // Update schreibt die im Patch gesetzten Felder auf das Mitglied mit dieser ID.
@@ -554,12 +567,12 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 		}
 	}
 
-	if patch.Trainingsslots != nil {
+	if patch.TrainingsterminIDs != nil {
 		mitgliedschaftID, err := massgeblicheMitgliedschaftLesen(tx, id)
 		if err != nil {
 			return err
 		}
-		if err := trainingsslotsSchreiben(tx, mitgliedschaftID, *patch.Trainingsslots); err != nil {
+		if err := trainingstermineSchreiben(tx, mitgliedschaftID, *patch.TrainingsterminIDs); err != nil {
 			return err
 		}
 	}
@@ -627,31 +640,6 @@ func massgeblicheMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, error
 	return id, nil
 }
 
-// trainingsslotsSchreiben setzt die Termine einer Mitgliedschaft auf genau die
-// übergebenen: erst weg, dann neu. Slots haben außer ihrem Text nichts, woran
-// sich ein einzelner wiedererkennen ließe — ein Abgleich Zeile für Zeile wäre
-// deshalb aufwendiger und nicht genauer.
-//
-// Leere Angaben fallen dabei weg (siehe trainingsslotsNormalisieren); dass es
-// nicht mehr als MaxTrainingsslots sind, hat die Validierung des Aufrufers
-// bereits geprüft.
-func trainingsslotsSchreiben(tx *sql.Tx, mitgliedschaftID int64, slots []string) error {
-	if _, err := tx.Exec(
-		`DELETE FROM trainingsslot WHERE mitgliedschaft_id = ?`, mitgliedschaftID); err != nil {
-		return fmt.Errorf("trainingsslots von mitgliedschaft %d löschen: %w", mitgliedschaftID, err)
-	}
-
-	for _, slot := range trainingsslotsNormalisieren(slots) {
-		if _, err := tx.Exec(
-			`INSERT INTO trainingsslot (mitgliedschaft_id, bezeichnung) VALUES (?, ?)`,
-			mitgliedschaftID, slot); err != nil {
-			return fmt.Errorf("trainingsslot von mitgliedschaft %d anlegen: %w", mitgliedschaftID, err)
-		}
-	}
-
-	return nil
-}
-
 // validieren prüft die gesetzten Felder gegen dieselben Pflichtfeld-Regeln, die
 // auch bei der Neuanlage gelten: ein Pflichtfeld darf nachträglich nicht leer
 // gemacht werden. Nicht gesetzte Felder sind keine Aussage und damit auch kein
@@ -671,8 +659,8 @@ func (p MitgliedPatch) validieren() error {
 	if p.Anmeldung != nil && p.Anmeldung.GebuehrCents < 0 {
 		fehler = append(fehler, negativeGebuehr)
 	}
-	if p.Trainingsslots != nil {
-		fehler = append(fehler, trainingsslotsPruefen(*p.Trainingsslots)...)
+	if p.TrainingsterminIDs != nil {
+		fehler = append(fehler, trainingsterminIDsPruefen(*p.TrainingsterminIDs)...)
 	}
 
 	if len(fehler) > 0 {
@@ -819,51 +807,6 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 	return m, nil
 }
 
-// trainingsslotsLesen liefert die Termine der angegebenen Mitgliedschaften, je
-// Mitgliedschaft in der Reihenfolge, in der sie eingetragen wurden.
-//
-// Gelesen wird in einer zweiten Abfrage statt im Verbund: ein Verbund
-// vervielfachte die Zeilen der Mitgliedschaft, und in einem zusammengefassten
-// Text wäre jedes Trennzeichen eines, das im freien Text eines Slots vorkommen
-// darf.
-func (s *MemberService) trainingsslotsLesen(mitgliedschaftIDs []int64) (map[int64][]string, error) {
-	slots := make(map[int64][]string, len(mitgliedschaftIDs))
-	if len(mitgliedschaftIDs) == 0 {
-		return slots, nil
-	}
-
-	// Die Platzhalter entstehen aus der Anzahl der IDs, die Werte gehen als
-	// Parameter in die Anweisung.
-	platzhalter := strings.Repeat(", ?", len(mitgliedschaftIDs)-1)
-	werte := make([]any, 0, len(mitgliedschaftIDs))
-	for _, id := range mitgliedschaftIDs {
-		werte = append(werte, id)
-	}
-
-	rows, err := s.db.Query(
-		`SELECT mitgliedschaft_id, bezeichnung FROM trainingsslot
-		 WHERE mitgliedschaft_id IN (?`+platzhalter+`)
-		 ORDER BY id`, werte...)
-	if err != nil {
-		return nil, fmt.Errorf("trainingsslots lesen: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var (
-			mitgliedschaftID int64
-			bezeichnung      string
-		)
-		if err := rows.Scan(&mitgliedschaftID, &bezeichnung); err != nil {
-			return nil, fmt.Errorf("trainingsslot lesen: %w", err)
-		}
-
-		slots[mitgliedschaftID] = append(slots[mitgliedschaftID], bezeichnung)
-	}
-
-	return slots, rows.Err()
-}
-
 func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, error) {
 	rows, err := s.db.Query(
 		`SELECT id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
@@ -913,12 +856,12 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 		ids = append(ids, ms.ID)
 	}
 
-	slots, err := s.trainingsslotsLesen(ids)
+	termine, err := s.trainingstermineLesen(ids)
 	if err != nil {
 		return nil, err
 	}
 	for i := range alle {
-		alle[i].Trainingsslots = slots[alle[i].ID]
+		alle[i].Trainingstermine = termine[alle[i].ID]
 	}
 
 	return alle, nil
@@ -1066,11 +1009,12 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// — änderbar wie jeder andere. Die alte behält ihren eigenen: das ist der
 	// Zweck der Aufteilung (ADR-0005).
 	//
-	// Die Trainingsslots wandern dabei ausdrücklich nicht mit: der neue Zeitraum
-	// beginnt ohne Termine, weil die alten für einen Zeitraum galten, der vorbei
-	// ist — an welchen Tagen jemand nach Jahren wieder trainiert, wird neu
-	// vereinbart. Bis dahin liest sich die Frequenz als "kein Training", und die
-	// Slots der alten Mitgliedschaft bleiben unangetastet stehen.
+	// Die Trainingstermine wandern dabei ausdrücklich nicht mit: der neue
+	// Zeitraum beginnt ohne Anmeldung, weil die alte für einen Zeitraum galt,
+	// der vorbei ist — an welchen Tagen jemand nach Jahren wieder trainiert,
+	// wird neu vereinbart. Bis dahin liest sich die Frequenz als "kein
+	// Training", und die Anmeldungen der alten Mitgliedschaft bleiben
+	// unangetastet stehen.
 	//
 	// Aus demselben Grund bleibt die Anmeldung leer: Anmeldedatum und -gebühr
 	// halten fest, was bei *diesem* Eintritt geschah. Die Werte des alten
@@ -1195,16 +1139,16 @@ type Listeneintrag struct {
 	// von dem gerade nichts eingezogen wird.
 	Ruhend bool
 
-	// Trainingsslots sind die Termine der maßgeblichen Mitgliedschaft — bei
+	// Trainingstermine sind die Termine der maßgeblichen Mitgliedschaft — bei
 	// einem Ehemaligen also die seines letzten Zeitraums, wie Beitrag und
 	// Eintritt daneben.
-	Trainingsslots []string
+	Trainingstermine []Trainingstermin
 }
 
-// Trainingsfrequenz ist die Anzahl der Trainingsslots dieser Zeile — dieselbe
+// Trainingsfrequenz ist die Anzahl der Trainingstermine dieser Zeile — dieselbe
 // Ableitung wie an der Mitgliedschaft, aus derselben Quelle.
 func (e Listeneintrag) Trainingsfrequenz() Trainingsfrequenz {
-	return trainingsfrequenzAus(e.Trainingsslots)
+	return trainingsfrequenzAus(e.Trainingstermine)
 }
 
 // Status ist der Lebenszyklus-Zustand dieser Zeile — dieselbe Ableitung wie an
@@ -1366,7 +1310,7 @@ type suchzeile struct {
 	suchfelder []string
 
 	// mitgliedschaftID ist der Zeitraum, aus dem die Zeile ihre Angaben bezieht.
-	// Er verlässt den Service nicht und dient allein dazu, die Trainingsslots
+	// Er verlässt den Service nicht und dient allein dazu, die Trainingstermine
 	// nachzuladen.
 	mitgliedschaftID int64
 }
@@ -1470,19 +1414,19 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 		return nil, fmt.Errorf("mitgliederliste lesen: %w", err)
 	}
 
-	// Die Slots kommen für alle Zeilen auf einmal dazu: eine Abfrage je Zeile
+	// Die Termine kommen für alle Zeilen auf einmal dazu: eine Abfrage je Zeile
 	// wären bei 200 Mitgliedern 200 Abfragen für eine Ansicht.
 	ids := make([]int64, 0, len(zeilen))
 	for _, z := range zeilen {
 		ids = append(ids, z.mitgliedschaftID)
 	}
 
-	slots, err := s.trainingsslotsLesen(ids)
+	termine, err := s.trainingstermineLesen(ids)
 	if err != nil {
 		return nil, err
 	}
 	for i := range zeilen {
-		zeilen[i].eintrag.Trainingsslots = slots[zeilen[i].mitgliedschaftID]
+		zeilen[i].eintrag.Trainingstermine = termine[zeilen[i].mitgliedschaftID]
 	}
 
 	return zeilen, nil

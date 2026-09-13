@@ -149,35 +149,50 @@ type formularEingabe struct {
 	Anmeldedatum string
 	Eintritt     string
 
-	// Trainingsslots sind die Rohwerte der Slot-Felder — immer so viele, wie das
-	// Formular Felder zeigt. Welche davon leer sind und damit kein Slot, und wie
-	// viele es höchstens sein dürfen, entscheidet der Service.
-	Trainingsslots []string
+	// TrainingsterminIDs sind die angekreuzten Termine als Rohwerte: die Werte
+	// der Kontrollkästchen, die der Browser mitgeschickt hat. Wie viele es
+	// höchstens sein dürfen und welche davon überhaupt zu haben sind,
+	// entscheidet der Service.
+	TrainingsterminIDs []string
 }
 
-// trainingsslotfeld ist ein Slot-Feld des Formulars. Die Nummer steht in der
-// Beschriftung und macht die Felder für die Sprachausgabe unterscheidbar.
-type trainingsslotfeld struct {
-	Nummer int
-	Wert   string
-}
-
-// Trainingsslotfelder sind die Slot-Felder des Formulars: immer
-// service.MaxTrainingsslots Stück, die leeren eingeschlossen. Mehr als drei
-// Termine gibt es nicht, deshalb stehen von vornherein alle da — Hinzufügen
-// heißt ein Feld ausfüllen, Entfernen heißt es leeren. Ein Hinzufügen-Knopf,
-// der ein viertes Feld erzeugen könnte, wäre ein Versprechen, das der Service
-// zu Recht bricht.
-func (e formularEingabe) Trainingsslotfelder() []trainingsslotfeld {
-	felder := make([]trainingsslotfeld, service.MaxTrainingsslots)
-	for i := range felder {
-		felder[i].Nummer = i + 1
-		if i < len(e.Trainingsslots) {
-			felder[i].Wert = e.Trainingsslots[i]
+// alsTrainingsterminIDs übersetzt die angekreuzten Werte in Verweise. Was keine
+// Zahl ist, fällt weg: die Werte stammen aus Kontrollkästchen, die diese App
+// selbst gerendert hat — etwas anderes kann nur aus einem selbstgebauten
+// Request kommen, und ein Formular ist kein Ort für Meldungen darüber. Ob es
+// die Termine gibt, prüft ohnehin der Service.
+func (e formularEingabe) alsTrainingsterminIDs() []int64 {
+	ids := make([]int64, 0, len(e.TrainingsterminIDs))
+	for _, roh := range e.TrainingsterminIDs {
+		if id, err := strconv.ParseInt(roh, 10, 64); err == nil {
+			ids = append(ids, id)
 		}
 	}
 
-	return felder
+	return ids
+}
+
+// terminIDsAlsText ist der Rückweg: die gespeicherten Termine als Rohwerte des
+// Formulars. Damit stehen die Kästchen beim ersten Aufruf und nach einer
+// abgelehnten Eingabe auf demselben Weg unter demselben Feld.
+func terminIDsAlsText(termine []service.Trainingstermin) []string {
+	roh := make([]string, 0, len(termine))
+	for _, termin := range termine {
+		roh = append(roh, strconv.FormatInt(termin.ID, 10))
+	}
+
+	return roh
+}
+
+// terminauswahl ist ein Termin, wie ihn das Mitgliedsformular zur Auswahl
+// stellt: der Termin selbst und ob er angekreuzt ist.
+//
+// Ein archivierter steht nur darin, wenn er angekreuzt ist (service.Terminauswahl).
+// Das Template weist ihn als archiviert aus — abwählen lässt er sich, und dann
+// ist er beim nächsten Rendern fort.
+type terminauswahl struct {
+	service.Trainingstermin
+	Gewaehlt bool
 }
 
 // formularDaten speist das Formular-Template. Bearbeiten unterscheidet die
@@ -192,6 +207,11 @@ type formularDaten struct {
 	// formatiert, weil sie nur gelesen und nicht zurückgeschickt werden.
 	GeburtsdatumAnzeige string
 	EintrittAnzeige     string
+
+	// Termine sind die Trainingstermine zum Ankreuzen, in Wochenreihenfolge.
+	// Sie stehen neben der Eingabe und nicht darin: welche Termine es gibt,
+	// sagt der Stundenplan und nicht das abgeschickte Formular.
+	Termine []terminauswahl
 
 	Fehler []string
 }
@@ -257,7 +277,7 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 
 	// Der Wert des Frequenzfilters ist die Frequenz als Ziffer. Alles andere —
 	// "alle", Leerraum, ein selbstgebauter Request — bleibt beim Standard.
-	if stufe, err := strconv.Atoi(e.Frequenz); err == nil && stufe >= 1 && stufe <= service.MaxTrainingsslots {
+	if stufe, err := strconv.Atoi(e.Frequenz); err == nil && stufe >= 1 && stufe <= service.MaxTrainingstermine {
 		filter.Frequenz = service.Frequenzfilter(stufe)
 	}
 
@@ -290,12 +310,12 @@ var rueckstandsoptionen = []filteroption{
 // Liste aus dem Service, wo das Vokabular für die Frequenz liegt.
 //
 // Eine Stufe für "keine Frequenz" gibt es nicht — gefragt wird nach den
-// Trainierenden einer Frequenz, und wer keinen Slot hat, ist keine solche Gruppe.
+// Trainierenden einer Frequenz, und wer keinen Termin hat, ist keine solche Gruppe.
 var frequenzoptionen = frequenzoptionenBauen()
 
 func frequenzoptionenBauen() []filteroption {
 	optionen := []filteroption{{Wert: frequenzAlle, Beschriftung: "Jede Frequenz"}}
-	for stufe := 1; stufe <= service.MaxTrainingsslots; stufe++ {
+	for stufe := 1; stufe <= service.MaxTrainingstermine; stufe++ {
 		optionen = append(optionen, filteroption{
 			Wert:         strconv.Itoa(stufe),
 			Beschriftung: service.Trainingsfrequenz(stufe).Bezeichnung(),
@@ -410,8 +430,23 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 }
 
 func (a *App) mitgliedFormular(w http.ResponseWriter, r *http.Request) {
+	a.anlegenFormularRendern(w, formularEingabe{Eintritt: time.Now().Format(isoDatum)}, nil)
+}
+
+// anlegenFormularRendern rendert das Formular für ein neues Mitglied — leer
+// beim ersten Aufruf, mit Werten und Meldungen nach einer abgelehnten Eingabe.
+// Beide Wege gehen hier durch, damit die Terminauswahl nicht an einem von
+// beiden fehlt.
+func (a *App) anlegenFormularRendern(w http.ResponseWriter, eingabe formularEingabe, fehler []string) {
+	auswahl, ok := a.terminauswahlLesen(w, eingabe)
+	if !ok {
+		return
+	}
+
 	a.rendern(w, "mitglied-formular", formularDaten{
-		Eingabe: formularEingabe{Eintritt: time.Now().Format(isoDatum)},
+		Eingabe: eingabe,
+		Termine: auswahl,
+		Fehler:  fehler,
 	})
 }
 
@@ -444,10 +479,7 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 
 	// Fehlerhafte Eingabe: Formular mit Werten und Meldungen zurückgeben. Bewusst
 	// mit Status 200 — htmx tauscht Antworten mit Fehlerstatus standardmäßig nicht ein.
-	a.rendern(w, "mitglied-formular", formularDaten{
-		Eingabe: eingabe,
-		Fehler:  fehler,
-	})
+	a.anlegenFormularRendern(w, eingabe, fehler)
 }
 
 // mitgliedBearbeitenFormular liefert das mit den aktuellen Stammdaten
@@ -512,34 +544,39 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		beitrag        string
 		anmeldedatum   string
 		anmeldegebuehr string
-		slots          []string
+		terminIDs      []string
 	)
 	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
 		eintritt = &letzte.Eintritt
 		beitrag = service.BeitragAlsEuro(letzte.BeitragCents)
 		anmeldedatum = isoDatumsWert(letzte.Anmeldung.Datum)
 		anmeldegebuehr = service.AnmeldegebuehrAlsEuro(letzte.Anmeldung.GebuehrCents)
-		slots = letzte.Trainingsslots
+		terminIDs = terminIDsAlsText(letzte.Trainingstermine)
 	}
 
 	if eingabe == nil {
 		eingabe = &formularEingabe{
-			Vorname:         m.Vorname,
-			Nachname:        m.Nachname,
-			Adresse:         m.Anschrift.Adresse,
-			Postleitzahl:    m.Anschrift.Postleitzahl,
-			Ort:             m.Anschrift.Ort,
-			Email:           m.Email,
-			Telefon:         m.Telefon,
-			IBAN:            m.IBAN,
-			Geschlecht:      m.Geschlecht,
-			GoogleBewertung: bool(m.GoogleBewertung),
-			Digital:         m.Digital,
-			Beitrag:         beitrag,
-			Anmeldegebuehr:  anmeldegebuehr,
-			Anmeldedatum:    anmeldedatum,
-			Trainingsslots:  slots,
+			Vorname:            m.Vorname,
+			Nachname:           m.Nachname,
+			Adresse:            m.Anschrift.Adresse,
+			Postleitzahl:       m.Anschrift.Postleitzahl,
+			Ort:                m.Anschrift.Ort,
+			Email:              m.Email,
+			Telefon:            m.Telefon,
+			IBAN:               m.IBAN,
+			Geschlecht:         m.Geschlecht,
+			GoogleBewertung:    bool(m.GoogleBewertung),
+			Digital:            m.Digital,
+			Beitrag:            beitrag,
+			Anmeldegebuehr:     anmeldegebuehr,
+			Anmeldedatum:       anmeldedatum,
+			TrainingsterminIDs: terminIDs,
 		}
+	}
+
+	auswahl, ok := a.terminauswahlLesen(w, *eingabe)
+	if !ok {
+		return
 	}
 
 	a.rendern(w, "mitglied-formular", formularDaten{
@@ -548,8 +585,37 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		Eingabe:             *eingabe,
 		GeburtsdatumAnzeige: datumAnzeige(m.Geburtsdatum),
 		EintrittAnzeige:     datumAnzeige(eintritt),
+		Termine:             auswahl,
 		Fehler:              fehler,
 	})
+}
+
+// terminauswahlLesen holt die Termine, die das Mitgliedsformular anbietet, und
+// kreuzt die der Eingabe an. Ist das Ergebnis nicht ok, wurde die Antwort
+// bereits geschrieben.
+//
+// Angekreuzt wird gegen die Eingabe und nicht gegen den gespeicherten Stand:
+// nach einer abgelehnten Eingabe soll dastehen, was der Nutzer gewählt hat, und
+// beim ersten Aufruf trägt die Eingabe ohnehin den gespeicherten Stand.
+func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe) ([]terminauswahl, bool) {
+	gewaehlt := eingabe.alsTrainingsterminIDs()
+
+	termine, err := a.svc.Terminauswahl(gewaehlt)
+	if err != nil {
+		fehlerAntwort(w, err)
+
+		return nil, false
+	}
+
+	auswahl := make([]terminauswahl, 0, len(termine))
+	for _, termin := range termine {
+		auswahl = append(auswahl, terminauswahl{
+			Trainingstermin: termin,
+			Gewaehlt:        slices.Contains(gewaehlt, termin.ID),
+		})
+	}
+
+	return auswahl, true
 }
 
 // mitgliedZeile liefert eine einzelne Listenzeile — der Rückweg aus der
@@ -972,10 +1038,10 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Anmeldegebuehr:  r.FormValue("anmeldegebuehr"),
 		Anmeldedatum:    r.FormValue("anmeldedatum"),
 		Eintritt:        r.FormValue("eintritt"),
-		// Alle gleichnamigen Slot-Felder auf einmal, in der Reihenfolge des
-		// Formulars. Die leeren kommen mit; sie auszusortieren ist Sache des
-		// Service, der auch die Obergrenze kennt.
-		Trainingsslots: r.Form["trainingsslot"],
+		// Alle angekreuzten Termine auf einmal. Ein Kontrollkästchen schickt
+		// seinen Wert nur, wenn es gesetzt ist — was hier ankommt, ist damit die
+		// vollständige Aussage darüber, wofür das Mitglied angemeldet sein soll.
+		TrainingsterminIDs: r.Form["trainingstermin"],
 	}
 }
 
@@ -1052,17 +1118,17 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	fehler = append(fehler, anmeldungFehler...)
 
 	neu := service.NeuesMitglied{
-		Vorname:         e.Vorname,
-		Nachname:        e.Nachname,
-		Anschrift:       e.alsAnschrift(),
-		Email:           e.Email,
-		Telefon:         e.Telefon,
-		IBAN:            e.IBAN,
-		Geschlecht:      e.Geschlecht,
-		GoogleBewertung: service.GoogleBewertung(e.GoogleBewertung),
-		Digital:         e.Digital,
-		Anmeldung:       anmeldung,
-		Trainingsslots:  e.Trainingsslots,
+		Vorname:            e.Vorname,
+		Nachname:           e.Nachname,
+		Anschrift:          e.alsAnschrift(),
+		Email:              e.Email,
+		Telefon:            e.Telefon,
+		IBAN:               e.IBAN,
+		Geschlecht:         e.Geschlecht,
+		GoogleBewertung:    service.GoogleBewertung(e.GoogleBewertung),
+		Digital:            e.Digital,
+		Anmeldung:          anmeldung,
+		TrainingsterminIDs: e.alsTrainingsterminIDs(),
 	}
 
 	if e.Geburtsdatum != "" {
@@ -1110,11 +1176,13 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		Geschlecht:      &e.Geschlecht,
 		GoogleBewertung: &googleBewertung,
 		Digital:         &e.Digital,
-		// Das Formular schickt die Slot-Felder immer mit, auch die leeren: was
-		// darin steht, ist die vollständige Aussage darüber, wann das Mitglied
-		// künftig trainiert.
-		Trainingsslots: &e.Trainingsslots,
 	}
+
+	// Kein Kreuz ist auch eine Aussage — nämlich "gar kein Training mehr" — und
+	// deshalb steht das Feld immer im Patch. Ein nil hieße "nicht angerührt",
+	// und dann ließe sich der letzte Termin nie wieder abwählen.
+	terminIDs := e.alsTrainingsterminIDs()
+	patch.TrainingsterminIDs = &terminIDs
 
 	// Was sich nicht lesen lässt, bleibt ungesetzt: ein halb verstandener Wert
 	// stünde sonst stillschweigend auf 0 € bzw. auf "kein Datum", und beides ist

@@ -148,8 +148,8 @@ const (
 	spalteDigital        = "Digital"
 )
 
-// trainingsspalten sind die Termine in der Reihenfolge, in der sie zu Slots
-// werden. Nur die erste ist Pflicht: die Mustertabelle führt sie allein, und
+// trainingsspalten sind die Termine in der Reihenfolge, in der sie in der
+// Tabelle stehen. Nur die erste ist Pflicht: die Mustertabelle führt sie allein, und
 // eine zweite und dritte kommen vor, ohne dass ihr Fehlen den Import aufhalten
 // dürfte. Weicht die Zahl der so gefundenen Termine von der Spalte
 // „1x 2x Woche" ab, sagt der Bericht das (siehe frequenzPruefen).
@@ -252,7 +252,6 @@ func (k kopf) zeileLesen(zeile []string) (service.Importsatz, []string) {
 				Datum:        z.datum(spalteAnmeldedatum),
 				GebuehrCents: z.anmeldegebuehr(),
 			},
-			Trainingsslots: z.trainingsslots(),
 		},
 	}
 
@@ -263,7 +262,13 @@ func (k kopf) zeileLesen(zeile []string) (service.Importsatz, []string) {
 	}
 
 	z.lebenszyklus(&satz)
-	z.frequenzPruefen(satz.Trainingsslots)
+
+	// Die Freitexte der Trainingsspalten haben seit ADR-0008 kein Ziel mehr im
+	// Satz: ein Termin ist ein Verweis in den Stundenplan, und den Abgleich
+	// bringt Ticket 22. Geprüft werden sie trotzdem schon — die Gegenprobe zur
+	// Spalte „1x 2x Woche" ist eine Aussage über die Tabelle und hängt nicht
+	// daran, was mit den Texten anschließend geschieht.
+	z.frequenzPruefen(z.trainingstexte())
 
 	return satz, z.fehler
 }
@@ -476,29 +481,32 @@ func (z *zeilenleser) bewertung() service.GoogleBewertung {
 }
 
 // keinTraining ist der Wert, mit dem die Tabelle „kein Termin" ausdrückt. Er
-// ergibt keinen Slot — ein Trainingsslot namens „Kein" wäre ein Termin, den es
+// ergibt keinen Termin — ein Trainingstermin namens „Kein" wäre einer, den es
 // nicht gibt, und würde die Frequenz um eins zu hoch ablesen lassen.
 const keinTraining = "kein"
 
-func (z *zeilenleser) trainingsslots() []string {
-	var slots []string
+// trainingstexte sind die gefüllten Trainingsspalten der Zeile, wortwörtlich.
+// Was daraus wird, entscheidet Ticket 22; hier zählt einstweilen nur, wie viele
+// es sind (frequenzPruefen).
+func (z *zeilenleser) trainingstexte() []string {
+	var texte []string
 	for _, spalte := range trainingsspalten {
 		wert := z.text(spalte)
 		if wert == "" || strings.EqualFold(wert, keinTraining) {
 			continue
 		}
-		slots = append(slots, wert)
+		texte = append(texte, wert)
 	}
 
-	return slots
+	return texte
 }
 
 // frequenzPruefen hält die Spalte „1x 2x Woche" gegen die Zahl der gefundenen
 // Termine. Übernommen wird sie nicht: die Trainingsfrequenz ist die Anzahl der
-// Slots und nichts daneben (CONTEXT.md → Trainingsfrequenz). Weicht sie ab, ist
-// das ein Eintrag im Bericht — stillschweigend zu korrigieren hieße, eine der
-// beiden Angaben wegzuwerfen, ohne zu wissen, welche stimmt.
-func (z *zeilenleser) frequenzPruefen(slots []string) {
+// Termine und nichts daneben (CONTEXT.md → Trainingsfrequenz). Weicht sie ab,
+// ist das ein Eintrag im Bericht — stillschweigend zu korrigieren hieße, eine
+// der beiden Angaben wegzuwerfen, ohne zu wissen, welche stimmt.
+func (z *zeilenleser) frequenzPruefen(texte []string) {
 	wert := z.text(spalteFrequenz)
 	if wert == "" {
 		return
@@ -511,8 +519,8 @@ func (z *zeilenleser) frequenzPruefen(slots []string) {
 		return
 	}
 
-	if angegeben != len(slots) {
-		z.melden("Frequenz %d× widerspricht %d Trainingsterminen", angegeben, len(slots))
+	if angegeben != len(texte) {
+		z.melden("Frequenz %d× widerspricht %d Trainingsterminen", angegeben, len(texte))
 	}
 }
 

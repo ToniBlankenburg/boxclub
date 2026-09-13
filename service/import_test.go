@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -108,8 +109,13 @@ func TestUebernehmen_AutomatischeVergabeZaehltOberhalbDerImportiertenNummern(t *
 	}
 }
 
-func TestUebernehmen_SchreibtKuendigungRuhendUndSlots(t *testing.T) {
+// Die Trainingstermine kommen hier als Verweise in den Stundenplan an. Der
+// Importer füllt sie noch nicht — der Abgleich der Excel-Freitexte ist Ticket 22
+// —, die Übernahme schreibt sie aber bereits.
+func TestUebernehmen_SchreibtKuendigungRuhendUndTrainingstermine(t *testing.T) {
 	svc := neuerService(t)
+
+	montag, mittwoch, _ := stundenplan(t, svc)
 
 	kuendigungsdatum := datum(t, "2026-11-03")
 	austritt := datum(t, "2027-02-28")
@@ -117,7 +123,7 @@ func TestUebernehmen_SchreibtKuendigungRuhendUndSlots(t *testing.T) {
 	satz := importsatz(t, 47, "Erika", "Musterfrau")
 	satz.Kuendigung = service.Kuendigung{Datum: &kuendigungsdatum, Austritt: &austritt}
 	satz.Ruhend = true
-	satz.Trainingsslots = []string{"Samstag 10:30 Uhr", "Dienstag 19:30 Uhr"}
+	satz.TrainingsterminIDs = ids(montag, mittwoch)
 
 	if _, err := svc.Uebernehmen(satz); err != nil {
 		t.Fatalf("Uebernehmen: %v", err)
@@ -138,8 +144,47 @@ func TestUebernehmen_SchreibtKuendigungRuhendUndSlots(t *testing.T) {
 	if !ms.Ruhend {
 		t.Error("Ruhend = false, erwartet true")
 	}
+	if gefunden := ids(ms.Trainingstermine...); !slices.Equal(gefunden, ids(montag, mittwoch)) {
+		t.Errorf("Trainingstermine = %v, erwartet %v", gefunden, ids(montag, mittwoch))
+	}
 	if ms.Trainingsfrequenz() != 2 {
 		t.Errorf("Trainingsfrequenz = %d, erwartet 2", ms.Trainingsfrequenz())
+	}
+}
+
+// Bis Ticket 22 bringt der Importer keine Trainingstermine mit. Ein zweiter
+// Lauf darf die von Hand zugeordneten deshalb nicht wegnehmen: „keine
+// Termine übernehmen" heißt nichts schreiben und nicht alles löschen — dieselbe
+// Zusicherung wie beim Rückstand darunter.
+func TestUebernehmen_LaesstZugeordneteTrainingstermineStehen(t *testing.T) {
+	svc := neuerService(t)
+
+	montag, mittwoch, _ := stundenplan(t, svc)
+
+	erster := importsatz(t, 47, "Erika", "Musterfrau")
+	erster.TrainingsterminIDs = ids(montag, mittwoch)
+	if _, err := svc.Uebernehmen(erster); err != nil {
+		t.Fatalf("erster Lauf: %v", err)
+	}
+
+	// Derselbe Satz noch einmal, so wie der Importer ihn heute liefert: ohne
+	// Termine.
+	if _, err := svc.Uebernehmen(importsatz(t, 47, "Erika", "Musterfrau")); err != nil {
+		t.Fatalf("zweiter Lauf: %v", err)
+	}
+
+	m, err := svc.Get(47)
+	if err != nil {
+		t.Fatalf("Get(47): %v", err)
+	}
+
+	ms := m.Mitgliedschaften[0]
+	if gefunden := ids(ms.Trainingstermine...); !slices.Equal(gefunden, ids(montag, mittwoch)) {
+		t.Errorf("Trainingstermine nach dem zweiten Lauf = %v, erwartet unverändert %v",
+			gefunden, ids(montag, mittwoch))
+	}
+	if ms.Trainingsfrequenz() != 2 {
+		t.Errorf("Trainingsfrequenz = %d, erwartet unverändert 2", int(ms.Trainingsfrequenz()))
 	}
 }
 

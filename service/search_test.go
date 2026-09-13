@@ -25,17 +25,23 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 
 	var b suchBestand
 
-	anlegen := func(vorname, nachname, email, telefon string, beitragCents int64, slots ...string) int64 {
+	// Der Stundenplan, aus dem die Frequenzen des Bestands entstehen. Er steht
+	// vor den Mitgliedern, weil seit ADR-0008 niemand ohne ihn angemeldet werden
+	// kann.
+	montag, mittwoch, samstag := stundenplan(t, svc)
+	dienstag := angelegterTermin(t, svc, terminangabe(service.Dienstag, "19:30", "", ""))
+
+	anlegen := func(vorname, nachname, email, telefon string, beitragCents int64, termine ...int64) int64 {
 		t.Helper()
 
 		id, err := svc.Create(service.NeuesMitglied{
-			Vorname:        vorname,
-			Nachname:       nachname,
-			Email:          email,
-			Telefon:        telefon,
-			BeitragCents:   beitragCents,
-			Eintritt:       datum(t, "2026-01-05"),
-			Trainingsslots: slots,
+			Vorname:            vorname,
+			Nachname:           nachname,
+			Email:              email,
+			Telefon:            telefon,
+			BeitragCents:       beitragCents,
+			Eintritt:           datum(t, "2026-01-05"),
+			TrainingsterminIDs: termine,
 		})
 		if err != nil {
 			t.Fatalf("Create(%s %s): %v", vorname, nachname, err)
@@ -55,28 +61,28 @@ func suchbestandAnlegen(t *testing.T, svc *service.MemberService) suchBestand {
 	// Anna Berger und Jörg Meier-Schmidt bleiben in Ordnung — der Normalfall
 	// beim Lastschrifteinzug, und zugleich der Nullwert nach der Anlage.
 	//
-	// Die Trainingsslots sind so verteilt, dass jede Frequenz genau einmal unter
-	// den Aktiven vorkommt: Meier-Schmidt trainiert gar nicht, Öztürk einmal,
-	// Berger zweimal, Wagner dreimal.
+	// Die Trainingstermine sind so verteilt, dass jede Frequenz genau einmal
+	// unter den Aktiven vorkommt: Meier-Schmidt trainiert gar nicht, Öztürk
+	// einmal, Berger zweimal, Wagner dreimal.
 	b.Berger = anlegen("Anna", "Berger", "anna.berger@example.org", "030 1234567", 8000,
-		"Montag 18:00 Uhr", "Mittwoch 19:30 Uhr")
+		montag.ID, mittwoch.ID)
 
 	b.Oeztuerk = anlegen("Mehmet", "Öztürk", "m.oeztuerk@example.org", "0171 9876543", 6000,
-		"Samstag 10:30 Uhr")
+		samstag.ID)
 	imRueckstand(b.Oeztuerk, "Rücklastschrift Oktober")
 
 	b.MeierSchmidt = anlegen("Jörg", "Meier-Schmidt", "joerg.meier-schmidt@example.org", "030 5550101", 0)
 
 	b.Wagner = anlegen("Paul", "Wagner", "paul.wagner@example.org", "030 7778899", 13500,
-		"Montag 18:00 Uhr", "Mittwoch 19:30 Uhr", "Samstag 10:30 Uhr")
+		montag.ID, mittwoch.ID, samstag.ID)
 	imRueckstand(b.Wagner, "Rücklastschrift September, angeschrieben am 05.10.")
 
 	// Nina Klein ist ausgetreten — sonst würde sie in denselben Filter fallen
-	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen. Ihre zwei Slots
-	// teilt sie mit Berger: so trifft der Frequenzfilter allein noch nicht die
-	// Aktivität.
+	// wie Wagner, und der Aktivitätsfilter bliebe unbewiesen. Ihre zwei Termine
+	// ergeben dieselbe Frequenz wie Bergers: so trifft der Frequenzfilter allein
+	// noch nicht die Aktivität.
 	b.Klein = anlegen("Nina", "Klein", "nina.klein@example.org", "0160 4443322", 4500,
-		"Dienstag 19:30 Uhr", "Samstag 10:30 Uhr")
+		dienstag.ID, samstag.ID)
 	imRueckstand(b.Klein, "Rücklastschrift Juni, beim Austritt noch offen")
 	if err := svc.SetKuendigung(b.Klein, austrittZum(datum(t, "2026-06-30"))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
@@ -217,7 +223,7 @@ func TestSearch_FiltertNachRueckstand(t *testing.T) {
 }
 
 // Der Frequenzfilter fragt nach einer abgeleiteten Größe: gespeichert sind nur
-// die Slots (CONTEXT.md → Trainingsfrequenz). Er ersetzt den Klassenfilter, den
+// die Termine (CONTEXT.md → Trainingsfrequenz). Er ersetzt den Klassenfilter, den
 // ADR-0005 mit den Beitragsklassen abgeräumt hat.
 func TestSearch_FiltertNachTrainingsfrequenz(t *testing.T) {
 	svc := neuerService(t)
@@ -243,14 +249,14 @@ func TestSearch_FiltertNachTrainingsfrequenz(t *testing.T) {
 		})
 	}
 
-	// Meier-Schmidt hat keinen Slot und fällt damit durch jede Stufe: null Slots
-	// sind "keine Frequenz" und nicht "1×". Nur "alle" zeigt ihn.
+	// Meier-Schmidt hat keinen Termin und fällt damit durch jede Stufe: null
+	// Termine sind "keine Frequenz" und nicht "1×". Nur "alle" zeigt ihn.
 	for _, f := range []service.Frequenzfilter{
 		service.FrequenzfilterEinmal, service.FrequenzfilterZweimal, service.FrequenzfilterDreimal,
 	} {
 		gefunden := suchen(t, svc, "meier-schmidt", service.Suchfilter{Frequenz: f})
 		if len(gefunden) != 0 {
-			t.Errorf("Frequenzfilter %d = %v, erwartet kein Ergebnis für ein Mitglied ohne Slot", int(f), gefunden)
+			t.Errorf("Frequenzfilter %d = %v, erwartet kein Ergebnis für ein Mitglied ohne Termin", int(f), gefunden)
 		}
 	}
 }

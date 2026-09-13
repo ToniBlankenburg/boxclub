@@ -276,7 +276,7 @@ func TestUpdate_LaesstDieRestlichenStammdatenOhneAngabeUnberuehrt(t *testing.T) 
 
 // Die Anmeldegebühr ist ein historischer Wert: sie gehört zu dem Vorgang, mit
 // dem ein Zeitraum begann, und wird bei einem Wiedereintritt nicht fortgeführt.
-// Genauso das Anmeldedatum — wie die Trainingsslots beginnt der neue Zeitraum
+// Genauso das Anmeldedatum — wie die Trainingstermine beginnt der neue Zeitraum
 // hier leer.
 func TestRejoin_FuehrtAnmeldungNichtFort(t *testing.T) {
 	svc := neuerService(t)

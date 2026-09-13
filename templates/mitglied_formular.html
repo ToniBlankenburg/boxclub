@@ -73,7 +73,7 @@
              0 ist ein gültiger Betrag — Trainer zahlen nichts —, deshalb ist das
              Feld Pflicht: die Null gehört hingeschrieben. */}}
         {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
-        {{template "trainingsslotfelder" .Eingabe.Trainingsslotfelder}}
+        {{template "trainingsterminauswahl" .}}
         {{/* Zweiwertig: hat bewertet oder nicht (CONTEXT.md → Google-Bewertung).
              Die Beschriftung des Hakens kommt aus dem Service. */}}
         {{template "feld-kontrollkaestchen" kontrollkaestchen "Google-Bewertung" "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
@@ -119,31 +119,45 @@
 </label>
 {{end}}
 
-{{/* trainingsslotfelder sind die drei Felder für die wöchentlichen Termine
-     (CONTEXT.md → Trainingsslot). Drei sind das Maximum, deshalb stehen alle
-     drei von vornherein da: Hinzufügen heißt ein Feld ausfüllen, Entfernen
-     heißt es leeren. Ein Knopf, der ein viertes Feld erzeugen könnte, wäre ein
-     Versprechen, das der Service zu Recht bricht.
+{{/* trainingsterminauswahl ist die Auswahl aus dem Stundenplan (ADR-0008).
+     Getippt wird hier nichts mehr: angekreuzt werden die Termine, die der
+     Verein pflegt. Drei sind das Maximum — eine Obergrenze, die der Service
+     durchsetzt und nicht das Formular; ein deaktiviertes viertes Kästchen sagte
+     dem Nutzer nicht, was los ist.
 
-     Alle Felder heißen gleich und kommen als Liste beim Handler an. Die Daten
-     sind []trainingsslotfeld. */}}
-{{define "trainingsslotfelder"}}
+     Alle Kästchen heißen gleich und kommen als Liste beim Handler an. Ein
+     archivierter Termin steht nur dann darin, wenn er bereits zugeordnet ist:
+     abwählen kann man ihn, neu vergeben nicht. Die Daten sind formularDaten. */}}
+{{define "trainingsterminauswahl"}}
 <div class="flex flex-col gap-1.5 sm:col-span-2">
-    <span class="text-sm text-neutral-600">Trainingsslots</span>
-    <div class="grid gap-2 sm:grid-cols-3">
-        {{range .}}
-            <input name="trainingsslot" type="text" value="{{.Wert}}"
-                   placeholder="z. B. Samstag 10:30 Uhr"
-                   aria-label="Trainingsslot {{.Nummer}}"
-                   class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
-        {{end}}
-    </div>
-    {{/* Die Frequenz steht nicht im Formular: sie ist die Anzahl der Slots und
-         wird nirgends gespeichert (CONTEXT.md → Trainingsfrequenz). */}}
-    <span class="text-sm text-neutral-500">
-        Wochentag und Uhrzeit, höchstens drei. Ein leeres Feld ist kein Slot — die
-        Trainingsfrequenz ergibt sich aus der Anzahl der ausgefüllten Felder.
-    </span>
+    <span class="text-sm text-neutral-600">Training</span>
+    {{if .Termine}}
+        <div class="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+            {{range .Termine}}
+                <label class="flex items-center gap-2">
+                    <input name="trainingstermin" type="checkbox" value="{{.ID}}" {{if .Gewaehlt}}checked{{end}}
+                           class="size-4 rounded border-neutral-300 text-red-700 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                    <span>{{.Anzeige}}{{if .Archiviert}} <span class="text-neutral-400">(archiviert)</span>{{end}}</span>
+                </label>
+            {{end}}
+        </div>
+        {{/* Die Frequenz steht nicht im Formular: sie ist die Anzahl der
+             angekreuzten Termine und wird nirgends gespeichert
+             (CONTEXT.md → Trainingsfrequenz). */}}
+        <span class="text-sm text-neutral-500">
+            Höchstens drei Termine. Die Trainingsfrequenz ergibt sich aus der Anzahl
+            der Kreuze; kein Kreuz heißt „keine Frequenz“ und nicht „1×“.
+        </span>
+    {{else}}
+        {{/* Vor dem ersten Import muss der Stundenplan stehen (ADR-0008) — hier
+             fällt das auf. Bewusst nur als Hinweis und nicht als Verweis: ein
+             Klick dorthin tauschte #inhalt aus und nähme das halb ausgefüllte
+             Formular mit. */}}
+        <p class="text-sm text-neutral-500">
+            Der Stundenplan ist noch leer — Trainingszeiten lassen sich erst zuordnen,
+            wenn im Bereich <em>Trainingstermine</em> welche angelegt sind.
+        </p>
+    {{end}}
 </div>
 {{end}}
 

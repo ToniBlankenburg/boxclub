@@ -47,7 +47,7 @@
             {{end}}
         </select>
 
-        {{/* Die Trainingsfrequenz ist die Anzahl der Slots und steht nirgends in
+        {{/* Die Trainingsfrequenz ist die Anzahl der Termine und steht nirgends in
              der Datenbank (CONTEXT.md → Trainingsfrequenz); gefiltert wird
              trotzdem nach ihr, weil der Verein in Frequenzen denkt. */}}
         <select id="filter-frequenz" name="frequenz" aria-label="Nach Trainingsfrequenz filtern"
@@ -209,14 +209,18 @@
             </div>
         {{end}}
     </td>
-    {{/* Die Trainingsslots hängen an der Mitgliedschaft; gezeigt werden die der
+    {{/* Die Trainingstermine hängen an der Mitgliedschaft; gezeigt werden die der
          maßgeblichen — bei einem Ehemaligen also die seines letzten Zeitraums.
          Wie bei der Anschrift wird abgeschnitten statt umgebrochen; im Tooltip
-         steht die abgeleitete Frequenz, die nirgends gespeichert ist. */}}
+         steht die abgeleitete Frequenz, die nirgends gespeichert ist.
+
+         Ein archivierter Termin steht mit da, unmarkiert: er zählt weiter zur
+         Frequenz, und die Liste zeigt, wozu angemeldet ist — dass er aus dem
+         Stundenplan genommen ist, gehört in dessen Ansicht und ins Formular. */}}
     <td class="px-4 py-2 text-sm text-neutral-600">
-        {{if .Trainingsslots}}
+        {{if .Trainingstermine}}
             <div class="max-w-48" title="{{.Trainingsfrequenz.Bezeichnung}}">
-                {{range .Trainingsslots}}<div class="truncate">{{.}}</div>{{end}}
+                {{range .Trainingstermine}}<div class="truncate">{{.Anzeige}}</div>{{end}}
             </div>
         {{else}}
             <span class="text-neutral-400" title="{{.Trainingsfrequenz.Bezeichnung}}">—</span>

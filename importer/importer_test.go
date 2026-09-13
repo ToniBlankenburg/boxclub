@@ -194,9 +194,6 @@ func TestLesen_UebernimmtDieMusterzeile(t *testing.T) {
 	if satz.Digital != "Digital" {
 		t.Errorf("Digital = %q, erwartet den Wert wortwörtlich", satz.Digital)
 	}
-	if len(satz.Trainingsslots) != 1 || satz.Trainingsslots[0] != "Samstag 10:30 Uhr" {
-		t.Errorf("Trainingsslots = %q, erwartet genau den einen Termin", satz.Trainingsslots)
-	}
 	if satz.Ruhend {
 		t.Error("Ruhend = true, erwartet false für Status „Neu“")
 	}
@@ -312,32 +309,52 @@ func TestLesen_DoppelteMitgliedsIDMachtDieZweiteZeileZumFehlerfall(t *testing.T)
 	}
 }
 
-func TestLesen_MachtAusDreiTrainingsspaltenDreiSlots(t *testing.T) {
+// Die drei Trainingsspalten haben seit ADR-0008 kein Ziel mehr im Satz: ein
+// Termin ist ein Verweis in den Stundenplan, und der Abgleich der Freitexte ist
+// Ticket 22. Dass sie gelesen werden, zeigt sich einstweilen an der Gegenprobe
+// zur Frequenzspalte — sie zählt genau die Zellen, die der Importer findet.
+func TestLesen_ZaehltAlleDreiTrainingsspalten(t *testing.T) {
 	mitDrei := append(slices.Clone(spalten), "Training - 2", "Training - 3")
 
-	satz := einzigerSatz(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
+	dreiZellen := mitZeile(map[string]any{
 		"Training - 2": "Dienstag 19:30 Uhr",
 		"Training - 3": "Donnerstag 18:00 Uhr",
 		"1x 2x Woche":  "3x Woche",
-	}))))
+	})
 
-	erwartet := []string{"Samstag 10:30 Uhr", "Dienstag 19:30 Uhr", "Donnerstag 18:00 Uhr"}
-	if !slices.Equal(satz.Trainingsslots, erwartet) {
-		t.Errorf("Trainingsslots = %q, erwartet %q", satz.Trainingsslots, erwartet)
+	// Drei gefüllte Zellen und „3x Woche": kein Widerspruch, die Zeile geht durch.
+	einzigerSatz(t, lesen(t, mappe(t, mitDrei, dreiZellen)))
+
+	// Dieselben drei Zellen gegen „2x Woche": jetzt widersprechen sie sich, und
+	// damit ist gezeigt, dass alle drei Spalten gezählt wurden.
+	bericht := nurFehler(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
+		"Training - 2": "Dienstag 19:30 Uhr",
+		"Training - 3": "Donnerstag 18:00 Uhr",
+		"1x 2x Woche":  "2x Woche",
+	}))))
+	if !strings.Contains(bericht, "widerspricht 3 Trainingsterminen") {
+		t.Errorf("Bericht zählt nicht drei Termine:\n%s", bericht)
 	}
 }
 
-func TestLesen_LeereTrainingszelleErgibtKeinenSlot(t *testing.T) {
+// Eine leere Trainingszelle ist kein Termin: sie zählt nicht mit.
+func TestLesen_LeereTrainingszelleZaehltNicht(t *testing.T) {
 	mitDrei := append(slices.Clone(spalten), "Training - 2", "Training - 3")
 
-	satz := einzigerSatz(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
+	// Von drei Spalten ist eine leer — „2x Woche" passt also, „3x Woche" nicht.
+	einzigerSatz(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
 		"Training - 2": "",
 		"Training - 3": "Donnerstag 18:00 Uhr",
 		"1x 2x Woche":  "2x Woche",
 	}))))
 
-	if len(satz.Trainingsslots) != 2 {
-		t.Errorf("Trainingsslots = %q, erwartet zwei — die leere Zelle zählt nicht", satz.Trainingsslots)
+	bericht := nurFehler(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
+		"Training - 2": "",
+		"Training - 3": "Donnerstag 18:00 Uhr",
+		"1x 2x Woche":  "3x Woche",
+	}))))
+	if !strings.Contains(bericht, "widerspricht 2 Trainingsterminen") {
+		t.Errorf("Bericht zählt die leere Zelle mit:\n%s", bericht)
 	}
 }
 

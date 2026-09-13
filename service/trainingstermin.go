@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -390,4 +391,36 @@ func betroffenPruefen(res sql.Result, id int64) error {
 	}
 
 	return nil
+}
+
+// Terminauswahl liefert die Termine, die ein Mitgliedsformular zum Ankreuzen
+// anbietet: den gepflegten Stundenplan, dazu die archivierten, für die diese
+// Mitgliedschaft bereits angemeldet ist.
+//
+// Die zweite Hälfte ist der Grund, dass es die Funktion gibt. Ein archivierter
+// Termin fehlte sonst im Formular, und weil das Formular die Anmeldung als
+// Ganzes schickt, nähme jedes Speichern dem Mitglied still eine Trainingszeit,
+// die vereinbart ist. Er steht deshalb an seinem Platz in der Woche mit da,
+// angekreuzt und als archiviert erkennbar: abwählen lässt er sich, neu vergeben
+// nicht (trainingstermineSchreiben).
+//
+// zugeordnet sind die Termine, die derzeit angekreuzt sind. Unbekannte IDs
+// darin gehen ins Leere statt einen Fehler zu ergeben — welche Auswahl gültig
+// ist, entscheidet das Speichern und nicht das Anzeigen.
+func (s *MemberService) Terminauswahl(zugeordnet []int64) ([]Trainingstermin, error) {
+	// Mit den archivierten, damit die zugeordneten darunter sein können;
+	// aussortiert werden sie gleich danach.
+	termine, err := s.ListTrainingstermine(true)
+	if err != nil {
+		return nil, err
+	}
+
+	auswahl := make([]Trainingstermin, 0, len(termine))
+	for _, termin := range termine {
+		if !termin.Archiviert || slices.Contains(zugeordnet, termin.ID) {
+			auswahl = append(auswahl, termin)
+		}
+	}
+
+	return auswahl, nil
 }
