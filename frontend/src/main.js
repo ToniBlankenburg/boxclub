@@ -1,5 +1,142 @@
 // htmx wird von Vite mitgebündelt, damit die App vollständig offline läuft.
-// Eigene Logik gibt es hier bewusst nicht: alle Interaktionen laufen über
-// hx-*-Attribute gegen die Go-Handler in app/.
+// Eigene Logik gibt es hier bis auf eine Ausnahme nicht: alle Interaktionen
+// laufen über hx-*-Attribute gegen die Go-Handler in app/.
+//
+// Die Ausnahme ist die Spaltenwahl der Mitgliederliste (Ticket 27): welche
+// Spalten sichtbar sind, ist eine reine Ansichtsvorliebe an diesem einen
+// Rechner und überlebt den Neustart über localStorage — "kein Go, keine
+// Datenbank" (CLAUDE.md). Dafür braucht es zwangsläufig Code im Browser: Go
+// bekommt localStorage nie zu Gesicht. Die Sortierung selbst läuft dagegen
+// wie gehabt über hx-*-Attribute gegen den Server (ADR-0004) — hier unten
+// steht nur der Rückfall, wenn eine ausgeblendete Spalte gerade die aktive
+// Sortierspalte ist.
 import 'htmx.org';
 import './style.css';
+
+// spaltenAusblendbar sind die Schlüssel der Spalten, die sich ausblenden
+// lassen — dieselben, die app.spaltenAusblendbar in Go kennt (Status,
+// Anschrift, Training, Beitrag, Rückstand, Eintritt). Nr. und Name bleiben
+// immer sichtbar und stehen deshalb nicht hier.
+const spaltenAusblendbar = ['status', 'anschrift', 'training', 'beitrag', 'rueckstand', 'eintritt'];
+
+// speicherSchluessel ist der localStorage-Schlüssel der Spaltenwahl.
+const speicherSchluessel = 'boxclub.mitgliederliste.spalten';
+
+// sichtbareSpaltenLesen liefert die gespeicherte Auswahl der ausblendbaren
+// Spalten — oder alle, wenn noch nichts gespeichert ist (der Standard: nichts
+// ausgeblendet) oder der Speicher nicht lesbar ist (privates Fenster,
+// blockierter Seitenzugriff).
+function sichtbareSpaltenLesen() {
+    try {
+        const gespeichert = JSON.parse(localStorage.getItem(speicherSchluessel));
+        if (Array.isArray(gespeichert)) {
+            return spaltenAusblendbar.filter((spalte) => gespeichert.includes(spalte));
+        }
+    } catch {
+        // Kein Zugriff oder kein gültiges JSON — dann gilt der Standard unten.
+    }
+
+    return spaltenAusblendbar.slice();
+}
+
+// sichtbareSpaltenSchreiben speichert die Auswahl. Schlägt das fehl, bleibt
+// sie für diese Sitzung trotzdem wirksam — nur der nächste Neustart vergisst
+// sie dann wieder.
+function sichtbareSpaltenSchreiben(sichtbar) {
+    try {
+        localStorage.setItem(speicherSchluessel, JSON.stringify(sichtbar));
+    } catch {
+        // Siehe sichtbareSpaltenLesen.
+    }
+}
+
+// spaltenAnwenden blendet die ausgeblendeten Spalten im ganzen Dokument aus:
+// jede Zelle mit passendem data-col, plus die zusammengefasste Zelle der drei
+// Inline-Formulare (Kündigung, Wiedereintritt, Rückstand), deren colspan
+// mitschrumpft, damit die Zeile mit der Tabelle ausgerichtet bleibt.
+//
+// Aufgerufen wird sie nach jedem htmx-Austausch (siehe unten), weil jeder von
+// ihnen Kopf- oder Datenzeilen neu einsetzt, die ohne das hier wieder alle
+// Spalten zeigen würden. Gescannt wird bewusst immer das ganze Dokument statt
+// nur des ausgetauschten Teilbaums: htmx.detail.target ist bei einem
+// outerHTML-Tausch — genau das, was die drei Inline-Formulare benutzen — der
+// schon ersetzte, nicht mehr im Baum hängende alte Knoten, und ein Scan gegen
+// ihn träfe die neue Zeile gar nicht. Bei 50–200 Mitgliedern kostet der
+// vollständige Durchlauf nichts.
+function spaltenAnwenden() {
+    const sichtbar = sichtbareSpaltenLesen();
+
+    document.querySelectorAll('[data-col]').forEach((zelle) => {
+        const spalte = zelle.getAttribute('data-col');
+        if (spaltenAusblendbar.includes(spalte)) {
+            zelle.hidden = !sichtbar.includes(spalte);
+        }
+    });
+
+    document.querySelectorAll('[data-colspan-optional]').forEach((zelle) => {
+        zelle.colSpan = Math.max(1, sichtbar.length);
+    });
+
+    document.querySelectorAll('[data-spalten-kasten]').forEach((kasten) => {
+        kasten.checked = sichtbar.includes(kasten.value);
+    });
+
+    sortierfallbackPruefen(sichtbar);
+}
+
+// sortierfallbackPruefen setzt die Sortierung auf Namen zurück, sobald die
+// gerade aktive Sortierspalte ausgeblendet wird: eine ausgeblendete Spalte
+// lässt sich nicht als Sortierspalte auswählen (Ticket 27). Das läuft hier
+// und nicht in Go, weil die Sichtbarkeit nie durch Go läuft — der Server weiß
+// gar nicht, welche Spalte gerade ausgeblendet ist.
+function sortierfallbackPruefen(sichtbar) {
+    const ergebnis = document.getElementById('mitglieder-ergebnis');
+    const sortFeld = ergebnis && ergebnis.querySelector('input[name="sort"]');
+    if (!sortFeld || !window.htmx) {
+        return;
+    }
+
+    // Das leere Feld heißt "Name" (service.Sortierung-Nullwert) — und Name
+    // ist nie ausgeblendet, dann ist hier ohnehin nichts zu tun.
+    const aktiveSpalte = sortFeld.value;
+    if (!spaltenAusblendbar.includes(aktiveSpalte) || sichtbar.includes(aktiveSpalte)) {
+        return;
+    }
+
+    const parameter = new URLSearchParams();
+    const suchfeld = document.getElementById('suchfeld');
+    if (suchfeld && suchfeld.value) parameter.set('q', suchfeld.value);
+    const rueckstand = document.getElementById('filter-rueckstand');
+    if (rueckstand && rueckstand.value) parameter.set('rueckstand', rueckstand.value);
+    const frequenz = document.getElementById('filter-frequenz');
+    if (frequenz && frequenz.value) parameter.set('frequenz', frequenz.value);
+    const ehemalige = document.getElementById('filter-ehemalige');
+    if (ehemalige && ehemalige.checked) parameter.set('ehemalige', '1');
+    // sort und richtung bleiben weg: der fehlende Wert ist bereits der
+    // Standard "Name, aufsteigend" (service.Sortierung-Nullwert).
+
+    window.htmx.ajax('GET', '/api/mitglieder/ergebnis?' + parameter.toString(), {
+        target: '#mitglieder-ergebnis',
+        swap: 'innerHTML',
+    });
+}
+
+// Nach jedem htmx-Austausch neu anwenden — das deckt sowohl den ersten Aufbau
+// der Seite (#inhalt lädt selbst per hx-trigger="load") als auch jede spätere
+// Suche, jeden Filter, jeden Sortierklick und jede Zeile ab, die ein
+// Inline-Formular ersetzt.
+document.body.addEventListener('htmx:afterSwap', spaltenAnwenden);
+
+// Ein Kästchen im Spaltenmenü ändert sich: neu speichern und sofort anwenden.
+document.body.addEventListener('change', (ereignis) => {
+    if (!ereignis.target.matches('[data-spalten-kasten]')) {
+        return;
+    }
+
+    const sichtbar = spaltenAusblendbar.filter((spalte) => {
+        const kasten = document.querySelector(`[data-spalten-kasten][value="${spalte}"]`);
+        return !kasten || kasten.checked;
+    });
+    sichtbareSpaltenSchreiben(sichtbar);
+    spaltenAnwenden();
+});

@@ -1359,6 +1359,13 @@ type Suchfilter struct {
 	// die, deren Austritt erreicht ist. Ein bevorstehender Austritt macht
 	// niemanden ehemalig; solche Zeilen stehen auch ohne dieses Kennzeichen da.
 	AuchEhemalige bool
+
+	// Sortierung bestimmt Spalte und Richtung, nach der Search die Ergebnisse
+	// ordnet (Ticket 27). Der Nullwert ist "Name, aufsteigend" — dieselbe
+	// Standardsortierung, die es schon vor diesem Ticket gab; Sortierung
+	// reist deshalb im selben Filter wie Rueckstand und Frequenz und bleibt
+	// so über Suche und Filter hinweg erhalten.
+	Sortierung Sortierung
 }
 
 // Search liefert die Mitglieder, auf die Suchbegriff und Filter gemeinsam
@@ -1388,8 +1395,8 @@ func (s *MemberService) Search(query string, filter Suchfilter) ([]Listeneintrag
 		}
 	}
 
-	// Sortiert wird nicht in SQL, sondern in Go: siehe nachNamenSortieren.
-	nachNamenSortieren(treffer)
+	// Sortiert wird nicht in SQL, sondern in Go: siehe eintraegeSortieren.
+	eintraegeSortieren(treffer, filter.Sortierung)
 
 	return treffer, nil
 }
@@ -1617,6 +1624,10 @@ func (s *MemberService) SetRueckstand(id int64, r Rueckstand) error {
 // das ausschließlich ASCII faltet — dort landeten Umlaute hinter "Z". Bei der
 // Größenordnung dieses Vereins (200 Mitglieder) ist Sortieren im Speicher
 // ohnehin unmerklich.
+//
+// Das bleibt der Standard, auf den auch der Nullwert von Sortierung fällt
+// (siehe eintraegeSortieren, Ticket 27) — diese Funktion ist seitdem dessen
+// Sonderfall und nicht durch ihn ersetzt.
 func nachNamenSortieren(liste []Listeneintrag) {
 	// Ein Collator ist nicht nebenläufigkeitssicher, deshalb einer pro Aufruf.
 	sortierung := collate.New(language.German)

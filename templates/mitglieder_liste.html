@@ -31,6 +31,14 @@
     <form class="flex flex-1 flex-wrap items-center gap-2"
           hx-get="/api/mitglieder/ergebnis"
           hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
+          {{/* Die Sortierung steht nicht in diesem Formular, sondern als
+               verstecktes Feld im Ergebnis selbst (siehe "mitglieder-ergebnis"
+               unten) — ein Klick auf eine Kopfzeile rendert nur das Ergebnis
+               neu, nicht die Filterleiste. Eingebunden holt sich Suche und
+               Filter die zuletzt gewählte Sortierung deshalb von dort: so
+               bleibt ein Sortierklick auch dann erhalten, wenn direkt danach
+               gesucht oder gefiltert wird (Ticket 27). */}}
+          hx-include="#mitglieder-ergebnis"
           hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-ehemalige">
         <input id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
                placeholder="Name, E-Mail, Telefon oder Mitglieds-ID" autocomplete="off"
@@ -70,12 +78,44 @@
             hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
         Zurücksetzen
     </button>
+
+    {{/* Das Spaltenmenü stellt nur, welche Spalten sichtbar sind — eine
+         Ansichtsvorliebe an diesem einen Rechner, die localStorage trägt und
+         nie durch Go läuft (Ticket 27). Es steht deshalb außerhalb des
+         Formulars wie "Zurücksetzen": ein Kästchen darin löst keinen
+         Server-Aufruf aus, das erledigt main.js. Name und Nr. stehen nicht
+         zur Wahl — sie identifizieren die Zeile und bleiben immer sichtbar. */}}
+    <details class="relative">
+        <summary class="cursor-pointer list-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+            Spalten
+        </summary>
+        <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+            {{range .AusblendbareSpalten}}
+                <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
+                    {{/* Checked ist hier nur der Anfangszustand vor dem ersten
+                         Rendern durch main.js — sie gleicht ihn sofort danach
+                         mit localStorage ab (siehe dort, spaltenAnwenden). */}}
+                    <input type="checkbox" class="accent-red-700" data-spalten-kasten value="{{.Schluessel}}" checked>
+                    {{.Beschriftung}}
+                </label>
+            {{end}}
+        </div>
+    </details>
 </div>
 {{end}}
 
 {{/* mitglieder-ergebnis ist der Teil, den Suche und Filter austauschen. Die
      Daten sind listeDaten. */}}
 {{define "mitglieder-ergebnis"}}
+{{/* Die Sortierung reist als verstecktes Feld mit diesem Fragment statt mit
+     der Filterleiste (siehe deren hx-include, "mitglieder-filterleiste" oben)
+     — ein Klick auf eine Kopfzeile ersetzt nur dieses Fragment, nicht das
+     Formular. Zwei Adressen greifen darauf zu: main.js liest den Wert von
+     "sort", um bei einer ausgeblendeten aktiven Sortierspalte auf Namen
+     zurückzufallen, und die Filterleiste bindet beide über ihr eigenes
+     hx-include ein. */}}
+<input type="hidden" name="sort" value="{{.Suche.Sortierspalte}}">
+<input type="hidden" name="richtung" value="{{.Suche.Sortierrichtung}}">
 {{if .Eintraege}}
     <p class="mb-2 text-sm text-neutral-500" role="status" aria-live="polite">
         {{len .Eintraege}} {{if eq (len .Eintraege) 1}}Mitglied{{else}}Mitglieder{{end}}
@@ -92,15 +132,29 @@
                          Nummern stünden untereinander verschieden weit eingerückt
                          und ließen sich beim Durchsehen nicht mehr an der Kante
                          entlang vergleichen. Genau das ist ihr Zweck, solange der
-                         Verein beide Systeme nebeneinander führt. */}}
-                    <th class="w-px px-4 py-2 font-medium" title="Mitglieds-ID">Nr.</th>
-                    <th class="px-4 py-2 font-medium">Name</th>
-                    <th class="px-4 py-2 font-medium">Status</th>
-                    <th class="px-4 py-2 font-medium">Anschrift</th>
-                    <th class="px-4 py-2 font-medium">Training</th>
-                    <th class="px-4 py-2 text-right font-medium">Beitrag</th>
-                    <th class="px-4 py-2 font-medium">Rückstand</th>
-                    <th class="px-4 py-2 font-medium">Eintritt</th>
+                         Verein beide Systeme nebeneinander führt.
+
+                         Jede Kopfzelle sortiert per Klick (Ticket 27); Nr. und
+                         Name tragen dafür kein data-col, weil sie sich nicht
+                         ausblenden lassen (siehe spaltenAusblendbar in app.go)
+                         — die übrigen sechs schon, main.js blendet ihre Zellen
+                         anhand dieses Attributs aus. */}}
+                    <th class="w-px px-4 py-2 font-medium" title="Mitglieds-ID"
+                        aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
+                    <th class="px-4 py-2 font-medium"
+                        aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}</th>
+                    <th class="px-4 py-2 font-medium" data-col="status"
+                        aria-sort="{{.SpaltenkopfStatus.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfStatus}}</th>
+                    <th class="px-4 py-2 font-medium" data-col="anschrift"
+                        aria-sort="{{.SpaltenkopfAnschrift.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfAnschrift}}</th>
+                    <th class="px-4 py-2 font-medium" data-col="training"
+                        aria-sort="{{.SpaltenkopfTraining.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfTraining}}</th>
+                    <th class="px-4 py-2 text-right font-medium" data-col="beitrag"
+                        aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfBeitrag}}</th>
+                    <th class="px-4 py-2 font-medium" data-col="rueckstand"
+                        aria-sort="{{.SpaltenkopfRueckstand.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfRueckstand}}</th>
+                    <th class="px-4 py-2 font-medium" data-col="eintritt"
+                        aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfEintritt}}</th>
                 </tr>
             </thead>
             <tbody>
@@ -120,6 +174,23 @@
         {{end}}
     </p>
 {{end}}
+{{end}}
+
+{{/* spaltenkopf rendert die klickbare Kopfzeile einer sortierbaren Spalte:
+     Beschriftung plus Pfeil, wenn sie gerade die Sortierspalte ist. Der Klick
+     holt nur das Ergebnis neu, wie Suche und Filter es auch tun (ADR-0004),
+     und nimmt Suchbegriff und Filter über hx-include mit — sie leben in der
+     Filterleiste außerhalb dieser Zelle. Die Daten sind ein app.spaltenkopf. */}}
+{{define "spaltenkopf"}}
+<button type="button"
+        class="inline-flex items-center gap-1 hover:text-neutral-900 focus:underline focus:outline-none"
+        aria-label="Nach {{.Beschriftung}} sortieren{{if .Aktiv}} (aktuell {{if eq .AriaSort "ascending"}}aufsteigend{{else}}absteigend{{end}}){{end}}"
+        hx-get="/api/mitglieder/ergebnis"
+        hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
+        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-ehemalige"
+        hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
+    {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
+</button>
 {{end}}
 
 {{/* mitglied-zeile ist eine Zeile der Mitgliederliste — und zugleich das
@@ -175,7 +246,7 @@
          geschaltet war und der Austrittstag darüber hinweggegangen ist — ein
          Ehemaliger, der sich als "ruhend" ausgibt, wäre dann genau die Auskunft,
          die dieses Ticket abschaffen wollte. */}}
-    <td class="px-4 py-2">
+    <td class="px-4 py-2" data-col="status">
         {{if and .Ruhend (not $status.Ausgetreten)}}
             <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
                   title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter (Status: {{$status.Bezeichnung}})">
@@ -196,7 +267,7 @@
          Anschrift lesbar bleibt, ohne die Zeile in die Breite zu ziehen. Zu
          lange Angaben werden abgeschnitten und stehen vollständig im Tooltip.
          Geschrieben wird sie vom Service, nicht vom Template. */}}
-    <td class="px-4 py-2 text-sm text-neutral-600">
+    <td class="px-4 py-2 text-sm text-neutral-600" data-col="anschrift">
         {{if .Anschrift.Leer}}
             <span class="text-neutral-400">—</span>
         {{else}}
@@ -214,7 +285,7 @@
          Ein archivierter Termin steht mit da, unmarkiert: er zählt weiter zur
          Frequenz, und die Liste zeigt, wozu angemeldet ist — dass er aus dem
          Stundenplan genommen ist, gehört in dessen Ansicht und ins Formular. */}}
-    <td class="px-4 py-2 text-sm text-neutral-600">
+    <td class="px-4 py-2 text-sm text-neutral-600" data-col="training">
         {{if .Trainingstermine}}
             <div class="max-w-48" title="{{.Trainingsfrequenz.Bezeichnung}}">
                 {{range .Trainingstermine}}<div class="truncate">{{.Anzeige}}</div>{{end}}
@@ -225,8 +296,8 @@
     </td>
     {{/* Der Beitrag ist individuell vereinbart (ADR-0005); 0,00 € ist ein
          gültiger Betrag und keine fehlende Angabe. */}}
-    <td class="px-4 py-2 text-right tabular-nums">{{euro .BeitragCents}}</td>
-    <td class="px-4 py-2">
+    <td class="px-4 py-2 text-right tabular-nums" data-col="beitrag">{{euro .BeitragCents}}</td>
+    <td class="px-4 py-2" data-col="rueckstand">
         {{/* Die Schaltfläche steht bei dem Wert, den sie ändert. Die ganze Zeile
              öffnet sonst das Bearbeitungsformular; diese Schaltfläche ist die
              Ausnahme davon und hält ihr Ereignis deshalb bei sich. */}}
@@ -243,7 +314,7 @@
             </button>
         </div>
     </td>
-    <td class="px-4 py-2 tabular-nums">
+    <td class="px-4 py-2 tabular-nums" data-col="eintritt">
         {{/* Die Aktion steht bei der Mitgliedschaft, deren Zeitraum sie ändert.
              Wie die Schaltfläche daneben hält sie ihr Ereignis bei sich, damit
              der Klick nicht das Bearbeitungsformular öffnet. */}}
@@ -307,7 +378,11 @@
     hx-on::load="this.querySelector('input').focus()">
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    <td class="px-4 py-2" colspan="6">
+    {{/* colspan="6" ist der Ausgangswert bei allen sechs ausblendbaren Spalten
+         sichtbar; data-colspan-optional lässt main.js ihn nachziehen, sobald
+         eine davon ausgeblendet ist — sonst reichte diese Zelle über den
+         Rand der Tabelle hinaus (Ticket 27). */}}
+    <td class="px-4 py-2" colspan="6" data-colspan-optional>
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/kuendigung"
               hx-target="closest tr" hx-swap="outerHTML">
@@ -352,7 +427,8 @@
     hx-on::load="this.querySelector('input').focus()">
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    <td class="px-4 py-2" colspan="6">
+    {{/* data-colspan-optional siehe mitglied-kuendigung-formular oben. */}}
+    <td class="px-4 py-2" colspan="6" data-colspan-optional>
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/wiedereintritt"
               hx-target="closest tr" hx-swap="outerHTML">
@@ -428,7 +504,8 @@
     hx-on::load="this.querySelector('input[name=notiz]').focus()">
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
-    <td class="px-4 py-2" colspan="6">
+    {{/* data-colspan-optional siehe mitglied-kuendigung-formular oben. */}}
+    <td class="px-4 py-2" colspan="6" data-colspan-optional>
         <form class="flex flex-wrap items-center gap-2"
               hx-post="/api/mitglied/{{.MitgliedID}}/rueckstand"
               hx-target="closest tr" hx-swap="outerHTML">

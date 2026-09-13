@@ -288,6 +288,60 @@ const (
 // Zählung, aus der auch die Auswahlliste entsteht.
 const frequenzAlle = ""
 
+// Werte der Sortierrichtung, wie sie über die Adresszeile laufen. Aufsteigend
+// ist der leere Wert und damit der Standard — derselbe, den ein Suchfilter{}
+// ohnehin liefert (Ticket 27).
+const (
+	richtungAufsteigend = ""
+	richtungAbsteigend  = "ab"
+)
+
+// spalte ist eine Spalte der Mitgliederliste: ihr Schlüssel ist zugleich der
+// Wert des "sort"-Parameters in der Adresszeile und, wo sie sich ausblenden
+// lässt, der Wert des data-col-Attributs im Markup (siehe main.js) — beides
+// muss übereinstimmen, damit ein Klick und das Spaltenmenü dieselbe Spalte
+// meinen.
+type spalte struct {
+	Schluessel   string
+	Beschriftung string
+}
+
+// Die acht Spalten der Liste, in der Reihenfolge ihrer Kopfzeile.
+var (
+	spalteNr         = spalte{Schluessel: "nr", Beschriftung: "Nr."}
+	spalteName       = spalte{Schluessel: "name", Beschriftung: "Name"}
+	spalteStatus     = spalte{Schluessel: "status", Beschriftung: "Status"}
+	spalteAnschrift  = spalte{Schluessel: "anschrift", Beschriftung: "Anschrift"}
+	spalteTraining   = spalte{Schluessel: "training", Beschriftung: "Training"}
+	spalteBeitrag    = spalte{Schluessel: "beitrag", Beschriftung: "Beitrag"}
+	spalteRueckstand = spalte{Schluessel: "rueckstand", Beschriftung: "Rückstand"}
+	spalteEintritt   = spalte{Schluessel: "eintritt", Beschriftung: "Eintritt"}
+)
+
+// spaltenAusblendbar sind die Spalten, die sich über das Menü ein- und
+// ausblenden lassen — alle außer Nr. und Name. Die beiden identifizieren die
+// Zeile und bleiben deshalb immer sichtbar ("Name bleibt immer sichtbar",
+// Ticket 27); sortieren lässt sich trotzdem nach beiden, siehe
+// listeDaten.SpaltenkopfNr und .SpaltenkopfName.
+var spaltenAusblendbar = []spalte{
+	spalteStatus, spalteAnschrift, spalteTraining, spalteBeitrag, spalteRueckstand, spalteEintritt,
+}
+
+// sortierspalten übersetzt den Schlüssel einer Spalte in die Sortierspalte
+// des Service. Der Nullwert von service.Sortierspalte ist Name, und genau
+// dahin fällt auch ein unbekannter oder fehlender Schlüssel zurück — wie
+// überall in dieser Filterleiste.
+var sortierspalten = map[string]service.Sortierspalte{
+	spalteNr.Schluessel:         service.SortierspalteMitgliedID,
+	spalteName.Schluessel:       service.SortierspalteName,
+	spalteStatus.Schluessel:     service.SortierspalteStatus,
+	spalteAnschrift.Schluessel:  service.SortierspalteAnschrift,
+	spalteTraining.Schluessel:   service.SortierspalteTraining,
+	spalteBeitrag.Schluessel:    service.SortierspalteBeitrag,
+	spalteRueckstand.Schluessel: service.SortierspalteRueckstand,
+	spalteEintritt.Schluessel:   service.SortierspalteEintritt,
+}
+
 // suchEingabe hält die Rohwerte der Filterleiste. Der Nullwert ist die
 // Standardansicht — dieselbe, die service.Suchfilter{} beschreibt.
 type suchEingabe struct {
@@ -295,18 +349,29 @@ type suchEingabe struct {
 	Rueckstand string
 	Frequenz   string
 	Ehemalige  bool
+
+	// Sortierspalte und Sortierrichtung sind die Rohwerte eines Klicks auf
+	// eine Kopfzeile (Ticket 27). Sie reisen wie die übrigen Filterwerte über
+	// die Adresszeile — nicht über localStorage wie die Spaltenwahl, denn
+	// die Sortierung entscheidet, welche Zeilen oben stehen, und gehört damit
+	// zu derselben Verarbeitung wie Suche und Filter (ADR-0004).
+	Sortierspalte   string
+	Sortierrichtung string
 }
 
-// suchEingabeLesen sammelt Suchbegriff und Filter aus der Adresszeile ein.
+// suchEingabeLesen sammelt Suchbegriff, Filter und Sortierung aus der
+// Adresszeile ein.
 func suchEingabeLesen(r *http.Request) suchEingabe {
 	werte := r.URL.Query()
 
 	return suchEingabe{
 		Query: werte.Get("q"),
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
-		Ehemalige:  werte.Get("ehemalige") != "",
-		Rueckstand: werte.Get("rueckstand"),
-		Frequenz:   werte.Get("frequenz"),
+		Ehemalige:       werte.Get("ehemalige") != "",
+		Rueckstand:      werte.Get("rueckstand"),
+		Frequenz:        werte.Get("frequenz"),
+		Sortierspalte:   werte.Get("sort"),
+		Sortierrichtung: werte.Get("richtung"),
 	}
 }
 
@@ -328,6 +393,13 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 	// "alle", Leerraum, ein selbstgebauter Request — bleibt beim Standard.
 	if stufe, err := strconv.Atoi(e.Frequenz); err == nil && stufe >= 1 && stufe <= service.MaxTrainingstermine {
 		filter.Frequenz = service.Frequenzfilter(stufe)
+	}
+
+	if spalte, ok := sortierspalten[e.Sortierspalte]; ok {
+		filter.Sortierung.Spalte = spalte
+	}
+	if e.Sortierrichtung == richtungAbsteigend {
+		filter.Sortierung.Richtung = service.SortierrichtungAbsteigend
 	}
 
 	return filter
@@ -387,12 +459,76 @@ type listeDaten struct {
 // sich dann anders: "nichts gefunden" statt "noch nichts erfasst".
 //
 // Ein Suchbegriff aus lauter Leerraum zählt nicht — er grenzt auch im Service
-// nichts ein.
+// nichts ein. Die Sortierung zählt ebenfalls nicht: sie ändert, in welcher
+// Reihenfolge die Zeilen stehen, nicht, welche davon im Ergebnis sind — ein
+// leeres Ergebnis nur wegen eines Sortierklicks gäbe es gar nicht.
 func (d listeDaten) Gefiltert() bool {
 	eingabe := d.Suche
 	eingabe.Query = strings.TrimSpace(eingabe.Query)
+	eingabe.Sortierspalte = ""
+	eingabe.Sortierrichtung = ""
 
 	return eingabe != (suchEingabe{})
+}
+
+// spaltenkopf ist eine Kopfzelle der Liste, wie das Template sie braucht: ob
+// gerade nach ihr sortiert wird, mit welchem Pfeil das angezeigt wird, und
+// welche Richtung ein Klick als Nächstes einstellt — aufsteigend bei einer
+// noch nicht aktiven Spalte, sonst umgekehrt zur bisherigen Richtung.
+type spaltenkopf struct {
+	Schluessel       string
+	Beschriftung     string
+	Aktiv            bool
+	Pfeil            string
+	AriaSort         string
+	NaechsteRichtung string
+}
+
+// spaltenkopfFuer baut die Kopfzelle einer Spalte gegen die aktuelle Suche.
+// Ein leerer oder unbekannter Sortierspalten-Wert gilt als Name — derselbe
+// Standard, auf den auch alsSuchfilter zurückfällt.
+func (d listeDaten) spaltenkopfFuer(s spalte) spaltenkopf {
+	aktiveSpalte := d.Suche.Sortierspalte
+	if aktiveSpalte == "" {
+		aktiveSpalte = spalteName.Schluessel
+	}
+
+	kopf := spaltenkopf{
+		Schluessel: s.Schluessel, Beschriftung: s.Beschriftung,
+		AriaSort: "none", NaechsteRichtung: richtungAufsteigend,
+	}
+	if s.Schluessel != aktiveSpalte {
+		return kopf
+	}
+
+	kopf.Aktiv = true
+	if d.Suche.Sortierrichtung == richtungAbsteigend {
+		kopf.Pfeil, kopf.AriaSort, kopf.NaechsteRichtung = "↓", "descending", richtungAufsteigend
+	} else {
+		kopf.Pfeil, kopf.AriaSort, kopf.NaechsteRichtung = "↑", "ascending", richtungAbsteigend
+	}
+
+	return kopf
+}
+
+// SpaltenkopfNr, SpaltenkopfName und ihre Geschwister liefern die acht
+// Kopfzellen der Liste. Eigene, benannte Methoden statt einer einzigen Liste
+// oder Indizierung, damit das Template jede Spalte an ihrer eigenen Stelle im
+// Markup abruft — mit ihrer eigenen Breite, Ausrichtung und Beschriftung, wie
+// bisher auch (siehe mitglieder_liste.html).
+func (d listeDaten) SpaltenkopfNr() spaltenkopf         { return d.spaltenkopfFuer(spalteNr) }
+func (d listeDaten) SpaltenkopfName() spaltenkopf       { return d.spaltenkopfFuer(spalteName) }
+func (d listeDaten) SpaltenkopfStatus() spaltenkopf     { return d.spaltenkopfFuer(spalteStatus) }
+func (d listeDaten) SpaltenkopfAnschrift() spaltenkopf  { return d.spaltenkopfFuer(spalteAnschrift) }
+func (d listeDaten) SpaltenkopfTraining() spaltenkopf   { return d.spaltenkopfFuer(spalteTraining) }
+func (d listeDaten) SpaltenkopfBeitrag() spaltenkopf    { return d.spaltenkopfFuer(spalteBeitrag) }
+func (d listeDaten) SpaltenkopfRueckstand() spaltenkopf { return d.spaltenkopfFuer(spalteRueckstand) }
+func (d listeDaten) SpaltenkopfEintritt() spaltenkopf   { return d.spaltenkopfFuer(spalteEintritt) }
+
+// AusblendbareSpalten sind die Spalten, die das Spaltenmenü zeigt — siehe
+// spaltenAusblendbar.
+func (d listeDaten) AusblendbareSpalten() []spalte {
+	return spaltenAusblendbar
 }
 
 // Rueckstandsoptionen sind die Stufen des Rückstandsfilters, die gewählte
