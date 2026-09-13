@@ -52,6 +52,7 @@ func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/mitglieder", a.mitgliederListe)
 	mux.HandleFunc("GET /api/mitglieder/ergebnis", a.mitgliederErgebnis)
+	mux.HandleFunc("GET /api/dashboard", a.dashboard)
 	mux.HandleFunc("GET /api/mitglied/formular", a.mitgliedFormular)
 	mux.HandleFunc("POST /api/mitglied", a.mitgliedAnlegen)
 	mux.HandleFunc("GET /api/mitglied/{id}/formular", a.mitgliedBearbeitenFormular)
@@ -93,6 +94,7 @@ func (a *App) Handler() http.Handler {
 // Bereiche der App — die Ebene, auf der die Kopfzeilen-Navigation umschaltet.
 const (
 	bereichMitglieder       = "mitglieder"
+	bereichDashboard        = "dashboard"
 	bereichTrainingstermine = "trainingstermine"
 	bereichImport           = "import"
 	bereichRechnung         = "rechnung"
@@ -114,6 +116,10 @@ type navigationseintrag struct {
 // und Pfade nicht als Textliterale ins Template wandern.
 var bereiche = []navigationseintrag{
 	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
+	// Das Dashboard steht gleich nach der Startseite: es ist der Überblick, den
+	// Trainer und Admin zuerst suchen, wenn sie nicht an einem einzelnen
+	// Mitglied arbeiten (Ticket 26).
+	{Schluessel: bereichDashboard, Beschriftung: "Dashboard", Pfad: "/api/dashboard"},
 	{Schluessel: bereichTrainingstermine, Beschriftung: "Trainingstermine", Pfad: "/api/trainingstermine"},
 	{Schluessel: bereichImport, Beschriftung: "Excel-Import", Pfad: "/api/import"},
 	// Der eigenständige Bereich ist für den Empfänger ohne Mitglied gedacht
@@ -1353,6 +1359,10 @@ var templateFunktionen = template.FuncMap{
 	// anzeigefeld bündelt die Argumente für das Teil-Template "feld-nur-lesen".
 	"anzeigefeld": func(beschriftung, wert string) anzeigeDaten {
 		return anzeigeDaten{Beschriftung: beschriftung, Wert: wert}
+	},
+	// kachel bündelt die Argumente für das Teil-Template "dashboard-kachel".
+	"kachel": func(beschriftung string, anzahl int) kachelDaten {
+		return kachelDaten{Beschriftung: beschriftung, Anzahl: anzahl}
 	},
 	// vorschlagsfeld bündelt die Argumente für das Teil-Template
 	// "feld-mit-vorschlaegen".
