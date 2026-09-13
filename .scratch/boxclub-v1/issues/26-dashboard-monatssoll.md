@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 
 # 26: Dashboard mit Monatssoll und Mitgliederzahlen
 
@@ -27,3 +27,13 @@ Status: ready-for-agent
 **Warum kein Verlauf:** die Datenbank führt je Mitgliedschaft **einen** Beitrag, den heutigen. Eine Kurve über zwölf Monate wäre zwölfmal die heutige Summe, nur nach Ein- und Austritten gefiltert — ein Diagramm, das aussieht wie eine Messung und eine Hochrechnung ist. Wenn der Verlauf einmal wirklich gebraucht wird, braucht es zuerst eine datierte Beitragshistorie, und das ist ein Umbau am Mitgliedschaftsmodell.
 
 **Rechnet nur, speichert nichts.** Das Dashboard braucht kein neues Feld und keine neue Tabelle; es liest Beitrag, Status und `ruhend`.
+
+## Comments
+
+Umgesetzt: `service.MemberService.Monatsuebersicht` (service/dashboard.go) plus
+Service-Tests (service/dashboard_test.go) für alle im Ticket genannten Ränder
+und zusätzlich den Grenzfall "ruhend vor dem Eintritt". Menüpunkt und Ansicht
+in app/dashboard.go und templates/dashboard.html, Route `GET /api/dashboard`.
+Die Rückstand-Zahl verlinkt auf `/api/mitglieder?rueckstand=im-rueckstand&ehemalige=1`
+(inklusive Ehemaliger, da die Zahl selbst sie mitzählt). `go test ./...` grün;
+`wails build` für linux/amd64 und windows/amd64 geprüft.
