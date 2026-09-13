@@ -1,0 +1,77 @@
+{{/* Die Rechnung (CONTEXT.md → Rechnung, ADR-0009): ein PDF über eine
+     Leistung neben dem Beitrag — typisch ein Einzeltraining. Es gibt weder
+     Rechnungsstatus noch Zahlungseingang noch eine Liste erzeugter Rechnungen
+     hier: nach dem Erstellen bietet die App das PDF genau einmal zum
+     Speichern an (app/rechnung.go, rechnungAnbieten).
+
+     Zwei Wege führen zu diesem Formular: eingebettet unter den Stammdaten
+     eines Mitglieds (Empfänger vorbelegt, das PDF wird dort abgelegt) und als
+     eigenständiger Bereich für einen Empfänger ohne Mitglied (Empfänger leer,
+     das PDF wird nur ausgegeben). Navigation ist nur beim zweiten Weg gesetzt.
+
+     Die Daten sind rechnungDaten. */}}
+{{define "rechnung-bereich"}}
+{{with .Navigation}}{{template "navigation" .}}{{end}}
+<section id="rechnung-bereich"
+         class="{{if not .Navigation}}mt-6 {{end}}rounded-lg border border-neutral-200 bg-white p-6">
+    <h2 class="mb-1 text-base font-semibold">Rechnung</h2>
+    <p class="mb-4 max-w-2xl text-sm text-neutral-600">
+        Für eine Leistung neben dem Beitrag — typisch ein Einzeltraining. Der
+        Empfänger ist frei überschreibbar: ein Einzeltraining nimmt auch, wer
+        nie eintritt, nur bleibt das PDF dann nirgends abgelegt.
+    </p>
+
+    {{template "meldung" .Meldung}}
+
+    {{if .Fehler}}
+        <ul class="mb-4 list-disc rounded-md border border-red-700 bg-red-50 py-3 pr-3 pl-8 text-sm text-red-800"
+            role="alert">
+            {{range .Fehler}}
+                <li>{{.}}</li>
+            {{end}}
+        </ul>
+    {{end}}
+
+    <form hx-post="{{.AktionsURL}}" hx-target="#rechnung-bereich" hx-swap="outerHTML"
+          hx-indicator="#rechnung-laeuft">
+        <div class="grid gap-4 sm:grid-cols-2">
+            {{template "feld" feld "Empfänger" "empfaenger_name" "text" .Eingabe.Name true true}}
+            {{template "feld" feld "Adresse (Straße und Hausnummer)" "empfaenger_adresse" "text" .Eingabe.Adresse false true}}
+            {{template "feld" feld "Postleitzahl" "empfaenger_postleitzahl" "text" .Eingabe.Postleitzahl false false}}
+            {{template "feld" feld "Ort" "empfaenger_ort" "text" .Eingabe.Ort false false}}
+
+            {{/* Die Nummer wird eingetippt und nicht vergeben (ADR-0009): kein
+                 Vorschlag, keine Prüfung auf Eindeutigkeit. */}}
+            {{template "feld" feld "Rechnungsnummer" "nummer" "text" .Eingabe.Nummer true false}}
+            {{template "feld" feld "Steuersatz (%)" "steuersatz" "text" .Eingabe.Steuersatz true false}}
+            {{template "feld" feld "Rechnungsdatum" "rechnungsdatum" "date" .Eingabe.Rechnungsdatum true false}}
+            {{template "feld" feld "Zahlungsziel" "zahlungsziel" "date" .Eingabe.Zahlungsziel true false}}
+        </div>
+
+        <div class="mt-5 flex flex-col gap-2">
+            <span class="text-sm text-neutral-600">Positionen</span>
+            {{range .Eingabe.Positionen}}
+                <div class="flex flex-wrap gap-2 sm:flex-nowrap">
+                    <input name="position-bezeichnung" type="text" placeholder="Bezeichnung" value="{{.Bezeichnung}}"
+                           class="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                    <input name="position-menge" type="text" placeholder="Menge" value="{{.Menge}}"
+                           class="w-20 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                    <input name="position-einzelpreis" type="text" placeholder="Einzelpreis" value="{{.Einzelpreis}}"
+                           class="w-28 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                </div>
+            {{end}}
+            <span class="text-sm text-neutral-500">
+                Menge und Einzelpreis (brutto), etwa "2" und "30,00". Leere Zeilen zählen nicht mit.
+            </span>
+        </div>
+
+        <div class="mt-5 flex items-center gap-3">
+            <button type="submit"
+                    class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                Rechnung erstellen
+            </button>
+            <span id="rechnung-laeuft" class="htmx-indicator text-sm text-neutral-500">Wird erstellt …</span>
+        </div>
+    </form>
+</section>
+{{end}}

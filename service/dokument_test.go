@@ -342,9 +342,10 @@ func TestVertragAblegen_MeldetUnbekanntenZeitraum(t *testing.T) {
 // (mitgliedschaftsspalten), und Literal für Literal gelesen entginge dem Test
 // genau das Muster, das er fangen soll.
 func TestInhaltStehtInKeinerAbfrageMitMehrerenZeilen(t *testing.T) {
-	// schema legt die Spalte an und migrate führt schema aus, VertragAblegen
-	// schreibt genau eine Zeile, VertragInhalt liest genau eine.
-	erlaubt := []string{"schema", "migrate", "VertragAblegen", "VertragInhalt"}
+	// schema legt die Spalte an und migrate führt schema aus. VertragAblegen und
+	// rechnungAblegen schreiben je genau eine Zeile, VertragInhalt und
+	// RechnungInhalt lesen je genau eine.
+	erlaubt := []string{"schema", "migrate", "VertragAblegen", "VertragInhalt", "rechnungAblegen", "RechnungInhalt"}
 
 	for _, datei := range quelldateien(t) {
 		baum, err := parser.ParseFile(token.NewFileSet(), datei, nil, 0)

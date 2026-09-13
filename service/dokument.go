@@ -31,7 +31,8 @@ const (
 	ArtVertrag Dokumentart = "vertrag"
 
 	// ArtRechnung ist die vom Verein geschriebene Rechnung über eine Leistung
-	// neben dem Beitrag. Sie erzeugt die App selbst (Ticket 25).
+	// neben dem Beitrag. Sie erzeugt die App selbst und legt sie am Mitglied ab
+	// (service.RechnungErstellen).
 	ArtRechnung Dokumentart = "rechnung"
 )
 
@@ -336,6 +337,118 @@ func (s *MemberService) vertraegeLesen(mitgliedschaftIDs []int64) (map[int64]Dok
 	}
 
 	return vertraege, zeilen.Err()
+}
+
+// rechnungAblegen legt ein erzeugtes Rechnungs-PDF am Mitglied ab und liefert
+// die vergebene Dokument-ID.
+//
+// Anders als beim Vertrag gibt es hier kein Ersetzen und keinen eindeutigen
+// Index: von Rechnungen gibt es je Mitglied beliebig viele (schema), jede ihr
+// eigenes Dokument. Aufgerufen wird das nur aus RechnungErstellen heraus, das
+// zuerst das PDF erzeugt und es dann, wenn ein Mitglied dahintersteht, hier
+// ablegt.
+func (s *MemberService) rechnungAblegen(mitgliedID int64, nummer string, pdf []byte) (int64, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("transaktion starten: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := mitgliedPruefen(tx, mitgliedID); err != nil {
+		return 0, err
+	}
+
+	res, err := tx.Exec(
+		`INSERT INTO dokument (mitglied_id, art, dateiname, inhalt, erstellt_am)
+		 VALUES (?, ?, ?, ?, ?)`,
+		mitgliedID, string(ArtRechnung), rechnungsDateiname(nummer), pdf, time.Now().Format(isoZeitpunkt))
+	if err != nil {
+		return 0, fmt.Errorf("rechnung zu mitglied %d ablegen: %w", mitgliedID, err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("dokument-id lesen: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("rechnung ablegen abschließen: %w", err)
+	}
+
+	return id, nil
+}
+
+// rechnungsDateiname baut den Dateinamen aus der Rechnungsnummer — derselben
+// Nummer, unter der der Verein die Rechnung in seiner Buchhaltung führt.
+func rechnungsDateiname(nummer string) string {
+	return fmt.Sprintf("Rechnung %s.pdf", strings.TrimSpace(nummer))
+}
+
+// RechnungenDesMitglieds liefert die Rechnungen, die an einem Mitglied abgelegt
+// sind, neueste zuerst — ohne ihr PDF, aus demselben Grund wie vertraegeLesen:
+// es ist die einzige Abfrage auf dokument, die mehrere Zeilen liefern kann, und
+// ein SELECT *, das die Blobs mitzöge, machte jedes Öffnen eines Mitglieds so
+// teuer wie den Export all seiner Rechnungen (ADR-0007).
+func (s *MemberService) RechnungenDesMitglieds(mitgliedID int64) ([]Dokument, error) {
+	zeilen, err := s.db.Query(
+		`SELECT id, art, dateiname, erstellt_am
+		 FROM dokument WHERE mitglied_id = ? AND art = ?
+		 ORDER BY erstellt_am DESC`, mitgliedID, string(ArtRechnung))
+	if err != nil {
+		return nil, fmt.Errorf("rechnungen von mitglied %d lesen: %w", mitgliedID, err)
+	}
+	defer zeilen.Close()
+
+	var rechnungen []Dokument
+	for zeilen.Next() {
+		var (
+			d          Dokument
+			art        string
+			abgelegtAm string
+		)
+		if err := zeilen.Scan(&d.ID, &art, &d.Name, &abgelegtAm); err != nil {
+			return nil, fmt.Errorf("rechnung eines mitglieds lesen: %w", err)
+		}
+
+		d.Art = Dokumentart(art)
+		if d.AbgelegtAm, err = time.Parse(isoZeitpunkt, abgelegtAm); err != nil {
+			return nil, fmt.Errorf("ablagezeitpunkt von dokument %d: %w", d.ID, err)
+		}
+
+		rechnungen = append(rechnungen, d)
+	}
+
+	return rechnungen, zeilen.Err()
+}
+
+// RechnungInhalt holt eine abgelegte Rechnung samt ihrem PDF — dieselbe Bauart
+// wie VertragInhalt: die einzige Abfrage, die inhalt für eine Rechnung liest,
+// und sie liefert genau eine Zeile.
+func (s *MemberService) RechnungInhalt(dokumentID int64) (Dokumentinhalt, error) {
+	var (
+		dokument   Dokumentinhalt
+		art        string
+		abgelegtAm string
+	)
+
+	err := s.db.QueryRow(
+		`SELECT id, art, dateiname, erstellt_am, inhalt
+		 FROM dokument WHERE id = ? AND art = ?`,
+		dokumentID, string(ArtRechnung)).
+		Scan(&dokument.ID, &art, &dokument.Name, &abgelegtAm, &dokument.Inhalt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Dokumentinhalt{}, fmt.Errorf("rechnung %d: %w", dokumentID, ErrNichtGefunden)
+	}
+	if err != nil {
+		return Dokumentinhalt{}, fmt.Errorf("rechnung %d lesen: %w", dokumentID, err)
+	}
+
+	dokument.Art = Dokumentart(art)
+	if dokument.AbgelegtAm, err = time.Parse(isoZeitpunkt, abgelegtAm); err != nil {
+		return Dokumentinhalt{}, fmt.Errorf("ablagezeitpunkt von dokument %d: %w", dokument.ID, err)
+	}
+
+	return dokument, nil
 }
 
 // mitgliedschaftPruefen meldet ErrNichtGefunden, wenn zu der ID kein Zeitraum

@@ -103,6 +103,13 @@
      Anlegen ist die Liste leer — es gibt noch keinen Zeitraum, an dem ein
      Vertrag hängen könnte. Siehe dokument.html. */}}
 {{template "vertraege" .Vertraege}}
+
+{{/* Die Rechnung steht aus demselben Grund als eigener Abschnitt hinter dem
+     Formular: ein eigenes Formular, das sich nicht schachteln lässt. Beim
+     Anlegen gibt es sie nicht — eine Rechnung braucht ein gespeichertes
+     Mitglied, an dem sie hängen kann (CONTEXT.md → Rechnung). Siehe
+     rechnung.html. */}}
+{{if .Bearbeiten}}{{template "rechnung-bereich" .Rechnung}}{{end}}
 {{end}}
 
 {{/* feld-nur-lesen zeigt eine Angabe, die an dieser Stelle nicht bearbeitet

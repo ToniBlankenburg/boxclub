@@ -77,6 +77,13 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/trainingstermin/{id}/archiv", a.trainingsterminArchivSchalten)
 	mux.HandleFunc("GET /api/import", a.importFormular)
 	mux.HandleFunc("POST /api/import", a.importAusfuehren)
+	// Die Rechnung "am Mitglied" (CONTEXT.md → Rechnung) hängt an dessen Formular
+	// und braucht deshalb keine eigene GET-Route — sie steht schon darin
+	// (formularDaten.Rechnung). Für einen Empfänger ohne Mitglied gibt es den
+	// eigenständigen Bereich unten.
+	mux.HandleFunc("POST /api/mitglied/{id}/rechnung", a.rechnungErstellenAmMitglied)
+	mux.HandleFunc("GET /api/rechnung", a.rechnungFormular)
+	mux.HandleFunc("POST /api/rechnung", a.rechnungErstellen)
 	mux.HandleFunc("GET /api/verein", a.vereinFormular)
 	mux.HandleFunc("POST /api/verein", a.vereinSpeichern)
 
@@ -88,6 +95,7 @@ const (
 	bereichMitglieder       = "mitglieder"
 	bereichTrainingstermine = "trainingstermine"
 	bereichImport           = "import"
+	bereichRechnung         = "rechnung"
 	bereichVerein           = "verein"
 )
 
@@ -108,6 +116,10 @@ var bereiche = []navigationseintrag{
 	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
 	{Schluessel: bereichTrainingstermine, Beschriftung: "Trainingstermine", Pfad: "/api/trainingstermine"},
 	{Schluessel: bereichImport, Beschriftung: "Excel-Import", Pfad: "/api/import"},
+	// Der eigenständige Bereich ist für den Empfänger ohne Mitglied gedacht
+	// (CONTEXT.md → Rechnung) — am Mitglied selbst steht das Formular schon in
+	// dessen Stammdaten.
+	{Schluessel: bereichRechnung, Beschriftung: "Rechnung", Pfad: "/api/rechnung"},
 	// Der Verein selbst steht zuletzt: es sind Einstellungen, die einmal
 	// gepflegt werden, und keine Ansicht, in der gearbeitet wird.
 	{Schluessel: bereichVerein, Beschriftung: "Verein", Pfad: "/api/verein"},
@@ -238,6 +250,11 @@ type formularDaten struct {
 	// braucht sein eigenes Formular, und Formulare lassen sich nicht schachteln
 	// (siehe dokument.html).
 	Vertraege []vertragDaten
+
+	// Rechnung ist der Block, über den eine Rechnung an diesem Mitglied
+	// entsteht — der Nullwert beim Anlegen, wo es noch kein Mitglied gibt, an
+	// dem eine Rechnung hängen könnte (siehe mitglied_formular.html).
+	Rechnung rechnungDaten
 
 	Fehler []string
 }
@@ -613,6 +630,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		EintrittAnzeige:     datumAnzeige(eintritt),
 		Termine:             auswahl,
 		Vertraege:           vertragsbloecke(m.Mitgliedschaften),
+		Rechnung:            rechnungBereichAmMitglied(m),
 		Fehler:              fehler,
 	})
 }
