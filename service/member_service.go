@@ -377,11 +377,46 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft_trainingstermin (
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_trainingstermin_termin
 	ON mitgliedschaft_trainingstermin(trainingstermin_id);
+
+-- Der Verein selbst (CONTEXT.md → Vereinsdaten) — die einzige Zeile der App, die
+-- kein Mitglied betrifft. Genau eine: das CHECK nagelt den Schlüssel auf 1 fest,
+-- damit eine zweite Zeile gar nicht erst entstehen kann. Ein zweiter Verein wäre
+-- eine zweite Installation und keine zweite Zeile.
+--
+-- Jede Spalte hat den leeren Text als Standard: alle Angaben sind freiwillig,
+-- und eine frisch angelegte Zeile ist die leere.
+CREATE TABLE IF NOT EXISTS vereinsdaten (
+	id             INTEGER PRIMARY KEY CHECK (id = 1),
+	name           TEXT NOT NULL DEFAULT '',
+	adresse        TEXT NOT NULL DEFAULT '',
+	postleitzahl   TEXT NOT NULL DEFAULT '',
+	ort            TEXT NOT NULL DEFAULT '',
+	email          TEXT NOT NULL DEFAULT '',
+	telefon        TEXT NOT NULL DEFAULT '',
+	iban           TEXT NOT NULL DEFAULT '',
+	bic            TEXT NOT NULL DEFAULT '',
+	kreditinstitut TEXT NOT NULL DEFAULT '',
+	fusszeile      TEXT NOT NULL DEFAULT ''
+);
 `
+
+// vereinsdatenZeile legt die eine Zeile der Vereinsdaten an, falls sie fehlt.
+//
+// Sie steht neben dem Schema und nicht darin: schema sind Tabellen, das hier ist
+// eine Zeile, und der Fehler soll sagen, welches von beidem geklemmt hat. Ein
+// Seeding ist es trotzdem nicht — angelegt wird eine leere Zeile und kein
+// Inhalt (CLAUDE.md: „nothing is seeded"). OR IGNORE macht den Aufruf
+// wiederholbar: bei jedem weiteren Start steht sie schon da und bleibt
+// unangetastet, mitsamt allem, was der Verein hineingeschrieben hat.
+const vereinsdatenZeile = `INSERT OR IGNORE INTO vereinsdaten (id) VALUES (1)`
 
 func (s *MemberService) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("schema anlegen: %w", err)
+	}
+
+	if _, err := s.db.Exec(vereinsdatenZeile); err != nil {
+		return fmt.Errorf("zeile der vereinsdaten anlegen: %w", err)
 	}
 
 	return nil

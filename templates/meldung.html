@@ -1,0 +1,17 @@
+{{/* meldung ist die Rückmeldung über eine gerade abgeschlossene Aktion: „wurde
+     gespeichert“, „gibt es nicht mehr“. Sie steht in jeder Bereichsansicht an
+     derselben Stelle — über dem Inhalt — und stand deshalb bis Ticket 23
+     dreimal wortgleich in drei Dateien.
+
+     Warnung unterscheidet „hat geklappt“ von „so nicht“: dieselbe Stelle,
+     andere Farbe. Der leere Text heißt „es gibt nichts zu melden“; die Prüfung
+     darauf steht hier und nicht bei den Aufrufern, damit die Ansicht den Block
+     bedingungslos einbinden kann.
+
+     Die Daten sind meldung. */}}
+{{define "meldung"}}
+{{if .Text}}
+    <p class="mb-5 rounded-md border px-3 py-2 text-sm {{if .Warnung}}border-amber-600 bg-amber-50 text-amber-800{{else}}border-green-700 bg-green-50 text-green-800{{end}}"
+       role="status">{{.Text}}</p>
+{{end}}
+{{end}}

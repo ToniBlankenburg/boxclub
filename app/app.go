@@ -66,6 +66,8 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/trainingstermin/{id}/archiv", a.trainingsterminArchivSchalten)
 	mux.HandleFunc("GET /api/import", a.importFormular)
 	mux.HandleFunc("POST /api/import", a.importAusfuehren)
+	mux.HandleFunc("GET /api/verein", a.vereinFormular)
+	mux.HandleFunc("POST /api/verein", a.vereinSpeichern)
 
 	return mux
 }
@@ -75,6 +77,7 @@ const (
 	bereichMitglieder       = "mitglieder"
 	bereichTrainingstermine = "trainingstermine"
 	bereichImport           = "import"
+	bereichVerein           = "verein"
 )
 
 // navigationseintrag ist ein Eintrag der Bereichsnavigation. Schluessel ist der
@@ -94,6 +97,9 @@ var bereiche = []navigationseintrag{
 	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
 	{Schluessel: bereichTrainingstermine, Beschriftung: "Trainingstermine", Pfad: "/api/trainingstermine"},
 	{Schluessel: bereichImport, Beschriftung: "Excel-Import", Pfad: "/api/import"},
+	// Der Verein selbst steht zuletzt: es sind Einstellungen, die einmal
+	// gepflegt werden, und keine Ansicht, in der gearbeitet wird.
+	{Schluessel: bereichVerein, Beschriftung: "Verein", Pfad: "/api/verein"},
 }
 
 // navigation liefert die Navigationseinträge mit dem angegebenen Bereich als

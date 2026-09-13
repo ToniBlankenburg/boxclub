@@ -1,0 +1,67 @@
+{{/* verein ist die Einstellungsseite für den Verein selbst (CONTEXT.md →
+     Vereinsdaten) — die einzige Ansicht der App, in der kein Mitglied vorkommt.
+     Gebraucht werden die Angaben als Briefkopf der Rechnung (ADR-0009).
+
+     Anders als die übrigen Bereiche hat sie keine Liste und kein Anlegen: es
+     gibt einen Verein, und die eine Zeile steht immer schon da. Deshalb ist das
+     Formular die Ansicht und nicht etwas, das sich darüberlegt.
+
+     Kein Feld ist Pflicht. Was leer bleibt, fehlt später auf der Rechnung und
+     hält nichts auf — eine Fehlerliste hat dieses Formular deshalb nicht.
+
+     Die Daten sind vereinDaten. */}}
+{{define "verein"}}
+{{with .Navigation}}{{template "navigation" .}}{{end}}
+<div>
+    <h2 class="mb-1 text-base font-semibold">Verein</h2>
+    <p class="mb-5 max-w-2xl text-sm text-neutral-600">
+        Name, Anschrift, Kontakt und Bankverbindung des Vereins. Sie stehen auf
+        jeder Rechnung, die die App schreibt. Alle Angaben sind freiwillig — was
+        hier fehlt, fehlt dort.
+    </p>
+
+    {{template "meldung" .Meldung}}
+
+    <form class="rounded-lg border border-neutral-200 bg-white p-6"
+          hx-post="/api/verein" hx-target="#inhalt" hx-swap="innerHTML">
+        <div class="grid gap-4 sm:grid-cols-2">
+            {{template "feld" feld "Name des Vereins" "name" "text" .Name false true}}
+            {{/* Die Anschrift steht wie am Mitglied in drei Feldern
+                 (CONTEXT.md → Anschrift): Straße samt Hausnummer über die ganze
+                 Breite, Postleitzahl und Ort darunter nebeneinander. */}}
+            {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Anschrift.Adresse false true}}
+            {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Anschrift.Postleitzahl false false}}
+            {{template "feld" feld "Ort" "ort" "text" .Anschrift.Ort false false}}
+            {{template "feld" feld "E-Mail" "email" "email" .Email false false}}
+            {{template "feld" feld "Telefon" "telefon" "tel" .Telefon false false}}
+            {{/* Die IBAN wird wie am Mitglied als reiner Text gespeichert: keine
+                 Prüfziffer, kein Format, kein SEPA-Export (ADR-0006). */}}
+            {{template "feld" feld "IBAN" "iban" "text" .IBAN false true}}
+            {{template "feld" feld "BIC" "bic" "text" .BIC false false}}
+            {{template "feld" feld "Kreditinstitut" "kreditinstitut" "text" .Kreditinstitut false false}}
+
+            {{/* Die Fußzeile ist mehrzeiliger Freitext und steht deshalb als
+                 einziges Feld nicht im "feld"-Raster: dort steht, was der Verein
+                 steuerlich schreiben muss. Die App kennt dazu keine Regel und
+                 prüft nichts — der Hinweis unter dem Feld nennt ein Beispiel und
+                 keine Vorschrift. */}}
+            <label class="flex flex-col gap-1.5 sm:col-span-2">
+                <span class="text-sm text-neutral-600">Fußzeile der Rechnung</span>
+                <textarea name="fusszeile" rows="4"
+                          class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">{{.Fusszeile}}</textarea>
+                <span class="text-sm text-neutral-500">
+                    Mehrzeilig. Hier steht, was unter der Rechnung stehen muss —
+                    etwa der Hinweis auf §&nbsp;19&nbsp;UStG. Die App prüft daran nichts.
+                </span>
+            </label>
+        </div>
+
+        <div class="mt-6">
+            <button type="submit"
+                    class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                Speichern
+            </button>
+        </div>
+    </form>
+</div>
+{{end}}
