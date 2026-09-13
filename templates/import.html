@@ -20,6 +20,8 @@
            role="status">{{.}}</p>
     {{end}}
 
+    {{if .StundenplanLeer}}{{template "stundenplan-leer"}}{{end}}
+
     <form class="flex flex-wrap items-center gap-3 rounded-md border border-neutral-200 bg-white p-4"
           hx-post="/api/import" hx-target="#inhalt" hx-swap="innerHTML"
           hx-encoding="multipart/form-data"
@@ -69,6 +71,8 @@
         {{.Aktualisiert}} aktualisiert. {{.Gescheitert}} gescheitert.
     </p>
 
+    {{if .StundenplanLeer}}{{template "stundenplan-leer"}}{{end}}
+
     {{if .Fehler}}
         <h3 class="mb-2 text-sm font-semibold">Gescheiterte Zeilen</h3>
         <p class="mb-3 text-sm text-neutral-600">
@@ -90,11 +94,11 @@
                         <td class="px-3 py-2">
                             {{/* Eine Zeile kann an mehreren Stellen klemmen; dann
                                  steht jeder Grund einzeln da. */}}
-                            {{if eq (len .Gruende) 1}}
-                                {{index .Gruende 0}}
+                            {{if eq (len .Meldungen) 1}}
+                                {{index .Meldungen 0}}
                             {{else}}
                                 <ul class="list-disc space-y-0.5 pl-4">
-                                    {{range .Gruende}}<li>{{.}}</li>{{end}}
+                                    {{range .Meldungen}}<li>{{.}}</li>{{end}}
                                 </ul>
                             {{end}}
                         </td>
@@ -104,5 +108,67 @@
             </table>
         </div>
     {{end}}
+
+    {{if .Hinweise}}
+        {{/* Übernommene Zeilen mit Nacharbeit: heute sind das die Freitexte der
+             Trainingsspalten, die im Stundenplan nicht zu finden waren. Das
+             Mitglied ist da, seine Trainingszeit nicht — deshalb ein eigener
+             Abschnitt und nicht die Liste darüber. */}}
+        <h3 class="mt-8 mb-2 text-sm font-semibold">Übernommen, aber nachzutragen</h3>
+        <p class="mb-3 text-sm text-neutral-600">
+            Diese Zeilen sind übernommen. Ihre Trainingstermine ließen sich im
+            Stundenplan nicht finden — erst dort pflegen und erneut importieren
+            oder die Termine am Mitglied von Hand zuordnen.
+        </p>
+        <div class="overflow-hidden rounded-md border border-neutral-200 bg-white">
+            <table class="w-full text-left text-sm">
+                <thead class="border-b border-neutral-200 bg-neutral-50 text-neutral-600">
+                <tr>
+                    <th scope="col" class="w-24 px-3 py-2 font-medium">Zeile</th>
+                    <th scope="col" class="px-3 py-2 font-medium">Hinweis</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .Hinweise}}
+                    <tr class="border-b border-neutral-100 last:border-0">
+                        <td class="px-3 py-2 tabular-nums text-neutral-500">{{.Zeile}}</td>
+                        <td class="px-3 py-2">
+                            {{if eq (len .Meldungen) 1}}
+                                {{index .Meldungen 0}}
+                            {{else}}
+                                <ul class="list-disc space-y-0.5 pl-4">
+                                    {{range .Meldungen}}<li>{{.}}</li>{{end}}
+                                </ul>
+                            {{end}}
+                        </td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+        </div>
+    {{end}}
+</div>
+{{end}}
+
+{{/* stundenplan-leer steht im Datei-Dialog und über dem Bericht: ohne Termine
+     im Stundenplan trifft kein einziger Freitext der Spalten
+     „Training - 1/2/3“, und der Bericht stünde voller Hinweise, ohne dass der
+     Grund dafür irgendwo steht (ADR-0008).
+
+     Ohne Daten — es gibt nichts zu zeigen außer dem Weg dorthin. */}}
+{{define "stundenplan-leer"}}
+<div class="mb-5 rounded-md border border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+     role="status">
+    <p>
+        Der Stundenplan ist leer. Der Import ordnet die Spalten
+        „Training&nbsp;-&nbsp;1/2/3“ nur <strong>vorhandenen</strong>
+        Trainingsterminen zu und legt selbst keine an — bis dahin kommt jedes
+        Mitglied ohne Trainingszeit herein.
+    </p>
+    <button type="button"
+            class="mt-2 rounded-md border border-amber-600 bg-white px-3 py-1.5 font-semibold text-amber-900 hover:bg-amber-100 focus:ring-2 focus:ring-amber-600/40 focus:outline-none"
+            hx-get="/api/trainingstermine" hx-target="#inhalt" hx-swap="innerHTML">
+        Stundenplan pflegen
+    </button>
 </div>
 {{end}}

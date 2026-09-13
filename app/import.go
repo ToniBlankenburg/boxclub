@@ -46,7 +46,19 @@ type importbericht struct {
 
 	// Fehler sind die Gründe, zeilenweise. Sie sind das eigentliche Ergebnis:
 	// der Verein korrigiert damit seine Tabelle und importiert erneut.
-	Fehler []importer.Zeilenfehler
+	Fehler []importer.Zeilenmeldung
+
+	// Hinweise sind dasselbe für Zeilen, die trotzdem hereingekommen sind —
+	// heute die Trainingstermine, die im Stundenplan nicht zu finden waren. Sie
+	// stehen im selben Bericht und in einem eigenen Abschnitt: eine Zeile mit
+	// Nacharbeit ist keine gescheiterte Zeile, und beides in einer Liste ließe
+	// die Zahl darüber nicht mehr zusammenpassen.
+	Hinweise []importer.Zeilenmeldung
+
+	// StundenplanLeer sagt, dass kein Trainingstermin zu vergeben ist. Ohne
+	// diese Auskunft importiert jemand 200 Mitglieder und bekommt 400 Hinweise,
+	// ohne zu verstehen, warum (ADR-0008).
+	StundenplanLeer bool
 
 	// Meldung sagt, warum die Datei als Ganzes nicht zu gebrauchen war — kein
 	// .xlsx, kein Blatt „Verwaltung", eine fehlende Spalte. Sie steht neben den
@@ -57,9 +69,10 @@ type importbericht struct {
 	Navigation []navigationseintrag
 }
 
-// Erfolgreich sagt, ob nichts zu korrigieren blieb.
+// Erfolgreich sagt, ob nichts zu korrigieren blieb. Ein Hinweis zählt dazu: die
+// Zeile ist zwar da, aber ihre Trainingszeiten sind es nicht.
 func (b importbericht) Erfolgreich() bool {
-	return b.Gescheitert == 0
+	return b.Gescheitert == 0 && len(b.Hinweise) == 0
 }
 
 // uebernehmen setzt die gelesenen Zeilen ein und zählt mit.
@@ -74,13 +87,25 @@ func uebernehmen(svc *service.MemberService, ergebnis importer.Ergebnis) (import
 		Gescheitert: len(ergebnis.Fehler),
 	}
 
+	// Die Hinweise zur Hand, nach Zeile: weist der Service eine Zeile doch noch
+	// ab, gehen ihre Hinweise zu den Gründen und aus dieser Sammlung heraus.
+	// Sonst stünde dieselbe Zeile in beiden Abschnitten des Berichts — einmal
+	// als gescheitert und einmal als übernommen.
+	offeneHinweise := make(map[int][]string, len(ergebnis.Hinweise))
+	for _, meldung := range ergebnis.Hinweise {
+		offeneHinweise[meldung.Zeile] = meldung.Meldungen
+	}
+
 	for _, zeilensatz := range ergebnis.Saetze {
 		wirkung, err := svc.Uebernehmen(zeilensatz.Satz)
 
 		var vf *service.ValidierungsFehler
 		if errors.As(err, &vf) {
-			bericht.Fehler = append(bericht.Fehler,
-				importer.Zeilenfehler{Zeile: zeilensatz.Zeile, Gruende: vf.Meldungen})
+			bericht.Fehler = append(bericht.Fehler, importer.Zeilenmeldung{
+				Zeile:     zeilensatz.Zeile,
+				Meldungen: append(slices.Clone(vf.Meldungen), offeneHinweise[zeilensatz.Zeile]...),
+			})
+			delete(offeneHinweise, zeilensatz.Zeile)
 			bericht.Gescheitert++
 
 			continue
@@ -97,47 +122,82 @@ func uebernehmen(svc *service.MemberService, ergebnis importer.Ergebnis) (import
 		}
 	}
 
+	// Die übrig gebliebenen Hinweise in der Reihenfolge, in der der Importer sie
+	// gefunden hat — das ist schon die Reihenfolge der Tabelle.
+	for _, meldung := range ergebnis.Hinweise {
+		if _, offen := offeneHinweise[meldung.Zeile]; offen {
+			bericht.Hinweise = append(bericht.Hinweise, meldung)
+		}
+	}
+
 	// Sortiert nach Zeilennummer, damit der Bericht dieselbe Reihenfolge hat wie
 	// die Tabelle: die Fehler aus dem Einsetzen kommen sonst gesammelt hinter
 	// denen aus dem Lesen.
-	zeilenfehlerSortieren(bericht.Fehler)
+	nachZeileSortieren(bericht.Fehler)
 
 	return bericht, nil
 }
 
+// stundenplan holt den Terminkatalog, gegen den der Importer die Freitexte der
+// Trainingsspalten hält — einschließlich der archivierten Termine, damit der
+// Bericht „den gibt es nicht mehr" sagen kann und nicht „den gibt es nicht".
+func (a *App) stundenplan() (importer.Stundenplan, error) {
+	termine, err := a.svc.ListTrainingstermine(true)
+	if err != nil {
+		return importer.Stundenplan{}, err
+	}
+
+	return importer.StundenplanAus(termine), nil
+}
+
 // importFormular zeigt den Datei-Dialog.
 func (a *App) importFormular(w http.ResponseWriter, r *http.Request) {
-	a.rendern(w, "import-formular", importbericht{Navigation: navigation(bereichImport)})
+	plan, err := a.stundenplan()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.importFormularZeigen(w, plan, "")
 }
 
 // importAusfuehren nimmt die hochgeladene Mappe entgegen, liest sie und setzt
 // sie ein.
 func (a *App) importAusfuehren(w http.ResponseWriter, r *http.Request) {
+	// Der Stundenplan zuerst: er entscheidet, was aus den Trainingsspalten wird,
+	// und steht auch über jedem Dialog, der nach einer abgewiesenen Datei
+	// wiederkommt.
+	plan, err := a.stundenplan()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
 
 	if err := r.ParseMultipartForm(maxUpload); err != nil {
-		a.importFehler(w, fmt.Sprintf(
+		a.importFormularZeigen(w, plan, fmt.Sprintf(
 			"Die Datei ließ sich nicht entgegennehmen. Ist sie größer als %d MB?", maxUpload>>20))
 		return
 	}
 
 	datei, kopf, err := r.FormFile("datei")
 	if err != nil {
-		a.importFehler(w, "Bitte eine Datei auswählen.")
+		a.importFormularZeigen(w, plan, "Bitte eine Datei auswählen.")
 		return
 	}
 	defer datei.Close()
 
 	if !strings.EqualFold(filepath.Ext(kopf.Filename), dateiendung) {
-		a.importFehler(w, fmt.Sprintf(
+		a.importFormularZeigen(w, plan, fmt.Sprintf(
 			"%q ist keine %s-Datei. Das alte .xls-Format liest der Import nicht — "+
 				"in Excel einmal als .xlsx speichern.", kopf.Filename, dateiendung))
 		return
 	}
 
-	ergebnis, err := importer.ExcelImporter{}.Lesen(datei)
+	ergebnis, err := importer.ExcelImporter{}.Lesen(datei, plan)
 	if err != nil {
-		a.importFehler(w, err.Error())
+		a.importFormularZeigen(w, plan, err.Error())
 		return
 	}
 
@@ -148,24 +208,29 @@ func (a *App) importAusfuehren(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bericht.Dateiname = kopf.Filename
+	bericht.StundenplanLeer = plan.Leer()
 	bericht.Navigation = navigation(bereichImport)
 
 	a.rendern(w, "import-bericht", bericht)
 }
 
-// importFehler zeigt den Datei-Dialog erneut und sagt, warum die Datei als
-// Ganzes nicht zu gebrauchen war. Das ist etwas anderes als der Fehlerbericht:
-// hier ist keine einzelne Zeile gescheitert, sondern gar nichts gelesen worden.
-func (a *App) importFehler(w http.ResponseWriter, text string) {
+// importFormularZeigen zeigt den Datei-Dialog — mit einer Meldung, wenn eine
+// Datei als Ganzes nicht zu gebrauchen war. Das ist etwas anderes als der
+// Fehlerbericht: dort ist eine einzelne Zeile gescheitert, hier ist gar nichts
+// gelesen worden.
+func (a *App) importFormularZeigen(w http.ResponseWriter, plan importer.Stundenplan, meldung string) {
 	a.rendern(w, "import-formular", importbericht{
-		Meldung:    text,
-		Navigation: navigation(bereichImport),
+		Meldung:         meldung,
+		StundenplanLeer: plan.Leer(),
+		Navigation:      navigation(bereichImport),
 	})
 }
 
-// zeilenfehlerSortieren bringt die Gründe in die Reihenfolge der Tabelle.
-func zeilenfehlerSortieren(fehler []importer.Zeilenfehler) {
-	slices.SortStableFunc(fehler, func(a, b importer.Zeilenfehler) int {
+// nachZeileSortieren bringt die gescheiterten Zeilen in die Reihenfolge der
+// Tabelle. Die Hinweise brauchen das nicht: sie kommen allesamt aus dem Lesen
+// und stehen schon in dieser Reihenfolge.
+func nachZeileSortieren(meldungen []importer.Zeilenmeldung) {
+	slices.SortStableFunc(meldungen, func(a, b importer.Zeilenmeldung) int {
 		return a.Zeile - b.Zeile
 	})
 }

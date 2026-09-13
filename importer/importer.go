@@ -11,11 +11,19 @@
 // zuordnen kann, macht die Zeile zum Fehlerfall statt sie mit einem Standardwert
 // durchzuwinken — der Bericht ist das Werkzeug, mit dem der Verein den Schmutz
 // in seiner Tabelle überhaupt zu sehen bekommt.
+//
+// Eine Ausnahme davon sind die Trainingstermine: sie werden gegen den
+// Stundenplan gehalten, den der Aufrufer mitbringt (siehe Stundenplan), und ein
+// Freitext ohne Termin hält die Zeile nicht auf. Er kommt in den Bericht, das
+// Mitglied kommt ohne diesen Termin herein — eine nicht zugeordnete
+// Trainingszeit ist eine unvollständige Vereinbarung und kein unlesbares
+// Mitglied.
 package importer
 
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -32,16 +40,19 @@ const blatt = "Verwaltung"
 // kopfzeile ist die Zeile mit den Überschriften; die Daten beginnen darunter.
 const kopfzeile = 1
 
-// Zeilenfehler sind die Gründe, aus denen eine Zeile nicht übernommen wurde —
-// mit der Zeilennummer, unter der sie in Excel steht, damit der Verein sie dort
-// wiederfindet und korrigiert.
+// Zeilenmeldung ist, was zu einer Zeile zu sagen war — mit der Zeilennummer,
+// unter der sie in Excel steht, damit der Verein sie dort wiederfindet und
+// korrigiert.
 //
-// Ein Eintrag ist eine Zeile und nicht ein Grund: eine Zeile, an der drei Dinge
-// fehlen, ist eine gescheiterte Zeile und keine drei. Sonst zählte der Bericht
-// mehr Fehlschläge, als die Tabelle Zeilen hat.
-type Zeilenfehler struct {
-	Zeile   int
-	Gruende []string
+// Ein Eintrag ist eine Zeile und nicht eine Meldung: eine Zeile, an der drei
+// Dinge fehlen, ist eine gescheiterte Zeile und keine drei. Sonst zählte der
+// Bericht mehr Fehlschläge, als die Tabelle Zeilen hat.
+//
+// Ob die Zeile an diesen Meldungen gescheitert ist, sagt nicht der Eintrag,
+// sondern die Liste, in der er steht (siehe Ergebnis).
+type Zeilenmeldung struct {
+	Zeile     int
+	Meldungen []string
 }
 
 // Zeilensatz ist ein gelesener Satz samt seiner Herkunft. Die Zeilennummer
@@ -57,7 +68,17 @@ type Zeilensatz struct {
 // einzelne kaputte Zeile darf die 199 gesunden nicht aufhalten.
 type Ergebnis struct {
 	Saetze []Zeilensatz
-	Fehler []Zeilenfehler
+	Fehler []Zeilenmeldung
+
+	// Hinweise stehen zu Zeilen, die trotzdem in Saetze stehen: an ihnen war
+	// etwas zu bemängeln, das die Zeile nicht unbrauchbar macht. Das ist heute
+	// alles, was die Trainingsspalten betrifft — ein Freitext ohne Termin im
+	// Stundenplan und die Gegenprobe zur Spalte „1x 2x Woche".
+	//
+	// Getrennt von Fehler, weil beide verschieden zählen: die eine Liste sind
+	// die gescheiterten Zeilen, die andere sind übernommene mit einer
+	// Nacharbeit. Im Bericht stehen sie nebeneinander an derselben Stelle.
+	Hinweise []Zeilenmeldung
 }
 
 // ExcelImporter liest .xlsx-Dateien im Format der Vereinstabelle. Er hält keinen
@@ -66,11 +87,16 @@ type ExcelImporter struct{}
 
 // Lesen parst die Mappe und liefert Sätze und Fehlerbericht.
 //
+// Der Stundenplan ist der Katalog, dem die Freitexte der Trainingsspalten
+// zugeordnet werden. Ein leerer ist erlaubt und kein Fehler der Datei: dann
+// kommt jedes Mitglied ohne Termine herein, und der Bericht sagt zu jeder
+// Trainingszelle, dass sie nirgends steht.
+//
 // Der zurückgegebene Fehler ist dem Fehlerbericht nicht gleichrangig: er meldet,
 // dass die Datei als Ganzes nicht zu gebrauchen ist (kein .xlsx, kein Blatt
 // „Verwaltung", fehlende Spalte). Dann wird gar nichts übernommen, statt halbe
 // Zeilen zu schreiben.
-func (ExcelImporter) Lesen(r io.Reader) (Ergebnis, error) {
+func (ExcelImporter) Lesen(r io.Reader, plan Stundenplan) (Ergebnis, error) {
 	f, err := excelize.OpenReader(r)
 	if err != nil {
 		return Ergebnis{}, fmt.Errorf("die Datei ließ sich nicht als .xlsx öffnen: %w", err)
@@ -101,7 +127,7 @@ func (ExcelImporter) Lesen(r io.Reader) (Ergebnis, error) {
 		return Ergebnis{}, err
 	}
 
-	return kopf.zeilenLesen(zeilen[kopfzeile:]), nil
+	return kopf.zeilenLesen(zeilen[kopfzeile:], plan), nil
 }
 
 // kopf ordnet jeder erwarteten Überschrift ihre Spaltennummer zu. Zugeordnet
@@ -177,7 +203,7 @@ func kopfLesen(zeile []string) (kopf, error) {
 }
 
 // zeilenLesen geht die Datenzeilen durch und sammelt Sätze und Fehler ein.
-func (k kopf) zeilenLesen(zeilen [][]string) Ergebnis {
+func (k kopf) zeilenLesen(zeilen [][]string, plan Stundenplan) Ergebnis {
 	var ergebnis Ergebnis
 
 	// vergeben merkt sich, welche Mitglieds-Nummer in dieser Datei schon
@@ -193,7 +219,7 @@ func (k kopf) zeilenLesen(zeilen [][]string) Ergebnis {
 			continue
 		}
 
-		satz, gruende := k.zeileLesen(zeile)
+		satz, gruende, hinweise := k.zeileLesen(zeile, plan)
 		if len(gruende) == 0 {
 			if vorher, doppelt := vergeben[satz.ID]; doppelt {
 				gruende = append(gruende, fmt.Sprintf(
@@ -203,10 +229,20 @@ func (k kopf) zeilenLesen(zeilen [][]string) Ergebnis {
 			}
 		}
 
+		// Die Hinweise einer gescheiterten Zeile gehen zu ihren Gründen: die
+		// Zeile ist nicht übernommen, und an zwei Stellen im Bericht zu stehen
+		// hieße, sie zweimal zu zählen. Beides zusammen ist dann die Liste der
+		// Meldungen zu dieser Zeile — daher der Name des Feldes.
 		if len(gruende) > 0 {
-			ergebnis.Fehler = append(ergebnis.Fehler, Zeilenfehler{Zeile: nummer, Gruende: gruende})
+			ergebnis.Fehler = append(ergebnis.Fehler,
+				Zeilenmeldung{Zeile: nummer, Meldungen: append(gruende, hinweise...)})
 
 			continue
+		}
+
+		if len(hinweise) > 0 {
+			ergebnis.Hinweise = append(ergebnis.Hinweise,
+				Zeilenmeldung{Zeile: nummer, Meldungen: hinweise})
 		}
 
 		ergebnis.Saetze = append(ergebnis.Saetze, Zeilensatz{Zeile: nummer, Satz: satz})
@@ -231,8 +267,11 @@ func leer(zeile []string) bool {
 // zeileLesen übersetzt eine Datenzeile in einen Importsatz oder in die Gründe,
 // aus denen das nicht geht. Gesammelt werden alle Gründe einer Zeile und nicht
 // nur der erste: wer seine Tabelle korrigiert, will alles auf einmal sehen.
-func (k kopf) zeileLesen(zeile []string) (service.Importsatz, []string) {
-	z := zeilenleser{kopf: k, zeile: zeile}
+//
+// Zurück kommen zwei Listen: die Gründe, an denen die Zeile scheitert, und die
+// Hinweise, mit denen sie trotzdem durchgeht.
+func (k kopf) zeileLesen(zeile []string, plan Stundenplan) (service.Importsatz, []string, []string) {
+	z := zeilenleser{kopf: k, zeile: zeile, plan: plan}
 
 	satz := service.Importsatz{
 		ID: z.nummer(),
@@ -263,28 +302,32 @@ func (k kopf) zeileLesen(zeile []string) (service.Importsatz, []string) {
 
 	z.lebenszyklus(&satz)
 
-	// Die Freitexte der Trainingsspalten haben seit ADR-0008 kein Ziel mehr im
-	// Satz: ein Termin ist ein Verweis in den Stundenplan, und den Abgleich
-	// bringt Ticket 22. Geprüft werden sie trotzdem schon — die Gegenprobe zur
-	// Spalte „1x 2x Woche" ist eine Aussage über die Tabelle und hängt nicht
-	// daran, was mit den Texten anschließend geschieht.
-	z.frequenzPruefen(z.trainingstexte())
+	satz.TrainingsterminIDs = z.trainingstermine()
+	z.frequenzPruefen(len(satz.TrainingsterminIDs))
 
-	return satz, z.fehler
+	return satz, z.fehler, z.hinweise
 }
 
 // zeilenleser liest die Zellen einer Zeile und sammelt dabei die Gründe ein,
 // aus denen sie nicht zu deuten waren. Er sammelt statt abzubrechen, damit eine
 // Zeile mit drei Problemen auch drei Einträge im Bericht ergibt.
 type zeilenleser struct {
-	kopf   kopf
-	zeile  []string
-	fehler []string
+	kopf     kopf
+	zeile    []string
+	plan     Stundenplan
+	fehler   []string
+	hinweise []string
 }
 
-// melden legt einen Grund zum Bericht dieser Zeile.
+// melden legt einen Grund zum Bericht dieser Zeile. Die Zeile ist damit
+// gescheitert.
 func (z *zeilenleser) melden(format string, args ...any) {
 	z.fehler = append(z.fehler, fmt.Sprintf(format, args...))
+}
+
+// hinweisen legt eine Meldung zum Bericht, die die Zeile nicht aufhält.
+func (z *zeilenleser) hinweisen(format string, args ...any) {
+	z.hinweise = append(z.hinweise, fmt.Sprintf(format, args...))
 }
 
 // text liest eine Zelle als Freitext. Fehlt die Spalte in dieser Zeile — Excel
@@ -485,28 +528,55 @@ func (z *zeilenleser) bewertung() service.GoogleBewertung {
 // nicht gibt, und würde die Frequenz um eins zu hoch ablesen lassen.
 const keinTraining = "kein"
 
-// trainingstexte sind die gefüllten Trainingsspalten der Zeile, wortwörtlich.
-// Was daraus wird, entscheidet Ticket 22; hier zählt einstweilen nur, wie viele
-// es sind (frequenzPruefen).
-func (z *zeilenleser) trainingstexte() []string {
-	var texte []string
+// trainingstermine ordnet die Freitexte der drei Trainingsspalten den Terminen
+// des Stundenplans zu (ADR-0008). Was sich nicht zuordnen lässt, kommt als
+// Hinweis in den Bericht und fehlt der Mitgliedschaft — aufgehalten wird die
+// Zeile davon nicht: eine fehlende Trainingszeit trägt der Verein in der App
+// nach, ein nicht importiertes Mitglied müsste er ganz von Hand anlegen.
+//
+// Derselbe Termin in zwei Spalten zählt einmal. Er ist dieselbe Vereinbarung
+// und keine zwei, und der Service hielte es ohnehin so
+// (trainingsterminIDsNormalisieren); zweimal gezählt stünde er der Gegenprobe
+// zur Frequenzspalte im Weg.
+func (z *zeilenleser) trainingstermine() []int64 {
+	var ids []int64
+
 	for _, spalte := range trainingsspalten {
 		wert := z.text(spalte)
 		if wert == "" || strings.EqualFold(wert, keinTraining) {
 			continue
 		}
-		texte = append(texte, wert)
+
+		id, meldung := z.plan.zuordnen(spalte, wert)
+		if meldung != "" {
+			z.hinweisen("%s", meldung)
+
+			continue
+		}
+
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
 	}
 
-	return texte
+	return ids
 }
 
-// frequenzPruefen hält die Spalte „1x 2x Woche" gegen die Zahl der gefundenen
+// frequenzPruefen hält die Spalte „1x 2x Woche" gegen die Zahl der zugeordneten
 // Termine. Übernommen wird sie nicht: die Trainingsfrequenz ist die Anzahl der
 // Termine und nichts daneben (CONTEXT.md → Trainingsfrequenz). Weicht sie ab,
-// ist das ein Eintrag im Bericht — stillschweigend zu korrigieren hieße, eine
-// der beiden Angaben wegzuwerfen, ohne zu wissen, welche stimmt.
-func (z *zeilenleser) frequenzPruefen(texte []string) {
+// steht das im Bericht — stillschweigend zu korrigieren hieße, eine der beiden
+// Angaben wegzuwerfen, ohne zu wissen, welche stimmt.
+//
+// Der Widerspruch ist ein Hinweis und hält die Zeile nicht auf: seit dem
+// Abgleich gegen den Stundenplan kann er allein daher rühren, dass ein Freitext
+// dort nicht zu finden war — und dann wäre entgegen ADR-0008 doch wieder die
+// ganze Zeile draußen.
+//
+// Eine unlesbare Frequenz bleibt dagegen ein Grund und damit ein Fehlerfall, wie
+// vor diesem Abgleich: sie ist kein Widerspruch zwischen zwei Angaben, sondern
+// eine Zelle, die niemand deuten kann — und der Importer errät nichts.
+func (z *zeilenleser) frequenzPruefen(zugeordnet int) {
 	wert := z.text(spalteFrequenz)
 	if wert == "" {
 		return
@@ -519,8 +589,9 @@ func (z *zeilenleser) frequenzPruefen(texte []string) {
 		return
 	}
 
-	if angegeben != len(texte) {
-		z.melden("Frequenz %d× widerspricht %d Trainingsterminen", angegeben, len(texte))
+	if angegeben != zugeordnet {
+		z.hinweisen("Frequenz %d× widerspricht %d zugeordneten Trainingsterminen",
+			angegeben, zugeordnet)
 	}
 }
 

@@ -209,12 +209,11 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 		return fmt.Errorf("mitgliedschaft-id lesen: %w", err)
 	}
 
-	// Ein neuer Zeitraum fängt mit dem an, was die Zeile mitbringt — heute also
-	// mit nichts: der Importer füllt TrainingsterminIDs noch nicht, weil die
-	// Excel die Spalten „Training - 1/2/3" als Freitext führt und ein Termin
-	// seit ADR-0008 ein Verweis in den Stundenplan ist. Den Abgleich zwischen
-	// beidem bringt Ticket 22; bis dahin hat eine frisch importierte Zeile
-	// „keine Frequenz".
+	// Ein neuer Zeitraum fängt mit dem an, was die Zeile mitbringt: den Terminen,
+	// die der Importer den Freitexten der Spalten „Training - 1/2/3" zuordnen
+	// konnte (ADR-0008). Waren es keine, hat das Mitglied „keine Frequenz" — was
+	// in der Excel steht, ist dann im Stundenplan nicht zu finden und steht im
+	// Fehlerbericht.
 	return trainingstermineSchreiben(tx, mitgliedschaftID, satz.TrainingsterminIDs)
 }
 
@@ -225,11 +224,15 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 // dafür (ADR-0006), und was der Verein in der App von Hand gesetzt hat, darf
 // ein erneuter Import nicht stillschweigend zurücksetzen.
 //
-// Für die Trainingstermine gilt bis Ticket 22 dasselbe, und zwar aus genau
-// diesem Grund: der Importer bringt keine mit, und „ersetze durch nichts" wäre
-// hier kein Übernehmen, sondern ein Löschen. Ein zweiter Lauf nähme dem
-// Mitglied damit stillschweigend Trainingszeiten weg, die von Hand zugeordnet
-// wurden — dieselbe Falle wie beim Rückstand, deshalb dieselbe Antwort.
+// Die Trainingstermine ersetzt die Zeile, sobald sie welche mitbringt: der Weg
+// aus dem Fehlerbericht heißt „Stundenplan pflegen und erneut importieren", und
+// der führte sonst ins Leere.
+//
+// Bringt sie keine mit, bleibt die vorhandene Zuordnung stehen. „Ersetze durch
+// nichts" wäre hier kein Übernehmen, sondern ein Löschen — und es träfe genau
+// die Zeilen, deren Freitext der Stundenplan nicht kennt, also die, deren
+// Termine der Verein nach dem ersten Lauf von Hand nachgetragen hat. Dieselbe
+// Falle wie beim Rückstand darüber, deshalb dieselbe Antwort.
 func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 	if _, err := tx.Exec(
 		`UPDATE mitglied SET
@@ -262,7 +265,11 @@ func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 		return fmt.Errorf("mitgliedschaft %d aktualisieren: %w", mitgliedschaftID, err)
 	}
 
-	return nil
+	if len(satz.TrainingsterminIDs) == 0 {
+		return nil
+	}
+
+	return trainingstermineSchreiben(tx, mitgliedschaftID, satz.TrainingsterminIDs)
 }
 
 // gleicherName vergleicht zwei Namensteile. Groß- und Kleinschreibung

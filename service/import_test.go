@@ -109,9 +109,9 @@ func TestUebernehmen_AutomatischeVergabeZaehltOberhalbDerImportiertenNummern(t *
 	}
 }
 
-// Die Trainingstermine kommen hier als Verweise in den Stundenplan an. Der
-// Importer füllt sie noch nicht — der Abgleich der Excel-Freitexte ist Ticket 22
-// —, die Übernahme schreibt sie aber bereits.
+// Die Trainingstermine kommen als Verweise in den Stundenplan an: der Importer
+// hat die Freitexte der Excel schon zugeordnet (ADR-0008), hier werden sie
+// geschrieben.
 func TestUebernehmen_SchreibtKuendigungRuhendUndTrainingstermine(t *testing.T) {
 	svc := neuerService(t)
 
@@ -152,10 +152,11 @@ func TestUebernehmen_SchreibtKuendigungRuhendUndTrainingstermine(t *testing.T) {
 	}
 }
 
-// Bis Ticket 22 bringt der Importer keine Trainingstermine mit. Ein zweiter
-// Lauf darf die von Hand zugeordneten deshalb nicht wegnehmen: „keine
-// Termine übernehmen" heißt nichts schreiben und nicht alles löschen — dieselbe
-// Zusicherung wie beim Rückstand darunter.
+// Eine Zeile ohne zugeordnete Termine nimmt keine weg. Das ist genau der Fall,
+// in dem der Freitext der Excel im Stundenplan nicht zu finden war — und dann
+// stehen an dem Mitglied die Termine, die der Verein nach dem Fehlerbericht von
+// Hand nachgetragen hat. „Ersetze durch nichts" wäre hier kein Übernehmen,
+// sondern ein Löschen; dieselbe Zusicherung wie beim Rückstand darunter.
 func TestUebernehmen_LaesstZugeordneteTrainingstermineStehen(t *testing.T) {
 	svc := neuerService(t)
 
@@ -167,8 +168,7 @@ func TestUebernehmen_LaesstZugeordneteTrainingstermineStehen(t *testing.T) {
 		t.Fatalf("erster Lauf: %v", err)
 	}
 
-	// Derselbe Satz noch einmal, so wie der Importer ihn heute liefert: ohne
-	// Termine.
+	// Derselbe Satz noch einmal, diesmal ohne zuordenbaren Termin.
 	if _, err := svc.Uebernehmen(importsatz(t, 47, "Erika", "Musterfrau")); err != nil {
 		t.Fatalf("zweiter Lauf: %v", err)
 	}
@@ -185,6 +185,41 @@ func TestUebernehmen_LaesstZugeordneteTrainingstermineStehen(t *testing.T) {
 	}
 	if ms.Trainingsfrequenz() != 2 {
 		t.Errorf("Trainingsfrequenz = %d, erwartet unverändert 2", int(ms.Trainingsfrequenz()))
+	}
+}
+
+// Bringt die Zeile Termine mit, ersetzt sie die Zuordnung. Das ist der Weg, den
+// der Fehlerbericht vorschlägt: Stundenplan pflegen und erneut importieren —
+// und der führte sonst ins Leere.
+func TestUebernehmen_ErsetztDieTrainingstermineMitDenenDerZeile(t *testing.T) {
+	svc := neuerService(t)
+
+	montag, mittwoch, samstag := stundenplan(t, svc)
+
+	erster := importsatz(t, 47, "Erika", "Musterfrau")
+	erster.TrainingsterminIDs = ids(montag, mittwoch)
+	if _, err := svc.Uebernehmen(erster); err != nil {
+		t.Fatalf("erster Lauf: %v", err)
+	}
+
+	// In der Excel steht jetzt eine andere Trainingszeit.
+	zweiter := importsatz(t, 47, "Erika", "Musterfrau")
+	zweiter.TrainingsterminIDs = ids(samstag)
+	if _, err := svc.Uebernehmen(zweiter); err != nil {
+		t.Fatalf("zweiter Lauf: %v", err)
+	}
+
+	m, err := svc.Get(47)
+	if err != nil {
+		t.Fatalf("Get(47): %v", err)
+	}
+
+	ms := m.Mitgliedschaften[0]
+	if gefunden := ids(ms.Trainingstermine...); !slices.Equal(gefunden, ids(samstag)) {
+		t.Errorf("Trainingstermine = %v, erwartet %v", gefunden, ids(samstag))
+	}
+	if ms.Trainingsfrequenz() != 1 {
+		t.Errorf("Trainingsfrequenz = %d, erwartet 1", int(ms.Trainingsfrequenz()))
 	}
 }
 

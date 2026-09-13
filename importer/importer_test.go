@@ -109,11 +109,40 @@ func mappe(t *testing.T, ueberschriften []string, zeilen ...map[string]any) []by
 	return puffer.Bytes()
 }
 
+// termin baut einen Eintrag des Stundenplans. Er kommt ohne Datenbank aus: der
+// Importer bekommt den Katalog übergeben und liest ihn nur.
+func termin(id int64, tag service.Wochentag, beginn string) service.Trainingstermin {
+	return service.Trainingstermin{ID: id, Wochentag: tag, Beginn: service.Uhrzeit(beginn)}
+}
+
+// Die Termine, auf die die Freitexte der Musterzeile passen. Die Excel schreibt
+// sie „Samstag 10:30 Uhr", der Stundenplan „Samstag 10:30" — dass beides
+// derselbe Termin ist, ist der Kern dieses Abgleichs.
+var (
+	samstag    = termin(1, service.Samstag, "10:30")
+	dienstag   = termin(2, service.Dienstag, "19:30")
+	donnerstag = termin(3, service.Donnerstag, "18:00")
+)
+
+// stundenplan ist der Katalog, gegen den die Tests lesen, wenn sie nichts
+// anderes sagen.
+func stundenplan() importer.Stundenplan {
+	return importer.StundenplanAus([]service.Trainingstermin{samstag, dienstag, donnerstag})
+}
+
 // lesen ruft den Importer auf der gebauten Mappe auf.
 func lesen(t *testing.T, inhalt []byte) importer.Ergebnis {
 	t.Helper()
 
-	ergebnis, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(inhalt))
+	return lesenMit(t, inhalt, stundenplan())
+}
+
+// lesenMit liest gegen einen eigenen Stundenplan — für die Fälle, in denen
+// gerade er der Gegenstand ist.
+func lesenMit(t *testing.T, inhalt []byte, plan importer.Stundenplan) importer.Ergebnis {
+	t.Helper()
+
+	ergebnis, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(inhalt), plan)
 	if err != nil {
 		t.Fatalf("Lesen: %v", err)
 	}
@@ -135,9 +164,18 @@ func datum(t *testing.T, iso string) time.Time {
 
 // gruende verdichtet den Fehlerbericht auf „Zeile: Grund" je Eintrag.
 func gruende(ergebnis importer.Ergebnis) string {
+	return meldungen(ergebnis.Fehler)
+}
+
+// hinweise ist dasselbe für die Meldungen zu Zeilen, die trotzdem durchgehen.
+func hinweise(ergebnis importer.Ergebnis) string {
+	return meldungen(ergebnis.Hinweise)
+}
+
+func meldungen(liste []importer.Zeilenmeldung) string {
 	var b strings.Builder
-	for _, f := range ergebnis.Fehler {
-		fmt.Fprintf(&b, "Zeile %d: %s\n", f.Zeile, strings.Join(f.Gruende, "; "))
+	for _, m := range liste {
+		fmt.Fprintf(&b, "Zeile %d: %s\n", m.Zeile, strings.Join(m.Meldungen, "; "))
 	}
 
 	return b.String()
@@ -214,6 +252,18 @@ func mitZeile(aenderungen map[string]any) map[string]any {
 
 // einzigerSatz gibt den einen erwarteten Satz zurück und scheitert sonst.
 func einzigerSatz(t *testing.T, ergebnis importer.Ergebnis) service.Importsatz {
+	t.Helper()
+
+	if len(ergebnis.Hinweise) != 0 {
+		t.Fatalf("Hinweise, erwartet keine:\n%s", hinweise(ergebnis))
+	}
+
+	return satzMitHinweisen(t, ergebnis)
+}
+
+// satzMitHinweisen verlangt die eine übernommene Zeile, lässt aber Hinweise zu:
+// ein nicht zugeordneter Trainingstermin hält die Zeile nicht auf.
+func satzMitHinweisen(t *testing.T, ergebnis importer.Ergebnis) service.Importsatz {
 	t.Helper()
 
 	if len(ergebnis.Fehler) != 0 {
@@ -309,66 +359,229 @@ func TestLesen_DoppelteMitgliedsIDMachtDieZweiteZeileZumFehlerfall(t *testing.T)
 	}
 }
 
-// Die drei Trainingsspalten haben seit ADR-0008 kein Ziel mehr im Satz: ein
-// Termin ist ein Verweis in den Stundenplan, und der Abgleich der Freitexte ist
-// Ticket 22. Dass sie gelesen werden, zeigt sich einstweilen an der Gegenprobe
-// zur Frequenzspalte — sie zählt genau die Zellen, die der Importer findet.
-func TestLesen_ZaehltAlleDreiTrainingsspalten(t *testing.T) {
-	mitDrei := append(slices.Clone(spalten), "Training - 2", "Training - 3")
+// Die Trainingsspalten sind Freitext, der Satz führt Verweise: der Abgleich
+// dagegen ist der Gegenstand dieser Gruppe (ADR-0008).
 
-	dreiZellen := mitZeile(map[string]any{
+// mitDreiSpalten ist die Kopfzeile mit allen drei Trainingsspalten — die
+// Mustertabelle führt nur die erste.
+func mitDreiSpalten() []string {
+	return append(slices.Clone(spalten), "Training - 2", "Training - 3")
+}
+
+func TestLesen_OrdnetDieFreitexteDemStundenplanZu(t *testing.T) {
+	satz := einzigerSatz(t, lesen(t, mappe(t, spalten, musterzeile())))
+
+	if !slices.Equal(satz.TrainingsterminIDs, []int64{samstag.ID}) {
+		t.Errorf("Trainingstermine = %v, erwartet den Samstagstermin %d",
+			satz.TrainingsterminIDs, samstag.ID)
+	}
+}
+
+func TestLesen_VergleichtOhneRuecksichtAufSchreibweiseUndLeerraum(t *testing.T) {
+	// Der Termin steht im Stundenplan als „Samstag 10:30“, mit Ende und
+	// Bezeichnung — die Excel kennt beides nicht.
+	plan := importer.StundenplanAus([]service.Trainingstermin{{
+		ID: 7, Wochentag: service.Samstag, Beginn: "10:30", Ende: "12:00", Bezeichnung: "Anfänger",
+	}})
+
+	for _, geschrieben := range []string{
+		"Samstag 10:30 Uhr",
+		"samstag 10:30 uhr",
+		"  Samstag   10:30  ",
+		"Samstag 10:30 – 12:00 · Anfänger",
+	} {
+		t.Run(geschrieben, func(t *testing.T) {
+			satz := satzMitHinweisen(t, lesenMit(t, mappe(t, spalten,
+				mitZeile(map[string]any{"Training - 1": geschrieben})), plan))
+
+			if !slices.Equal(satz.TrainingsterminIDs, []int64{7}) {
+				t.Errorf("Trainingstermine = %v, erwartet den Termin 7", satz.TrainingsterminIDs)
+			}
+		})
+	}
+}
+
+// „Sa 10:30“ ist keine Schreibvariante, die der Abgleich auflöst: alles außer
+// Schreibweise und Leerraum muss stimmen. Das ist eingepreist (ADR-0008) — und
+// es hält die Zeile nicht auf.
+func TestLesen_UnbekannterFreitextWirdZumHinweisUndHaeltDieZeileNichtAuf(t *testing.T) {
+	ergebnis := lesen(t, mappe(t, spalten, mitZeile(map[string]any{
+		"Training - 1": "Sa 10:30",
+		"1x 2x Woche":  "",
+	})))
+
+	satz := satzMitHinweisen(t, ergebnis)
+	if len(satz.TrainingsterminIDs) != 0 {
+		t.Errorf("Trainingstermine = %v, erwartet keine", satz.TrainingsterminIDs)
+	}
+
+	if len(ergebnis.Hinweise) != 1 || ergebnis.Hinweise[0].Zeile != 2 {
+		t.Fatalf("Hinweise = %+v, erwartet einen zu Zeile 2", ergebnis.Hinweise)
+	}
+
+	bericht := hinweise(ergebnis)
+	for _, erwartet := range []string{"Training - 1", "Sa 10:30", "Stundenplan"} {
+		if !strings.Contains(bericht, erwartet) {
+			t.Errorf("Hinweis nennt %q nicht:\n%s", erwartet, bericht)
+		}
+	}
+}
+
+// Der Wert „Kein“ ist kein Termin und kein Fehler: die Zelle ist ausgefüllt,
+// und zwar mit „findet nicht statt“.
+func TestLesen_KeinIstKeinTerminUndKeineMeldung(t *testing.T) {
+	for _, geschrieben := range []string{"Kein", "kein", "KEIN"} {
+		t.Run(geschrieben, func(t *testing.T) {
+			satz := einzigerSatz(t, lesen(t, mappe(t, spalten, mitZeile(map[string]any{
+				"Training - 1": geschrieben,
+				"1x 2x Woche":  "",
+			}))))
+
+			if len(satz.TrainingsterminIDs) != 0 {
+				t.Errorf("Trainingstermine = %v, erwartet keine", satz.TrainingsterminIDs)
+			}
+		})
+	}
+}
+
+// Ein archivierter Termin wird nicht vergeben: der Import darf keine Zeiten
+// austeilen, die es nicht mehr gibt (ADR-0008).
+func TestLesen_VergibtArchivierteTermineNicht(t *testing.T) {
+	stillgelegt := samstag
+	stillgelegt.Archiviert = true
+
+	ergebnis := lesenMit(t, mappe(t, spalten, mitZeile(map[string]any{"1x 2x Woche": ""})),
+		importer.StundenplanAus([]service.Trainingstermin{stillgelegt}))
+
+	satz := satzMitHinweisen(t, ergebnis)
+	if len(satz.TrainingsterminIDs) != 0 {
+		t.Errorf("Trainingstermine = %v, erwartet keine", satz.TrainingsterminIDs)
+	}
+	if bericht := hinweise(ergebnis); !strings.Contains(bericht, "archiviert") {
+		t.Errorf("Hinweis sagt nicht, dass der Termin archiviert ist:\n%s", bericht)
+	}
+}
+
+// Zwei Gruppen zur selben Zeit sind erlaubt (CreateTrainingstermin). Die kurze
+// Schreibweise trifft dann beide — und geraten wird nicht.
+func TestLesen_MeldetEinenMehrdeutigenFreitext(t *testing.T) {
+	ergebnis := lesenMit(t, mappe(t, spalten, mitZeile(map[string]any{"1x 2x Woche": ""})),
+		importer.StundenplanAus([]service.Trainingstermin{
+			{ID: 1, Wochentag: service.Samstag, Beginn: "10:30", Bezeichnung: "Anfänger"},
+			{ID: 2, Wochentag: service.Samstag, Beginn: "10:30", Bezeichnung: "Wettkampf"},
+		}))
+
+	satz := satzMitHinweisen(t, ergebnis)
+	if len(satz.TrainingsterminIDs) != 0 {
+		t.Errorf("Trainingstermine = %v, erwartet keine — geraten wird nicht", satz.TrainingsterminIDs)
+	}
+	if bericht := hinweise(ergebnis); !strings.Contains(bericht, "mehrere") {
+		t.Errorf("Hinweis nennt die Mehrdeutigkeit nicht:\n%s", bericht)
+	}
+}
+
+// Ein leerer Stundenplan ist kein Fehler der Datei: die Mitglieder kommen
+// herein, ihre Trainingszeiten nicht.
+func TestLesen_LeererStundenplanOrdnetNichtsZuUndLaesstDieZeilenDurch(t *testing.T) {
+	ergebnis := lesenMit(t, mappe(t, spalten, musterzeile()), importer.StundenplanAus(nil))
+
+	satz := satzMitHinweisen(t, ergebnis)
+	if len(satz.TrainingsterminIDs) != 0 {
+		t.Errorf("Trainingstermine = %v, erwartet keine", satz.TrainingsterminIDs)
+	}
+	if len(ergebnis.Hinweise) != 1 {
+		t.Fatalf("Hinweise = %+v, erwartet einen zur Zeile", ergebnis.Hinweise)
+	}
+}
+
+func TestLesen_OrdnetAlleDreiTrainingsspaltenZu(t *testing.T) {
+	satz := einzigerSatz(t, lesen(t, mappe(t, mitDreiSpalten(), mitZeile(map[string]any{
 		"Training - 2": "Dienstag 19:30 Uhr",
 		"Training - 3": "Donnerstag 18:00 Uhr",
 		"1x 2x Woche":  "3x Woche",
-	})
-
-	// Drei gefüllte Zellen und „3x Woche": kein Widerspruch, die Zeile geht durch.
-	einzigerSatz(t, lesen(t, mappe(t, mitDrei, dreiZellen)))
-
-	// Dieselben drei Zellen gegen „2x Woche": jetzt widersprechen sie sich, und
-	// damit ist gezeigt, dass alle drei Spalten gezählt wurden.
-	bericht := nurFehler(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
-		"Training - 2": "Dienstag 19:30 Uhr",
-		"Training - 3": "Donnerstag 18:00 Uhr",
-		"1x 2x Woche":  "2x Woche",
 	}))))
-	if !strings.Contains(bericht, "widerspricht 3 Trainingsterminen") {
-		t.Errorf("Bericht zählt nicht drei Termine:\n%s", bericht)
+
+	erwartet := []int64{samstag.ID, dienstag.ID, donnerstag.ID}
+	if !slices.Equal(satz.TrainingsterminIDs, erwartet) {
+		t.Errorf("Trainingstermine = %v, erwartet %v", satz.TrainingsterminIDs, erwartet)
 	}
 }
 
 // Eine leere Trainingszelle ist kein Termin: sie zählt nicht mit.
 func TestLesen_LeereTrainingszelleZaehltNicht(t *testing.T) {
-	mitDrei := append(slices.Clone(spalten), "Training - 2", "Training - 3")
-
-	// Von drei Spalten ist eine leer — „2x Woche" passt also, „3x Woche" nicht.
-	einzigerSatz(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
+	satz := einzigerSatz(t, lesen(t, mappe(t, mitDreiSpalten(), mitZeile(map[string]any{
 		"Training - 2": "",
 		"Training - 3": "Donnerstag 18:00 Uhr",
 		"1x 2x Woche":  "2x Woche",
 	}))))
 
-	bericht := nurFehler(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
-		"Training - 2": "",
-		"Training - 3": "Donnerstag 18:00 Uhr",
-		"1x 2x Woche":  "3x Woche",
-	}))))
-	if !strings.Contains(bericht, "widerspricht 2 Trainingsterminen") {
-		t.Errorf("Bericht zählt die leere Zelle mit:\n%s", bericht)
+	if len(satz.TrainingsterminIDs) != 2 {
+		t.Errorf("Trainingstermine = %v, erwartet zwei", satz.TrainingsterminIDs)
 	}
 }
 
-func TestLesen_WidersprechendeFrequenzMachtDieZeileZumFehlerfall(t *testing.T) {
-	mitDrei := append(slices.Clone(spalten), "Training - 2", "Training - 3")
+// Derselbe Termin in zwei Spalten ist dieselbe Vereinbarung und keine zwei.
+func TestLesen_ZaehltDenselbenTerminNurEinmal(t *testing.T) {
+	ergebnis := lesen(t, mappe(t, mitDreiSpalten(), mitZeile(map[string]any{
+		"Training - 2": "samstag 10:30",
+		"1x 2x Woche":  "1x Woche",
+	})))
 
-	bericht := nurFehler(t, lesen(t, mappe(t, mitDrei, mitZeile(map[string]any{
+	satz := einzigerSatz(t, ergebnis)
+	if !slices.Equal(satz.TrainingsterminIDs, []int64{samstag.ID}) {
+		t.Errorf("Trainingstermine = %v, erwartet den Samstagstermin einmal",
+			satz.TrainingsterminIDs)
+	}
+}
+
+// Die Gegenprobe zur Spalte „1x 2x Woche" zählt die zugeordneten Termine — und
+// hält die Zeile nicht auf: aus dieser Spalte wird nichts gespeichert.
+func TestLesen_WidersprechendeFrequenzWirdZumHinweis(t *testing.T) {
+	ergebnis := lesen(t, mappe(t, mitDreiSpalten(), mitZeile(map[string]any{
 		"Training - 2": "Dienstag 19:30 Uhr",
 		"Training - 3": "Donnerstag 18:00 Uhr",
 		"1x 2x Woche":  "1x Woche",
-	}))))
+	})))
 
-	if !strings.Contains(bericht, "Frequenz 1× widerspricht 3 Trainingsterminen") {
+	satzMitHinweisen(t, ergebnis)
+
+	if bericht := hinweise(ergebnis); !strings.Contains(bericht,
+		"Frequenz 1× widerspricht 3 zugeordneten Trainingsterminen") {
 		t.Errorf("Bericht benennt den Widerspruch nicht:\n%s", bericht)
+	}
+}
+
+// Eine unlesbare Frequenz ist kein Widerspruch zwischen zwei Angaben, sondern
+// eine Zelle, die niemand deuten kann — und bleibt deshalb ein Fehlerfall.
+func TestLesen_UnlesbareFrequenzMachtDieZeileZumFehlerfall(t *testing.T) {
+	bericht := nurFehler(t, lesen(t, mappe(t, spalten,
+		mitZeile(map[string]any{"1x 2x Woche": "gelegentlich"}))))
+
+	if !strings.Contains(bericht, "keine lesbare Frequenz") {
+		t.Errorf("Bericht nennt die unlesbare Frequenz nicht:\n%s", bericht)
+	}
+}
+
+// Was der Stundenplan nicht kennt, zählt auch nicht: die Frequenzprüfung sieht
+// die zugeordneten Termine und nicht die gefüllten Zellen.
+func TestLesen_FrequenzpruefungZaehltNurZugeordneteTermine(t *testing.T) {
+	ergebnis := lesen(t, mappe(t, mitDreiSpalten(), mitZeile(map[string]any{
+		"Training - 2": "Dienstag 19:30 Uhr",
+		"Training - 3": "Mitwoch 18:00 Uhr",
+		"1x 2x Woche":  "2x Woche",
+	})))
+
+	satz := satzMitHinweisen(t, ergebnis)
+	if len(satz.TrainingsterminIDs) != 2 {
+		t.Errorf("Trainingstermine = %v, erwartet zwei", satz.TrainingsterminIDs)
+	}
+
+	bericht := hinweise(ergebnis)
+	if strings.Contains(bericht, "widerspricht") {
+		t.Errorf("Bericht meldet einen Frequenzwiderspruch, erwartet keinen:\n%s", bericht)
+	}
+	if !strings.Contains(bericht, "Mitwoch 18:00 Uhr") {
+		t.Errorf("Bericht nennt den nicht zugeordneten Freitext nicht:\n%s", bericht)
 	}
 }
 
@@ -435,7 +648,8 @@ func TestLesen_BrichtBeiFehlenderSpalteAb(t *testing.T) {
 	ohneNachname := slices.DeleteFunc(slices.Clone(spalten),
 		func(s string) bool { return s == "Nachname" })
 
-	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(mappe(t, ohneNachname, musterzeile())))
+	_, err := importer.ExcelImporter{}.Lesen(
+		bytes.NewReader(mappe(t, ohneNachname, musterzeile())), stundenplan())
 	if err == nil {
 		t.Fatal("Lesen ohne Spalte „Nachname“ lief durch, erwartet Abbruch")
 	}
@@ -453,7 +667,7 @@ func TestLesen_BrichtOhneBlattVerwaltungAb(t *testing.T) {
 		t.Fatalf("Mappe schreiben: %v", err)
 	}
 
-	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()))
+	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan())
 	if err == nil {
 		t.Fatal("Lesen ohne Blatt „Verwaltung“ lief durch, erwartet Abbruch")
 	}
@@ -476,7 +690,7 @@ func TestLesen_UeberspringtLeereZeilen(t *testing.T) {
 	}
 }
 
-func TestLesen_FasstAlleGruendeEinerZeileZusammen(t *testing.T) {
+func TestLesen_FasstAlleMeldungenEinerZeileZusammen(t *testing.T) {
 	ergebnis := lesen(t, mappe(t, spalten, mitZeile(map[string]any{
 		"Nachname": "", "Status": "Halbtot",
 	})))
@@ -485,8 +699,8 @@ func TestLesen_FasstAlleGruendeEinerZeileZusammen(t *testing.T) {
 		t.Fatalf("%d Einträge im Bericht, erwartet 1 — eine Zeile ist eine gescheiterte Zeile:\n%s",
 			len(ergebnis.Fehler), gruende(ergebnis))
 	}
-	if len(ergebnis.Fehler[0].Gruende) != 2 {
-		t.Errorf("Gründe = %q, erwartet beide Probleme der Zeile", ergebnis.Fehler[0].Gruende)
+	if len(ergebnis.Fehler[0].Meldungen) != 2 {
+		t.Errorf("Gründe = %q, erwartet beide Probleme der Zeile", ergebnis.Fehler[0].Meldungen)
 	}
 }
 
@@ -538,7 +752,7 @@ func TestLesen_MeldetEinUnlesbaresKuendigungsdatumNurEinmal(t *testing.T) {
 	if strings.Contains(bericht, "fehlt das Datum") {
 		t.Errorf("Bericht sagt zugleich „nicht lesbar“ und „fehlt“:\n%s", bericht)
 	}
-	if len(ergebnis.Fehler[0].Gruende) != 1 {
-		t.Errorf("Gründe = %q, erwartet genau einen", ergebnis.Fehler[0].Gruende)
+	if len(ergebnis.Fehler[0].Meldungen) != 1 {
+		t.Errorf("Gründe = %q, erwartet genau einen", ergebnis.Fehler[0].Meldungen)
 	}
 }

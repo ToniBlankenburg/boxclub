@@ -125,18 +125,27 @@ type Trainingstermin struct {
 	Archiviert bool
 }
 
+// KurzeAnzeige ist der Termin auf seine beiden Pflichtangaben verkürzt:
+// "Samstag 10:30". So steht er in der Excel-Tabelle des Vereins, die weder Ende
+// noch Bezeichnung führt — der Excel-Import vergleicht dagegen (ADR-0008).
+//
+// Sie steht hier und nicht im Importer, weil sie der Anfang der Anzeige ist:
+// zwei Stellen, die denselben Text zusammensetzen, laufen beim ersten geänderten
+// Trennzeichen auseinander, und der Abgleich bräche still.
+func (t Trainingstermin) KurzeAnzeige() string {
+	return t.Wochentag.Bezeichnung() + " " + string(t.Beginn)
+}
+
 // Anzeige ist die eine Schreibweise des Termins: "Samstag 10:30 – 12:00 ·
 // Anfänger", bei fehlenden Angaben entsprechend kürzer. Sie steht im Service
 // und nicht im Template, weil derselbe Text im Stundenplan, in der Auswahl der
 // Mitgliedschaft und in der Mitgliederliste erscheint — drei Stellen, an denen
 // er nicht dreimal verschieden entstehen soll.
 func (t Trainingstermin) Anzeige() string {
-	zeit := string(t.Beginn)
+	anzeige := t.KurzeAnzeige()
 	if !t.Ende.Leer() {
-		zeit += " – " + string(t.Ende)
+		anzeige += " – " + string(t.Ende)
 	}
-
-	anzeige := t.Wochentag.Bezeichnung() + " " + zeit
 	if t.Bezeichnung != "" {
 		anzeige += " · " + t.Bezeichnung
 	}
