@@ -115,6 +115,17 @@ type Mitgliedschaft struct {
 	// Archivierte Termine stehen mit darin: sie sind aus dem Stundenplan
 	// genommen, aus der Vereinbarung nicht (ADR-0008).
 	Trainingstermine []Trainingstermin
+
+	// Vertrag ist die eingescannte Vereinbarung über genau diesen Zeitraum,
+	// oder nil, wenn keine abgelegt ist. Er hängt hier und nicht am Mitglied:
+	// wer austritt und Jahre später wiederkommt, unterschreibt einen neuen, und
+	// jeder Vertrag bleibt bei seinem Zeitraum (CONTEXT.md → Vertrag).
+	//
+	// Es ist die Angabe *über* das PDF und nicht das PDF: Dokument trägt keinen
+	// Inhalt, und deshalb kann auch eine Liste von Mitgliedschaften den Blob
+	// nicht versehentlich mitschleppen (ADR-0007). Ihn holt einzeln
+	// VertragInhalt.
+	Vertrag *Dokument
 }
 
 // Trainingsfrequenz ist die Anzahl der Trainingstermine dieses Zeitraums.
@@ -377,6 +388,36 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft_trainingstermin (
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_trainingstermin_termin
 	ON mitgliedschaft_trainingstermin(trainingstermin_id);
+
+-- Die Dokumente des Vereins (ADR-0007): der eingescannte Vertrag und die
+-- erzeugte Rechnung, beides PDF. Sie liegen als Blob hier und nicht als Dateien
+-- neben der Datenbank — der Verein sichert, indem er eine Datei kopiert, und was
+-- danebenliegt, vergisst er.
+--
+-- Zwei Fremdschlüssel, von denen das CHECK genau einen zulässt: ein Vertrag
+-- hängt an der Mitgliedschaft, denn jeder Zeitraum hat seinen eigenen
+-- (CONTEXT.md → Vertrag), eine Rechnung dagegen an der Person. Ein Dokument, das
+-- an beidem oder an keinem von beiden hinge, wäre keines von beiden.
+--
+-- Der eindeutige Index hält fest, dass es je Zeitraum höchstens einen Vertrag
+-- gibt: ein zweiter wäre nicht die zweite Unterschrift, sondern die Frage,
+-- welcher gilt. Ablegen heißt deshalb ersetzen und nicht danebenlegen. Auf die
+-- Rechnungen wirkt er nicht — davon gibt es je Mitglied beliebig viele.
+CREATE TABLE IF NOT EXISTS dokument (
+	id                INTEGER PRIMARY KEY AUTOINCREMENT,
+	mitglied_id       INTEGER REFERENCES mitglied(id) ON DELETE CASCADE,
+	mitgliedschaft_id INTEGER REFERENCES mitgliedschaft(id) ON DELETE CASCADE,
+	art               TEXT    NOT NULL,
+	dateiname         TEXT    NOT NULL,
+	inhalt            BLOB    NOT NULL,
+	erstellt_am       TEXT    NOT NULL,
+	CHECK ((mitglied_id IS NULL) <> (mitgliedschaft_id IS NULL))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dokument_mitgliedschaft
+	ON dokument(mitgliedschaft_id) WHERE mitgliedschaft_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_dokument_mitglied ON dokument(mitglied_id);
 
 -- Der Verein selbst (CONTEXT.md → Vereinsdaten) — die einzige Zeile der App, die
 -- kein Mitglied betrifft. Genau eine: das CHECK nagelt den Schlüssel auf 1 fest,
@@ -842,10 +883,78 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 	return m, nil
 }
 
+// mitgliedschaftsspalten sind die Spalten der eigenen Zeile, in der Reihenfolge,
+// in der mitgliedschaftZeileLesen sie erwartet. Sie stehen einmal hier, damit
+// die Abfrage über alle Zeiträume eines Mitglieds und die über einen einzelnen
+// nicht auseinanderlaufen können.
+const mitgliedschaftsspalten = `id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
+	anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend`
+
+// zeilenleser ist die Teilmenge von *sql.Row und *sql.Rows, die
+// mitgliedschaftZeileLesen braucht — so liest dieselbe Funktion die einzelne
+// Zeile wie die Zeile aus einer Ergebnismenge.
+type zeilenleser interface {
+	Scan(ziele ...any) error
+}
+
+// mitgliedschaftZeileLesen baut eine Mitgliedschaft aus ihrer eigenen Zeile.
+// Was daneben steht — Trainingstermine und Vertrag —, hängt anreichern an.
+func mitgliedschaftZeileLesen(zeile zeilenleser) (Mitgliedschaft, error) {
+	var (
+		ms               Mitgliedschaft
+		anmeldedatum     sql.NullString
+		eintritt         string
+		kuendigungsdatum sql.NullString
+		austritt         sql.NullString
+	)
+	if err := zeile.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &kuendigungsdatum, &austritt,
+		&ms.Anmeldung.GebuehrCents, &ms.BeitragCents, &ms.Ruhend); err != nil {
+		return Mitgliedschaft{}, err
+	}
+
+	var err error
+	if ms.Anmeldung.Datum, err = ausDatumsText(anmeldedatum); err != nil {
+		return Mitgliedschaft{}, fmt.Errorf("anmeldedatum von mitgliedschaft %d: %w", ms.ID, err)
+	}
+	if ms.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
+		return Mitgliedschaft{}, fmt.Errorf("eintritt von mitgliedschaft %d: %w", ms.ID, err)
+	}
+	if ms.Kuendigungsdatum, err = ausDatumsText(kuendigungsdatum); err != nil {
+		return Mitgliedschaft{}, fmt.Errorf("kündigungsdatum von mitgliedschaft %d: %w", ms.ID, err)
+	}
+	if ms.Austritt, err = ausDatumsText(austritt); err != nil {
+		return Mitgliedschaft{}, fmt.Errorf("austritt von mitgliedschaft %d: %w", ms.ID, err)
+	}
+
+	return ms, nil
+}
+
+// Mitgliedschaft liefert einen einzelnen Zeitraum samt allem, was an ihm hängt.
+// Existiert die ID nicht, ist der Fehler ErrNichtGefunden.
+//
+// Gefragt wird danach, wo eine Ansicht den Zeitraum in der Hand hat und nicht
+// die Person — die Vertragsablage etwa, die an einer Mitgliedschaft arbeitet.
+func (s *MemberService) Mitgliedschaft(id int64) (Mitgliedschaft, error) {
+	ms, err := mitgliedschaftZeileLesen(s.db.QueryRow(
+		`SELECT `+mitgliedschaftsspalten+` FROM mitgliedschaft WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Mitgliedschaft{}, fmt.Errorf("mitgliedschaft %d: %w", id, ErrNichtGefunden)
+	}
+	if err != nil {
+		return Mitgliedschaft{}, fmt.Errorf("mitgliedschaft lesen: %w", err)
+	}
+
+	angereichert, err := s.anreichern([]Mitgliedschaft{ms})
+	if err != nil {
+		return Mitgliedschaft{}, err
+	}
+
+	return angereichert[0], nil
+}
+
 func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, error) {
 	rows, err := s.db.Query(
-		`SELECT id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
-		 	anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend
+		`SELECT `+mitgliedschaftsspalten+`
 		 FROM mitgliedschaft WHERE mitglied_id = ?
 		 ORDER BY eintritt, id`, mitgliedID)
 	if err != nil {
@@ -855,29 +964,9 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 
 	var alle []Mitgliedschaft
 	for rows.Next() {
-		var (
-			ms               Mitgliedschaft
-			anmeldedatum     sql.NullString
-			eintritt         string
-			kuendigungsdatum sql.NullString
-			austritt         sql.NullString
-		)
-		if err := rows.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &kuendigungsdatum, &austritt,
-			&ms.Anmeldung.GebuehrCents, &ms.BeitragCents, &ms.Ruhend); err != nil {
+		ms, err := mitgliedschaftZeileLesen(rows)
+		if err != nil {
 			return nil, fmt.Errorf("mitgliedschaft lesen: %w", err)
-		}
-
-		if ms.Anmeldung.Datum, err = ausDatumsText(anmeldedatum); err != nil {
-			return nil, fmt.Errorf("anmeldedatum von mitgliedschaft %d: %w", ms.ID, err)
-		}
-		if ms.Eintritt, err = time.Parse(isoDatum, eintritt); err != nil {
-			return nil, fmt.Errorf("eintritt von mitgliedschaft %d: %w", ms.ID, err)
-		}
-		if ms.Kuendigungsdatum, err = ausDatumsText(kuendigungsdatum); err != nil {
-			return nil, fmt.Errorf("kündigungsdatum von mitgliedschaft %d: %w", ms.ID, err)
-		}
-		if ms.Austritt, err = ausDatumsText(austritt); err != nil {
-			return nil, fmt.Errorf("austritt von mitgliedschaft %d: %w", ms.ID, err)
 		}
 
 		alle = append(alle, ms)
@@ -886,6 +975,18 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 		return nil, fmt.Errorf("mitgliedschaften lesen: %w", err)
 	}
 
+	return s.anreichern(alle)
+}
+
+// anreichern hängt an jede Mitgliedschaft, was nicht in ihrer eigenen Zeile
+// steht: die Termine des Stundenplans, für die sie angemeldet ist, und den
+// Vertrag über sie.
+//
+// Beides kommt gesammelt für alle übergebenen Zeiträume und nicht einzeln je
+// Zeitraum — sonst stiege die Zahl der Abfragen mit der Zahl der
+// Wiedereintritte. Der Vertrag kommt dabei ohne sein PDF: der Blob gehört in
+// keine Abfrage, die mehr als eine Zeile liefert (ADR-0007).
+func (s *MemberService) anreichern(alle []Mitgliedschaft) ([]Mitgliedschaft, error) {
 	ids := make([]int64, 0, len(alle))
 	for _, ms := range alle {
 		ids = append(ids, ms.ID)
@@ -895,8 +996,17 @@ func (s *MemberService) mitgliedschaften(mitgliedID int64) ([]Mitgliedschaft, er
 	if err != nil {
 		return nil, err
 	}
+
+	vertraege, err := s.vertraegeLesen(ids)
+	if err != nil {
+		return nil, err
+	}
+
 	for i := range alle {
 		alle[i].Trainingstermine = termine[alle[i].ID]
+		if vertrag, vorhanden := vertraege[alle[i].ID]; vorhanden {
+			alle[i].Vertrag = &vertrag
+		}
 	}
 
 	return alle, nil

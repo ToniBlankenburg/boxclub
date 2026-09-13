@@ -97,6 +97,12 @@
         </button>
     </div>
 </form>
+
+{{/* Die Vertragsablage steht als eigener Abschnitt hinter dem Formular, nicht
+     darin: sie hat eigene Formulare, und geschachtelt wären sie ungültig. Beim
+     Anlegen ist die Liste leer — es gibt noch keinen Zeitraum, an dem ein
+     Vertrag hängen könnte. Siehe dokument.html. */}}
+{{template "vertraege" .Vertraege}}
 {{end}}
 
 {{/* feld-nur-lesen zeigt eine Angabe, die an dieser Stelle nicht bearbeitet

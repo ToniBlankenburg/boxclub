@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/ToniBlankenburg/boxclub/app"
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -46,6 +48,24 @@ func main() {
 			Handler: anwendung.Handler(),
 		},
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 250, A: 1},
+		// Der Datei-Dialog braucht den Wails-Kontext, den es erst ab hier gibt.
+		// Er ist die eine Stelle, an der die App das Betriebssystem braucht:
+		// Dokumente liegen als Blob in der Datenbank (ADR-0007), und ohne einen
+		// Weg heraus käme niemand mehr an seinen Vertrag. Ein Download über den
+		// Assetserver ist kein solcher Weg — das WebView von Wails behandelt
+		// keine.
+		OnStartup: func(ctx context.Context) {
+			anwendung.SpeicherzielSetzen(func(vorschlag string) (string, error) {
+				return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{
+					Title:                "Dokument speichern",
+					DefaultFilename:      vorschlag,
+					CanCreateDirectories: true,
+					Filters: []runtime.FileFilter{
+						{DisplayName: "PDF-Dateien (*.pdf)", Pattern: "*.pdf"},
+					},
+				})
+			})
+		},
 	})
 	if err != nil {
 		log.Fatalf("Wails starten: %v", err)

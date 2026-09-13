@@ -1,0 +1,103 @@
+{{/* Die Vertragsablage (ADR-0007). Sie steht unter dem Mitgliedsformular und
+     nicht darin: ein Datei-Dialog braucht sein eigenes Formular, und Formulare
+     lassen sich nicht ineinander schachteln — abgeschickt würde dann entweder
+     das eine oder das andere.
+
+     Jeder Zeitraum bekommt seinen eigenen Block, und jede Aktion tauscht nur
+     ihren eigenen Block aus. Das ist der Grund für die id am Rahmen: darüber
+     dem Mitgliedsformular soll die Tipparbeit stehen bleiben, während hier unten
+     eine Datei hochgeladen wird.
+
+     Die Daten sind []vertragDaten. */}}
+{{define "vertraege"}}
+{{if .}}
+<section class="mt-6 rounded-lg border border-neutral-200 bg-white p-6">
+    <h2 class="mb-1 text-base font-semibold">Verträge</h2>
+    <p class="mb-4 max-w-2xl text-sm text-neutral-600">
+        Der eingescannte Vertrag steht bei dem Zeitraum, über den er geschlossen wurde —
+        wer wiedereintritt, unterschreibt einen neuen. Abgelegt wird er in der Datenbank
+        und nicht als Datei daneben; wer ihn braucht, holt ihn über <em>Exportieren</em>
+        wieder heraus.
+    </p>
+
+    <div class="flex flex-col gap-3">
+        {{range .}}{{template "vertrag" .}}{{end}}
+    </div>
+</section>
+{{end}}
+{{end}}
+
+{{/* vertrag ist der Block eines einzelnen Zeitraums — und zugleich das
+     Fragment, das nach Ablegen, Entfernen und Exportieren allein zurückkommt.
+     Die Daten sind vertragDaten. */}}
+{{define "vertrag"}}
+{{$ms := .Mitgliedschaft}}
+<div id="vertrag-{{$ms.ID}}" class="rounded-md border border-neutral-200 p-4">
+    <div class="mb-3 flex flex-wrap items-baseline gap-2">
+        {{/* Der Zeitraum benennt den Block. Ein offenes Ende steht als solches
+             da und nicht als "heute": ein Eintritt, der erst bevorsteht, hat
+             heute noch gar nicht begonnen. */}}
+        <span class="font-medium tabular-nums">
+            {{datum $ms.Eintritt}} – {{if $ms.Austritt}}{{datum $ms.Austritt}}{{else}}offen{{end}}
+        </span>
+        {{template "statuskennzeichen" $ms.Status}}
+    </div>
+
+    {{template "meldung" .Meldung}}
+
+    {{if .Fehler}}
+        <ul class="mb-3 list-disc rounded-md border border-red-700 bg-red-50 py-3 pr-3 pl-8 text-sm text-red-800"
+            role="alert">
+            {{range .Fehler}}
+                <li>{{.}}</li>
+            {{end}}
+        </ul>
+    {{end}}
+
+    {{with $ms.Vertrag}}
+        <div class="mb-3 flex flex-wrap items-center gap-3">
+            <span class="flex-1 truncate font-medium" title="{{.Name}}">{{.Name}}</span>
+            <span class="text-sm text-neutral-500">abgelegt am {{datum .AbgelegtAm}}</span>
+            {{/* Exportieren öffnet den Datei-Dialog des Betriebssystems und
+                 schreibt das PDF dorthin. Es ist ein POST, weil dabei etwas
+                 geschrieben wird — nur eben nicht in die Datenbank. */}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    hx-post="/api/mitgliedschaft/{{$ms.ID}}/vertrag/export"
+                    hx-target="#vertrag-{{$ms.ID}}" hx-swap="outerHTML">
+                Exportieren
+            </button>
+            {{/* Entfernen fragt nicht nach: das Papier liegt beim Verein, und
+                 einen Papierkorb gibt es nicht (CONTEXT.md → Dokument). */}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    hx-post="/api/mitgliedschaft/{{$ms.ID}}/vertrag/entfernen"
+                    hx-target="#vertrag-{{$ms.ID}}" hx-swap="outerHTML">
+                Entfernen
+            </button>
+        </div>
+    {{end}}
+
+    <form class="flex flex-wrap items-center gap-3"
+          hx-post="/api/mitgliedschaft/{{$ms.ID}}/vertrag"
+          hx-target="#vertrag-{{$ms.ID}}" hx-swap="outerHTML"
+          hx-encoding="multipart/form-data"
+          hx-indicator="#vertrag-laeuft-{{$ms.ID}}">
+        <input type="file" name="datei" accept="application/pdf,.pdf" required
+               aria-label="Vertrag als PDF auswählen"
+               class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
+
+        <button type="submit"
+                class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+            {{if $ms.Vertrag}}Ersetzen{{else}}Hochladen{{end}}
+        </button>
+
+        <span id="vertrag-laeuft-{{$ms.ID}}" class="htmx-indicator text-sm text-neutral-500">Wird abgelegt …</span>
+
+        <span class="w-full text-sm text-neutral-500">
+            Nur PDF, höchstens {{dokumentgrenze}}. Ein hochgeladener Vertrag ersetzt den,
+            der hier steht — daneben gelegt wird nichts.
+        </span>
+    </form>
+</div>
+{{end}}

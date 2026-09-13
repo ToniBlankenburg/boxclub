@@ -27,6 +27,12 @@ const isoDatum = "2006-01-02"
 type App struct {
 	svc *service.MemberService
 	tpl *template.Template
+
+	// speicherziel ist der Datei-Dialog, mit dem der Export ein PDF aus der
+	// Datenbank herausschreibt. Er kommt nicht aus New, sondern von main.go,
+	// sobald Wails gestartet ist (siehe SpeicherzielSetzen); ohne ihn läuft
+	// alles außer dem Export.
+	speicherziel Speicherziel
 }
 
 // New parst die Fragment-Templates und bindet sie an den übergebenen Service.
@@ -58,6 +64,11 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/ruhend", a.ruhendSchalten)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
+	// Die Vertragsablage hängt am Zeitraum und nicht am Mitglied — deshalb eine
+	// eigene Adresse mit der Mitgliedschaft-ID (CONTEXT.md → Vertrag).
+	mux.HandleFunc("POST /api/mitgliedschaft/{id}/vertrag", a.vertragAblegen)
+	mux.HandleFunc("POST /api/mitgliedschaft/{id}/vertrag/entfernen", a.vertragEntfernen)
+	mux.HandleFunc("POST /api/mitgliedschaft/{id}/vertrag/export", a.vertragExportieren)
 	mux.HandleFunc("GET /api/trainingstermine", a.trainingstermineListe)
 	mux.HandleFunc("GET /api/trainingstermin/formular", a.trainingsterminFormular)
 	mux.HandleFunc("POST /api/trainingstermin", a.trainingsterminAnlegen)
@@ -218,6 +229,15 @@ type formularDaten struct {
 	// Sie stehen neben der Eingabe und nicht darin: welche Termine es gibt,
 	// sagt der Stundenplan und nicht das abgeschickte Formular.
 	Termine []terminauswahl
+
+	// Vertraege ist je ein Block für jeden Zeitraum des Mitglieds, mit dem
+	// Vertrag, der an ihm hängt. Beim Anlegen ist die Liste leer: es gibt noch
+	// keinen Zeitraum, an dem etwas hängen könnte.
+	//
+	// Die Blöcke stehen neben dem Formular und nicht darin — ein Datei-Dialog
+	// braucht sein eigenes Formular, und Formulare lassen sich nicht schachteln
+	// (siehe dokument.html).
+	Vertraege []vertragDaten
 
 	Fehler []string
 }
@@ -592,6 +612,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		GeburtsdatumAnzeige: datumAnzeige(m.Geburtsdatum),
 		EintrittAnzeige:     datumAnzeige(eintritt),
 		Termine:             auswahl,
+		Vertraege:           vertragsbloecke(m.Mitgliedschaften),
 		Fehler:              fehler,
 	})
 }
@@ -1061,6 +1082,11 @@ func terminID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return pfadID(w, r, "Trainingstermin-ID")
 }
 
+// mitgliedschaftID liest die Mitgliedschaft-ID aus dem Routen-Platzhalter.
+func mitgliedschaftID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	return pfadID(w, r, "Mitgliedschaft-ID")
+}
+
 // pfadID liest die ID aus dem Routen-Platzhalter. Ist das Ergebnis nicht ok,
 // wurde die Antwort bereits geschrieben — eine ID, die keine Zahl ist, kann nur
 // aus einem selbstgebauten Request stammen und ist deshalb, anders als eine
@@ -1290,6 +1316,10 @@ var templateFunktionen = template.FuncMap{
 		return service.BeitragAlsEuro(cents) + " €"
 	},
 	"datum": datumAnzeige,
+	// dokumentgrenze nennt die Obergrenze der Ablage. Geschrieben wird sie im
+	// Service, damit der Hinweis unter dem Datei-Dialog dieselben Worte benutzt
+	// wie die Meldung, mit der eine zu große Datei abgewiesen wird.
+	"dokumentgrenze": service.Dokumentgrenze,
 	// feld bündelt die Argumente für das Teil-Template "feld"; html/template
 	// kennt keine benannten Parameter.
 	"feld": func(beschriftung, name, typ, wert string, pflicht, breit bool) feldDaten {
