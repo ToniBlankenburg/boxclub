@@ -62,7 +62,7 @@
                  schreibt das PDF dorthin. Es ist ein POST, weil dabei etwas
                  geschrieben wird — nur eben nicht in die Datenbank. */}}
             <button type="button"
-                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-post="/api/mitgliedschaft/{{$ms.ID}}/vertrag/export"
                     hx-target="#vertrag-{{$ms.ID}}" hx-swap="outerHTML">
                 Exportieren
@@ -70,7 +70,7 @@
             {{/* Entfernen fragt nicht nach: das Papier liegt beim Verein, und
                  einen Papierkorb gibt es nicht (CONTEXT.md → Dokument). */}}
             <button type="button"
-                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-post="/api/mitgliedschaft/{{$ms.ID}}/vertrag/entfernen"
                     hx-target="#vertrag-{{$ms.ID}}" hx-swap="outerHTML">
                 Entfernen
@@ -88,7 +88,7 @@
                class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
 
         <button type="submit"
-                class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
             {{if $ms.Vertrag}}Ersetzen{{else}}Hochladen{{end}}
         </button>
 

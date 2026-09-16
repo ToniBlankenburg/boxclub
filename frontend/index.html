@@ -14,8 +14,10 @@
     <nav id="navigation" aria-label="Bereiche"></nav>
 </header>
 
-<!-- Der gesamte Inhalt kommt als HTML-Fragment aus dem Go-Backend. -->
-<main id="inhalt" class="mx-auto max-w-5xl px-6 py-6"
+<!-- Der gesamte Inhalt kommt als HTML-Fragment aus dem Go-Backend. Volle
+     Breite statt eines festen max-w — Ergebnis des UI-Prototyps, siehe
+     .scratch/prototyp-stilrichtungen-verdict.md. -->
+<main id="inhalt" class="px-6 py-6"
       hx-get="/api/mitglieder" hx-trigger="load" hx-swap="innerHTML">
     <p class="text-sm text-neutral-500">Laden …</p>
 </main>

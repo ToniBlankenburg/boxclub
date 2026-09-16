@@ -48,7 +48,7 @@
             <label class="flex flex-col gap-1.5 sm:col-span-2">
                 <span class="text-sm text-neutral-600">Fußzeile der Rechnung</span>
                 <textarea name="fusszeile" rows="4"
-                          class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">{{.Fusszeile}}</textarea>
+                          class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">{{.Fusszeile}}</textarea>
                 <span class="text-sm text-neutral-500">
                     Mehrzeilig. Hier steht, was unter der Rechnung stehen muss —
                     etwa der Hinweis auf §&nbsp;19&nbsp;UStG. Die App prüft daran nichts.
@@ -58,7 +58,7 @@
 
         <div class="mt-6">
             <button type="submit"
-                    class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                    class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 Speichern
             </button>
         </div>

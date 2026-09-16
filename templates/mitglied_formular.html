@@ -1,14 +1,19 @@
+{{/* Felder gruppiert in vier flach getönten Boxen (Person / Kontakt &
+     Anschrift / Mitgliedschaft / Sonstiges) statt einem einzigen Raster —
+     Ergebnis des UI-Prototyps zu Farbe/Navigation/Formular/Dashboard, siehe
+     .scratch/prototyp-stilrichtungen-verdict.md und Branch
+     prototype/stilrichtungen (Commit 391d4e3). */}}
 {{define "mitglied-formular"}}
-<form class="rounded-lg border border-neutral-200 bg-white p-6"
+<form class="rounded-lg border border-neutral-200 bg-white p-5"
       hx-post="{{if .Bearbeiten}}/api/mitglied/{{.MitgliedID}}{{else}}/api/mitglied{{end}}"
       hx-target="#inhalt" hx-swap="innerHTML">
-    <h2 class="mb-5 flex flex-wrap items-baseline gap-2 text-base font-semibold">
+    <h2 class="mb-4 flex flex-wrap items-baseline gap-2 text-base font-semibold">
         {{if .Bearbeiten}}Mitglied bearbeiten{{else}}Neues Mitglied anlegen{{end}}
         {{/* Die Mitglieds-ID steht in der Überschrift und nicht als Feld im
              Raster: sie ist keine Angabe, die man pflegt, sondern die, unter der
              das Mitglied im Verein geführt wird (CONTEXT.md → Mitglieds-ID). Ein
              Feld — auch ein nur lesendes — verspräche das Gegenteil und schöbe
-             außerdem Vor- und Nachnamen auseinander, die im zweispaltigen Raster
+             außerdem Vor- und Nachnamen auseinander, die in der Person-Box
              nebeneinander gehören. Vergeben wird die Nummer einmal und nie neu,
              deshalb gibt es sie beim Anlegen noch gar nicht. */}}
         {{if .Bearbeiten}}
@@ -26,68 +31,98 @@
         </ul>
     {{end}}
 
-    <div class="grid gap-4 sm:grid-cols-2">
-        {{template "feld" feld "Vorname" "vorname" "text" .Eingabe.Vorname true false}}
-        {{template "feld" feld "Nachname" "nachname" "text" .Eingabe.Nachname true false}}
-        {{/* Das Geburtsdatum ist nach der Anlage bewusst nicht mehr änderbar
-             (Tippfehler-Schutz) und wird beim Bearbeiten nur angezeigt — ebenso
-             das Eintrittsdatum weiter unten. */}}
-        {{if .Bearbeiten}}
-            {{template "feld-nur-lesen" anzeigefeld "Geburtsdatum" .GeburtsdatumAnzeige}}
-        {{else}}
-            {{template "feld" feld "Geburtsdatum" "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
-        {{end}}
-        {{/* Das Geschlecht ist Freitext; die Liste darunter ist eine
-             Eintipphilfe und keine Einschränkung (Spec → keine
-             Wertelisten-Prüfung). */}}
-        {{template "feld-mit-vorschlaegen" vorschlagsfeld "Geschlecht" "geschlecht" .Eingabe.Geschlecht geschlechtVorschlaege}}
-        {{/* Die Anschrift steht in drei Feldern (CONTEXT.md → Anschrift): Straße
-             samt Hausnummer über die ganze Breite, Postleitzahl und Ort
-             darunter nebeneinander. Alle drei sind freiwillig. */}}
-        {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Eingabe.Adresse false true}}
-        {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Eingabe.Postleitzahl false false}}
-        {{template "feld" feld "Ort" "ort" "text" .Eingabe.Ort false false}}
-        {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
-        {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
-        {{/* Die IBAN wird als reiner Text gespeichert: keine Prüfziffer, kein
-             Format, kein SEPA-Export (ADR-0006). Eine halb abgetippte IBAN soll
-             sich festhalten lassen — die Excel kann das heute auch. */}}
-        {{template "feld" feld "IBAN" "iban" "text" .Eingabe.IBAN false true}}
-        {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der Regel davor
-             (CONTEXT.md → Anmeldedatum). Anders als Geburtsdatum und Eintritt
-             bleibt es auch beim Bearbeiten änderbar: es begrenzt keinen Zeitraum,
-             sondern hält einen Vorgang fest. */}}
-        {{template "feld" feld "Anmeldedatum" "anmeldedatum" "date" .Eingabe.Anmeldedatum false false}}
-        {{/* Der Eintritt dagegen begrenzt den Zeitraum, gegen den Aus- und
-             Wiedereintritt prüfen, und liegt nach der Anlage fest. */}}
-        {{if .Bearbeiten}}
-            {{template "feld-nur-lesen" anzeigefeld "Eintrittsdatum" .EintrittAnzeige}}
-        {{else}}
-            {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
-        {{end}}
-        {{/* Die Anmeldegebühr ist ein historischer Wert — was beim Eintritt
-             tatsächlich gezahlt wurde. Leer heißt "keine erhoben"; deshalb ist
-             sie, anders als der Beitrag, kein Pflichtfeld. */}}
-        {{template "feld" feld "Anmeldegebühr in € (einmalig)" "anmeldegebuehr" "text" .Eingabe.Anmeldegebuehr false false}}
-        {{/* Der Beitrag ist frei vereinbart, keine Auswahl aus Stufen (ADR-0005).
-             0 ist ein gültiger Betrag — Trainer zahlen nichts —, deshalb ist das
-             Feld Pflicht: die Null gehört hingeschrieben. */}}
-        {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
-        {{template "trainingsterminauswahl" .}}
-        {{/* Zweiwertig: hat bewertet oder nicht (CONTEXT.md → Google-Bewertung).
-             Die Beschriftung des Hakens kommt aus dem Service. */}}
-        {{template "feld-kontrollkaestchen" kontrollkaestchen "Google-Bewertung" "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
-        {{/* Digital ist die gleichnamige Excel-Spalte, wortwörtlich als
-             Freitext. Ihre Bedeutung ist unbekannt; sie fährt mit, damit beim
-             Import keine Daten verloren gehen — deshalb hier keine Auswahl,
-             keine Prüfung und kein erklärender Hinweis, den niemand belegen
-             kann. */}}
-        {{template "feld" feld "Digital" "digital" "text" .Eingabe.Digital false false}}
+    <div class="grid gap-3 sm:grid-cols-2">
+        <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Person</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+                {{template "feld" feld "Vorname" "vorname" "text" .Eingabe.Vorname true false}}
+                {{template "feld" feld "Nachname" "nachname" "text" .Eingabe.Nachname true false}}
+                {{/* Das Geburtsdatum ist nach der Anlage bewusst nicht mehr
+                     änderbar (Tippfehler-Schutz) und wird beim Bearbeiten nur
+                     angezeigt — ebenso das Eintrittsdatum weiter unten. */}}
+                {{if .Bearbeiten}}
+                    {{template "feld-nur-lesen" anzeigefeld "Geburtsdatum" .GeburtsdatumAnzeige}}
+                {{else}}
+                    {{template "feld" feld "Geburtsdatum" "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
+                {{end}}
+                {{/* Das Geschlecht ist Freitext; die Liste darunter ist eine
+                     Eintipphilfe und keine Einschränkung (Spec → keine
+                     Wertelisten-Prüfung). */}}
+                {{template "feld-mit-vorschlaegen" vorschlagsfeld "Geschlecht" "geschlecht" .Eingabe.Geschlecht geschlechtVorschlaege}}
+            </div>
+        </div>
+
+        <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Kontakt &amp; Anschrift</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+                {{/* Die Anschrift steht in drei Feldern (CONTEXT.md →
+                     Anschrift): Straße samt Hausnummer über die ganze Breite,
+                     Postleitzahl und Ort darunter nebeneinander. Alle drei
+                     sind freiwillig. */}}
+                {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Eingabe.Adresse false true}}
+                {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Eingabe.Postleitzahl false false}}
+                {{template "feld" feld "Ort" "ort" "text" .Eingabe.Ort false false}}
+                {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
+                {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
+            </div>
+        </div>
+
+        <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Mitgliedschaft</p>
+            <div class="grid gap-3 sm:grid-cols-3">
+                {{/* Die IBAN wird als reiner Text gespeichert: keine
+                     Prüfziffer, kein Format, kein SEPA-Export (ADR-0006). Eine
+                     halb abgetippte IBAN soll sich festhalten lassen — die
+                     Excel kann das heute auch. */}}
+                {{template "feld" feld "IBAN" "iban" "text" .Eingabe.IBAN false true}}
+                {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der
+                     Regel davor (CONTEXT.md → Anmeldedatum). Anders als
+                     Geburtsdatum und Eintritt bleibt es auch beim Bearbeiten
+                     änderbar: es begrenzt keinen Zeitraum, sondern hält einen
+                     Vorgang fest. */}}
+                {{template "feld" feld "Anmeldedatum" "anmeldedatum" "date" .Eingabe.Anmeldedatum false false}}
+                {{/* Der Eintritt dagegen begrenzt den Zeitraum, gegen den
+                     Aus- und Wiedereintritt prüfen, und liegt nach der Anlage
+                     fest. */}}
+                {{if .Bearbeiten}}
+                    {{template "feld-nur-lesen" anzeigefeld "Eintrittsdatum" .EintrittAnzeige}}
+                {{else}}
+                    {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
+                {{end}}
+                {{/* Die Anmeldegebühr ist ein historischer Wert — was beim
+                     Eintritt tatsächlich gezahlt wurde. Leer heißt "keine
+                     erhoben"; deshalb ist sie, anders als der Beitrag, kein
+                     Pflichtfeld. */}}
+                {{template "feld" feld "Anmeldegebühr in € (einmalig)" "anmeldegebuehr" "text" .Eingabe.Anmeldegebuehr false false}}
+                {{/* Der Beitrag ist frei vereinbart, keine Auswahl aus Stufen
+                     (ADR-0005). 0 ist ein gültiger Betrag — Trainer zahlen
+                     nichts —, deshalb ist das Feld Pflicht: die Null gehört
+                     hingeschrieben. */}}
+                {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
+                {{template "trainingsterminauswahl" .}}
+            </div>
+        </div>
+
+        <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Sonstiges</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+                {{/* Zweiwertig: hat bewertet oder nicht (CONTEXT.md →
+                     Google-Bewertung). Die Beschriftung des Hakens kommt aus
+                     dem Service. */}}
+                {{template "feld-kontrollkaestchen" kontrollkaestchen "Google-Bewertung" "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
+                {{/* Digital ist die gleichnamige Excel-Spalte, wortwörtlich
+                     als Freitext. Ihre Bedeutung ist unbekannt; sie fährt mit,
+                     damit beim Import keine Daten verloren gehen — deshalb
+                     hier keine Auswahl, keine Prüfung und kein erklärender
+                     Hinweis, den niemand belegen kann. */}}
+                {{template "feld" feld "Digital" "digital" "text" .Eingabe.Digital false false}}
+            </div>
+        </div>
     </div>
 
-    <div class="mt-6 flex items-center gap-3">
+    <div class="mt-5 flex items-center gap-3">
         <button type="submit"
-                class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
             Speichern
         </button>
         <button type="button"
@@ -126,9 +161,9 @@
      feldDaten aus der Template-Funktion "feld". */}}
 {{define "feld"}}
 <label class="flex flex-col gap-1.5{{if .Breit}} sm:col-span-2{{end}}">
-    <span class="text-sm text-neutral-600">{{.Beschriftung}}{{if .Pflicht}}<span class="text-red-700">*</span>{{end}}</span>
+    <span class="text-sm text-neutral-600">{{.Beschriftung}}{{if .Pflicht}}<span class="text-[var(--akzent)]">*</span>{{end}}</span>
     <input name="{{.Name}}" type="{{.Typ}}" value="{{.Wert}}" {{if .Pflicht}}required{{end}}
-           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 </label>
 {{end}}
 
@@ -149,7 +184,7 @@
             {{range .Termine}}
                 <label class="flex items-center gap-2">
                     <input name="trainingstermin" type="checkbox" value="{{.ID}}" {{if .Gewaehlt}}checked{{end}}
-                           class="size-4 rounded border-neutral-300 text-red-700 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                           class="size-4 rounded border-neutral-300 text-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                     <span>{{.Anzeige}}{{if .Archiviert}} <span class="text-neutral-400">(archiviert)</span>{{end}}</span>
                 </label>
             {{end}}
@@ -183,7 +218,7 @@
     <span class="text-sm text-neutral-600">{{.Beschriftung}}</span>
     <input name="{{.Name}}" type="text" value="{{.Wert}}" list="{{.Name}}-vorschlaege"
            autocomplete="off"
-           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
     <datalist id="{{.Name}}-vorschlaege">
         {{range .Vorschlaege}}<option value="{{.}}"></option>{{end}}
     </datalist>
@@ -198,7 +233,7 @@
     <span class="text-sm text-neutral-600">{{.Beschriftung}}</span>
     <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-2.5 py-2 text-neutral-700">
         <input name="{{.Name}}" type="checkbox" value="1"
-               class="accent-red-700" {{if .Gesetzt}}checked{{end}}>
+               class="accent-[var(--akzent)]" {{if .Gesetzt}}checked{{end}}>
         {{.Text}}
     </label>
 </div>

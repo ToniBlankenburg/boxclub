@@ -3,3 +3,23 @@
 /* Die HTML-Fragmente werden von Go gerendert und liegen außerhalb von frontend/.
    Ohne diese Zeile fände Tailwind die dort verwendeten Utility-Klassen nicht. */
 @source "../../templates";
+
+/* Akzentfarbe des Vereins: gedämpftes Blaugrau statt Rot — Ergebnis des
+   UI-Prototyps zu Farbe/Navigation/Formular/Dashboard, siehe
+   .scratch/prototyp-stilrichtungen-verdict.md und Branch
+   prototype/stilrichtungen (Commit 391d4e3). Ein einziger Satz Variablen,
+   von den Templates per Tailwind-Arbitrary-Value referenziert
+   (bg-[var(--akzent)] usw.), damit die Farbe nur an einer Stelle steht.
+
+   Bewusst UNVERÄNDERT bleiben die zwei semantischen Rot-Stellen — die
+   Fehlerlisten der Formulare (border-red-700/bg-red-50/text-red-800) und
+   das Rückstand-Kennzeichen samt Inline-Fehlermeldungen (text-red-800,
+   border-red-700/30): beide bilden ein rot/grün-Warnpaar und sollen rot
+   bleiben, sonst verlöre "im Rückstand" seine Warnfarbe. */
+:root {
+    --akzent: #2f5f78;
+    --akzent-dunkel: #24485d;
+    --akzent-hell: #eef4f7;
+    --akzent-ring-40: rgb(47 95 120 / 0.4);
+    --akzent-ring-15: rgb(47 95 120 / 0.15);
+}

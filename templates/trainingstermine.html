@@ -14,7 +14,7 @@
 <div>
     <div class="mb-5 flex items-center justify-between gap-4">
         <h2 class="text-base font-semibold">Trainingstermine</h2>
-        <button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+        <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="/api/trainingstermin/formular{{.Anhaengsel}}" hx-target="#inhalt" hx-swap="innerHTML">
             Neuer Trainingstermin
         </button>
@@ -33,7 +33,7 @@
                 {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt
                      ist — genau das macht den gepflegten Stundenplan zum Standard. */}}
                 <input name="archivierte" type="checkbox" value="1"
-                       class="accent-red-700" {{if .AuchArchivierte}}checked{{end}}>
+                       class="accent-[var(--akzent)]" {{if .AuchArchivierte}}checked{{end}}>
                 Archivierte anzeigen
             </label>
         </form>
@@ -56,7 +56,7 @@
                         {{/* $ ist die Ansicht: die Zeile braucht daraus den Stand
                              der Einblendung, damit eine Aktion in dieselbe
                              Ansicht zurückführt. */}}
-                        <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-red-700"
+                        <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)]"
                             tabindex="0" title="Bearbeiten"
                             aria-label="{{.Anzeige}} bearbeiten"
                             hx-get="/api/trainingstermin/{{.ID}}/formular{{$.Anhaengsel}}"
@@ -82,7 +82,7 @@
                                      Schaltfläche bei sich, sonst öffnete der Klick
                                      das Formular. */}}
                                 <button type="button"
-                                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                                         aria-label="{{.Anzeige}} {{if .Archiviert}}wieder in den Stundenplan aufnehmen{{else}}archivieren{{end}}"
                                         hx-post="{{.ArchivPfad}}"
                                         hx-target="#inhalt" hx-swap="innerHTML"
@@ -170,7 +170,7 @@
 
     <div class="mt-6 flex gap-2">
         <button type="submit"
-                class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
             Speichern
         </button>
         <button type="button"
@@ -192,9 +192,9 @@
      auswahlfeldDaten. */}}
 {{define "feld-auswahl"}}
 <label class="flex flex-col gap-1.5">
-    <span class="text-sm text-neutral-600">{{.Beschriftung}}{{if .Pflicht}}<span class="text-red-700">*</span>{{end}}</span>
+    <span class="text-sm text-neutral-600">{{.Beschriftung}}{{if .Pflicht}}<span class="text-[var(--akzent)]">*</span>{{end}}</span>
     <select name="{{.Name}}" {{if .Pflicht}}required{{end}}
-            class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+            class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Optionen}}
             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
         {{end}}

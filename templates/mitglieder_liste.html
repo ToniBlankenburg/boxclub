@@ -4,7 +4,7 @@
 <div>
     <div class="mb-5 flex items-center justify-between gap-4">
         <h2 class="text-base font-semibold">Mitglieder</h2>
-        <button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+        <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
             Neues Mitglied
         </button>
@@ -43,10 +43,10 @@
         <input id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
                placeholder="Name, E-Mail, Telefon oder Mitglieds-ID" autocomplete="off"
                aria-label="Mitglieder durchsuchen"
-               class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+               class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
         <select id="filter-rueckstand" name="rueckstand" aria-label="Nach Rückstand filtern"
-                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             {{range .Rueckstandsoptionen}}
                 <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
             {{end}}
@@ -56,7 +56,7 @@
              der Datenbank (CONTEXT.md → Trainingsfrequenz); gefiltert wird
              trotzdem nach ihr, weil der Verein in Frequenzen denkt. */}}
         <select id="filter-frequenz" name="frequenz" aria-label="Nach Trainingsfrequenz filtern"
-                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             {{range .Frequenzoptionen}}
                 <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
             {{end}}
@@ -66,7 +66,7 @@
             {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt
                  ist — genau das macht "nur aktive" zum Standard. */}}
             <input id="filter-ehemalige" name="ehemalige" type="checkbox" value="1"
-                   class="accent-red-700" {{if .Suche.Ehemalige}}checked{{end}}>
+                   class="accent-[var(--akzent)]" {{if .Suche.Ehemalige}}checked{{end}}>
             Auch Ehemalige
         </label>
     </form>
@@ -74,7 +74,7 @@
     {{/* Zurücksetzen steht außerhalb des Formulars: es soll dessen Werte nicht
          mitschicken, sondern die ganze Ansicht in den Standard zurückholen. */}}
     <button type="button"
-            class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+            class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
             hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
         Zurücksetzen
     </button>
@@ -86,7 +86,7 @@
          Server-Aufruf aus, das erledigt main.js. Name und Nr. stehen nicht
          zur Wahl — sie identifizieren die Zeile und bleiben immer sichtbar. */}}
     <details class="relative">
-        <summary class="cursor-pointer list-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+        <summary class="cursor-pointer list-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
             Spalten
         </summary>
         <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
@@ -95,7 +95,7 @@
                     {{/* Checked ist hier nur der Anfangszustand vor dem ersten
                          Rendern durch main.js — sie gleicht ihn sofort danach
                          mit localStorage ab (siehe dort, spaltenAnwenden). */}}
-                    <input type="checkbox" class="accent-red-700" data-spalten-kasten value="{{.Schluessel}}" checked>
+                    <input type="checkbox" class="accent-[var(--akzent)]" data-spalten-kasten value="{{.Schluessel}}" checked>
                     {{.Beschriftung}}
                 </label>
             {{end}}
@@ -201,7 +201,7 @@
      soll ihn an allen vier Stellen gleich beantwortet bekommen — auch die, die
      um Mitternacht gerendert wird. */}}
 {{$status := .Status}}
-<tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-red-700"
+<tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)]"
     tabindex="0" title="Bearbeiten"
     aria-label="{{.Vorname}} {{.Nachname}} bearbeiten"
     hx-get="/api/mitglied/{{.MitgliedID}}/formular"
@@ -304,7 +304,7 @@
         <div class="flex items-center justify-between gap-3">
             {{template "rueckstandskennzeichen" .Rueckstand}}
             <button type="button"
-                    class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     aria-label="Rückstand von {{.Vorname}} {{.Nachname}} pflegen"
                     hx-get="/api/mitglied/{{.MitgliedID}}/rueckstand"
                     hx-target="closest tr" hx-swap="outerHTML"
@@ -329,7 +329,7 @@
                      Kündigungsformular, in dem sich ein falscher Termin
                      korrigieren lässt. */}}
                 <button type="button"
-                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                         aria-label="{{if $status.Ausgetreten}}Wiedereintritt für{{else}}Kündigung erfassen für{{end}} {{.Vorname}} {{.Nachname}}"
                         hx-get="/api/mitglied/{{.MitgliedID}}/{{if $status.Ausgetreten}}wiedereintritt{{else}}kuendigung{{end}}"
                         hx-target="closest tr" hx-swap="outerHTML"
@@ -345,7 +345,7 @@
                      veralteten Ansicht nicht das Gegenteil. */}}
                 {{if not $status.Ausgetreten}}
                     <button type="button"
-                            class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                            class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                             aria-label="{{.Vorname}} {{.Nachname}} {{if .Ruhend}}wieder aktiv setzen{{else}}ruhend schalten{{end}}"
                             hx-post="/api/mitglied/{{.MitgliedID}}/ruhend{{if not .Ruhend}}?ruhend=1{{end}}"
                             hx-target="closest tr" hx-swap="outerHTML"
@@ -389,15 +389,15 @@
             <label class="flex items-center gap-2">
                 <span class="text-sm text-neutral-600">Gekündigt am</span>
                 <input name="kuendigungsdatum" type="date" value="{{.Kuendigungsdatum}}"
-                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <label class="flex items-center gap-2">
                 <span class="text-sm text-neutral-600">Austritt zum</span>
                 <input name="austritt" type="date" value="{{.Austritt}}"
-                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <button type="submit"
-                    class="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 Kündigung erfassen
             </button>
             <button type="button"
@@ -435,10 +435,10 @@
             <label class="flex items-center gap-2">
                 <span class="text-sm text-neutral-600">Wiedereintritt zum</span>
                 <input name="datum" type="date" value="{{.Datum}}" required
-                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <button type="submit"
-                    class="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 Wieder eintreten
             </button>
             <button type="button"
@@ -513,17 +513,17 @@
                 {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es
                      angehakt ist — ohne Haken heißt also: in Ordnung. */}}
                 <input name="rueckstand" type="checkbox" value="1"
-                       class="accent-red-700" {{if .Rueckstand.Offen}}checked{{end}}>
+                       class="accent-[var(--akzent)]" {{if .Rueckstand.Offen}}checked{{end}}>
                 Im Rückstand
             </label>
             <label class="flex flex-1 items-center gap-2">
                 <span class="text-sm text-neutral-600">Notiz</span>
                 <input name="notiz" type="text" value="{{.Rueckstand.Notiz}}"
                        placeholder="Rücklastschrift Oktober, angeschrieben am 05.10."
-                       class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                       class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <button type="submit"
-                    class="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 Speichern
             </button>
             <button type="button"

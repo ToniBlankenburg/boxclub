@@ -9,16 +9,39 @@
      nicht darin, und deshalb hängt er an einem {{with}}: ohne Einträge darf gar
      nichts kommen, sonst leerte ein leeres <nav> die Kopfzeile.
 
+     Enge Pillen mit kleinem Icon je Bereich — Ergebnis des UI-Prototyps zu
+     Farbe/Navigation/Formular/Dashboard, siehe
+     .scratch/prototyp-stilrichtungen-verdict.md und Branch
+     prototype/stilrichtungen (Commit 391d4e3).
+
      Die Daten sind []navigationseintrag. */}}
 {{define "navigation"}}
-<nav id="navigation" hx-swap-oob="true" aria-label="Bereiche" class="flex gap-1">
+<nav id="navigation" hx-swap-oob="true" aria-label="Bereiche"
+     class="flex gap-0.5 rounded-full border border-neutral-200 bg-neutral-50 p-0.5">
     {{range .}}
         <button type="button" {{if .Aktiv}}aria-current="page"{{end}}
-                class="rounded-md px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-red-700/40 focus:outline-none
-                       {{if .Aktiv}}bg-red-50 text-red-800{{else}}text-neutral-600 hover:bg-neutral-100{{end}}"
+                class="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none
+                       {{if .Aktiv}}bg-[var(--akzent-hell)] text-[var(--akzent-dunkel)]{{else}}text-neutral-600 hover:bg-white{{end}}"
                 hx-get="{{.Pfad}}" hx-target="#inhalt" hx-swap="innerHTML">
+            {{template "navigation-icon" .Schluessel}}
             {{.Beschriftung}}
         </button>
     {{end}}
 </nav>
+{{end}}
+
+{{/* navigation-icon ist ein winziges, einfarbiges Symbol je Bereich — reine
+     Verzierung (aria-hidden). Der Schlüssel ist navigationseintrag.Schluessel
+     aus app.go (bereichMitglieder etc.), hier als String, weil
+     Go-Konstanten nicht ins Template durchgereicht werden. */}}
+{{define "navigation-icon"}}
+<svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    {{if eq . "mitglieder"}}<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+    {{else if eq . "dashboard"}}<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+    {{else if eq . "trainingstermine"}}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+    {{else if eq . "import"}}<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/>
+    {{else if eq . "rechnung"}}<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/>
+    {{else}}<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/>
+    {{end}}
+</svg>
 {{end}}

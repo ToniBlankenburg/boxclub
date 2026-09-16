@@ -1496,10 +1496,6 @@ var templateFunktionen = template.FuncMap{
 	"anzeigefeld": func(beschriftung, wert string) anzeigeDaten {
 		return anzeigeDaten{Beschriftung: beschriftung, Wert: wert}
 	},
-	// kachel bündelt die Argumente für das Teil-Template "dashboard-kachel".
-	"kachel": func(beschriftung string, anzahl int) kachelDaten {
-		return kachelDaten{Beschriftung: beschriftung, Anzahl: anzahl}
-	},
 	// vorschlagsfeld bündelt die Argumente für das Teil-Template
 	// "feld-mit-vorschlaegen".
 	"vorschlagsfeld": func(beschriftung, name, wert string, vorschlaege []string) vorschlagsfeldDaten {

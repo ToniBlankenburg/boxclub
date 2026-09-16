@@ -53,11 +53,11 @@
             {{range .Eingabe.Positionen}}
                 <div class="flex flex-wrap gap-2 sm:flex-nowrap">
                     <input name="position-bezeichnung" type="text" placeholder="Bezeichnung" value="{{.Bezeichnung}}"
-                           class="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                           class="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
                     <input name="position-menge" type="text" placeholder="Menge" value="{{.Menge}}"
-                           class="w-20 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                           class="w-20 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
                     <input name="position-einzelpreis" type="text" placeholder="Einzelpreis" value="{{.Einzelpreis}}"
-                           class="w-28 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-red-700 focus:ring-2 focus:ring-red-700/15 focus:outline-none">
+                           class="w-28 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
                 </div>
             {{end}}
             <span class="text-sm text-neutral-500">
@@ -67,7 +67,7 @@
 
         <div class="mt-5 flex items-center gap-3">
             <button type="submit"
-                    class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                    class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 Rechnung erstellen
             </button>
             <span id="rechnung-laeuft" class="htmx-indicator text-sm text-neutral-500">Wird erstellt …</span>

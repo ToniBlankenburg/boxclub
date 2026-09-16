@@ -31,7 +31,7 @@
                class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
 
         <button type="submit"
-                class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none">
+                class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
             Importieren
         </button>
 
@@ -52,12 +52,12 @@
         <h2 class="text-base font-semibold">Import-Bericht</h2>
         <div class="flex gap-2">
             <button type="button"
-                    class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-50 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-50 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-get="/api/import" hx-target="#inhalt" hx-swap="innerHTML">
                 Nochmal importieren
             </button>
             <button type="button"
-                    class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                    class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
                 Zu den Mitgliedern
             </button>

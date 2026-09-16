@@ -38,15 +38,6 @@ func rueckstandLink() string {
 	return "/api/mitglieder?" + werte.Encode()
 }
 
-// kachelDaten bündelt Beschriftung und Anzahl einer einzelnen Zahl im
-// Zustandsraster (siehe Teil-Template "dashboard-kachel"). Ein eigener Typ statt
-// zweier Template-Parameter, aus demselben Grund wie bei feldDaten: html/template
-// kennt keine benannten Argumente.
-type kachelDaten struct {
-	Beschriftung string
-	Anzahl       int
-}
-
 // dashboard zeigt das Monatssoll des laufenden Monats und die Mitgliederzahlen
 // für Trainer und Admin. Gerechnet wird bei jedem Aufruf neu; gespeichert wird
 // hier nichts.
