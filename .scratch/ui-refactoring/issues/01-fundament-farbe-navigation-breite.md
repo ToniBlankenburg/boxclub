@@ -68,3 +68,26 @@ Alle Kriterien waren durch den Prototyp-Fold-Commit `8fa5778`
   bestätigt so, dass kein Template kaputt ist.
 - Keine Code-Änderung war nötig — das Ticket schließt als reine
   Verifikation.
+
+### Vertiefte Verifikation (2026-09-17)
+
+Die erste Verifikation stützte sich auf Grep über die Template-Dateien. Auf
+Rückfrage zusätzlich per Wegwerf-`httptest` gegen den echten Handler geprüft
+(`app.New` + `httptest.NewServer(a.Handler())`, ein Mitglied angelegt, damit
+die Tabelle statt des Leerzustands rendert; Datei danach wieder entfernt, wie
+im Testing-Abschnitt der Spec vorgesehen):
+
+- Alle sechs Bereiche (`/api/mitglieder`, `/api/dashboard`,
+  `/api/trainingstermine`, `/api/import`, `/api/rechnung`, `/api/verein`)
+  liefern das `<nav id="navigation" hx-swap-oob="true">`-Fragment mit genau
+  einem `aria-current="page"` und genau sechs `aria-hidden`-Icons
+  (eines je Bereich) — keine Doppelung, kein fehlender Eintrag.
+- Innerhalb des `<nav>`-Ausschnitts taucht keine `red-*`-Klasse auf, dafür
+  durchgängig `var(--akzent...)`.
+- Die Mitgliederliste rendert mit vorhandenen Daten tatsächlich eine
+  `<table>` (mit leerer Datenbank zeigt sie stattdessen bewusst ihren
+  Leerzustand — keine Regression, nur eine Eigenschaft der leeren
+  Dev-Datenbank aus `CLAUDE.md`) und die Checkbox nutzt
+  `accent-[var(--akzent)]`.
+
+Ergebnis unverändert: keine Abweichung gefunden, keine Code-Änderung nötig.
