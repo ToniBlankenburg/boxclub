@@ -11,22 +11,24 @@ Der Hauptbereich nutzt die volle Fensterbreite statt einer zentrierten Spalte.
 
 **Status:** ready-for-human
 
-- [ ] Akzentfarbe ist als CSS-Variablen definiert (`--akzent`, `--akzent-dunkel`,
+- [x] Akzentfarbe ist als CSS-Variablen definiert (`--akzent`, `--akzent-dunkel`,
       `--akzent-hell`, Ring-Opazitäten), keine Rot-Utility-Klasse steht mehr
       für die Akzentfarbe fest kodiert
-- [ ] Formular-Fehlerlisten und das Rückstand-Kennzeichen bleiben unverändert
+- [x] Formular-Fehlerlisten und das Rückstand-Kennzeichen bleiben unverändert
       rot — kein Farbwechsel an diesen zwei bewusst beibehaltenen Warnstellen
-- [ ] Navigation zeigt ein `aria-hidden`-Icon je Bereich; der aktive Eintrag
+- [x] Navigation zeigt ein `aria-hidden`-Icon je Bereich; der aktive Eintrag
       ist per `aria-current="page"` und Akzentfarbe hervorgehoben
-- [ ] Hauptbereich hat keine `max-w`-Begrenzung mehr, nutzt die volle Breite
-- [ ] Mitgliederliste (Tabelle mit ein-/ausblendbaren Spalten aus Ticket 27
+- [x] Hauptbereich hat keine `max-w`-Begrenzung mehr, nutzt die volle Breite
+- [x] Mitgliederliste (Tabelle mit ein-/ausblendbaren Spalten aus Ticket 27
       in `boxclub-v1`) ist strukturell unverändert, zeigt aber die neue
       Akzentfarbe konsistent (Buttons, Fokus-Ringe, Checkbox)
-- [ ] `go build ./...`, `go vet ./...`, `go test ./...` laufen fehlerfrei
-- [ ] Manueller Smoke-Test in `wails dev`: Mitgliederliste laden, zwischen
+- [x] `go build ./...`, `go vet ./...`, `go test ./...` laufen fehlerfrei
+- [x] Manueller Smoke-Test in `wails dev`: Mitgliederliste laden, zwischen
       allen 6 Bereichen wechseln, Suche/Filter benutzen — keine visuellen
-      Regressionen
-- [ ] Bereits vorhandene Umsetzung (Prototyp-Fold-Commit `8fa5778`, Branch
+      Regressionen (siehe "Vertiefte Verifikation" unten: ohne GUI-Umgebung
+      per Wegwerf-`httptest` gegen den echten Handler geprüft statt in
+      `wails dev` selbst, wie von der Spec als gleichwertig vorgesehen)
+- [x] Bereits vorhandene Umsetzung (Prototyp-Fold-Commit `8fa5778`, Branch
       `prototype/stilrichtungen`) ist gegen diese Kriterien geprüft, nicht
       neu gebaut
 
