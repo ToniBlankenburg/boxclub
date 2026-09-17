@@ -119,6 +119,13 @@
      der Service — das <select> und die beiden Zeitfelder nehmen dem Nutzer nur
      das Tippen ab.
 
+     Die vier Felder stehen in einer einzelnen getönten Box statt in einem
+     nackten Raster — Ergebnis des UI-Prototyps zu Trainingstermine/Import/
+     Rechnung/Verein, siehe .scratch/prototyp-vier-restbereiche-verdict.md und
+     Branch prototype/vier-restbereiche (Commit 0e35670). Dasselbe Prinzip wie
+     das Mitglied-Formular; eine weitere Aufteilung in mehrere Gruppen lohnte
+     sich bei nur vier Feldern nicht.
+
      Die Daten sind terminformularDaten. */}}
 {{define "trainingstermin-formular"}}
 <form class="rounded-lg border border-neutral-200 bg-white p-6"
@@ -147,20 +154,24 @@
         </p>
     {{end}}
 
-    <div class="grid gap-4 sm:grid-cols-2">
-        {{/* Der Wochentag ist eine feste Auswahl und kein Freitext: aus ihm
-             entsteht die Wochenreihenfolge der Liste, und die verträgt keine
-             Schreibvarianten (ADR-0008). */}}
-        {{template "feld-auswahl" auswahlfeld "Wochentag" "wochentag" .Wochentagsoptionen true}}
-        {{/* Damit die Beschriftungen in einer Reihe bleiben, steht neben dem
-             Wochentag ein leeres Feld — Beginn und Ende gehören nebeneinander. */}}
-        <div class="hidden sm:block"></div>
-        {{template "feld" feld "Beginn" "beginn" "time" .Eingabe.Beginn true false}}
-        {{template "feld" feld "Ende" "ende" "time" .Eingabe.Ende false false}}
-        {{/* Die Bezeichnung ist freier Text. Trainer und Ort stehen bewusst
-             nicht als eigene Felder daneben, sondern passen hier hinein,
-             solange es eine Halle gibt (ADR-0008). */}}
-        {{template "feld" feld "Bezeichnung" "bezeichnung" "text" .Eingabe.Bezeichnung false true}}
+    <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+        <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Trainingstermin</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+            {{/* Der Wochentag ist eine feste Auswahl und kein Freitext: aus
+                 ihm entsteht die Wochenreihenfolge der Liste, und die
+                 verträgt keine Schreibvarianten (ADR-0008). */}}
+            {{template "feld-auswahl" auswahlfeld "Wochentag" "wochentag" .Wochentagsoptionen true}}
+            {{/* Damit die Beschriftungen in einer Reihe bleiben, steht neben
+                 dem Wochentag ein leeres Feld — Beginn und Ende gehören
+                 nebeneinander. */}}
+            <div class="hidden sm:block"></div>
+            {{template "feld" feld "Beginn" "beginn" "time" .Eingabe.Beginn true false}}
+            {{template "feld" feld "Ende" "ende" "time" .Eingabe.Ende false false}}
+            {{/* Die Bezeichnung ist freier Text. Trainer und Ort stehen
+                 bewusst nicht als eigene Felder daneben, sondern passen hier
+                 hinein, solange es eine Halle gibt (ADR-0008). */}}
+            {{template "feld" feld "Bezeichnung" "bezeichnung" "text" .Eingabe.Bezeichnung false true}}
+        </div>
     </div>
 
     <p class="mt-4 text-sm text-neutral-500">

@@ -44,6 +44,18 @@
      jede gescheiterte Zeile einzeln — das ist das Werkzeug, mit dem der Verein
      den Schmutz in seiner Tabelle sichtbar bekommt und sie korrigiert.
 
+     Die vier Zahlen stehen in einer durchgehenden Kennzahlenleiste statt in
+     einem Fließtext-Satz — dieselbe Kennzahlenleiste, die sich schon im
+     Dashboard bestätigt hat (.scratch/prototyp-stilrichtungen-verdict.md,
+     Branch prototype/stilrichtungen). Ergebnis des UI-Prototyps zu
+     Trainingstermine/Import/Rechnung/Verein, siehe
+     .scratch/prototyp-vier-restbereiche-verdict.md und Branch
+     prototype/vier-restbereiche (Commit 0e35670): anders als bei den drei
+     übrigen Bereichen war hier nicht das Gruppenboxen-Prinzip die Frage — ein
+     Bericht ist kein Eingabeformular —, sondern ob eine eigene Kopfzeile
+     passt. Die beiden Ergebnistabellen darunter bleiben unverändert
+     gestapelt.
+
      Die Daten sind importbericht. */}}
 {{define "import-bericht"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
@@ -64,12 +76,25 @@
         </div>
     </div>
 
-    <p class="mb-5 rounded-md border px-3 py-2 text-sm {{if .Erfolgreich}}border-green-700 bg-green-50 text-green-800{{else}}border-amber-600 bg-amber-50 text-amber-800{{end}}"
-       role="status">
-        {{with .Dateiname}}<span class="font-medium">{{.}}</span>: {{end}}
-        {{.Uebernommen}} Zeilen übernommen — davon {{.Neu}} neu angelegt und
-        {{.Aktualisiert}} aktualisiert. {{.Gescheitert}} gescheitert.
-    </p>
+    <div class="mb-5 flex flex-wrap divide-x divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div class="min-w-32 flex-1 px-5 py-4">
+            <p class="text-xs text-neutral-500">Übernommen</p>
+            <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Uebernommen}}</p>
+        </div>
+        <div class="min-w-32 flex-1 px-5 py-4">
+            <p class="text-xs text-neutral-500">Neu angelegt</p>
+            <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Neu}}</p>
+        </div>
+        <div class="min-w-32 flex-1 px-5 py-4">
+            <p class="text-xs text-neutral-500">Aktualisiert</p>
+            <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Aktualisiert}}</p>
+        </div>
+        <div class="min-w-32 flex-1 px-5 py-4">
+            <p class="text-xs text-neutral-500">Gescheitert</p>
+            <p class="mt-0.5 text-2xl font-semibold tabular-nums{{if .Gescheitert}} text-red-800{{end}}">{{.Gescheitert}}</p>
+        </div>
+    </div>
+    {{with .Dateiname}}<p class="mb-5 text-sm text-neutral-500">Datei: <span class="font-medium text-neutral-700">{{.}}</span></p>{{end}}
 
     {{if .StundenplanLeer}}{{template "stundenplan-leer"}}{{end}}
 

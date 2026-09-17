@@ -9,6 +9,13 @@
      eigenständiger Bereich für einen Empfänger ohne Mitglied (Empfänger leer,
      das PDF wird nur ausgegeben). Navigation ist nur beim zweiten Weg gesetzt.
 
+     Felder in drei flach getönten Boxen (Empfänger / Rechnungsdaten /
+     Positionen) statt einem Raster — Ergebnis des UI-Prototyps zu
+     Trainingstermine/Import/Rechnung/Verein, siehe
+     .scratch/prototyp-vier-restbereiche-verdict.md und Branch
+     prototype/vier-restbereiche (Commit 0e35670). Dasselbe Prinzip wie das
+     Mitglied-Formular.
+
      Die Daten sind rechnungDaten. */}}
 {{define "rechnung-bereich"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
@@ -34,35 +41,48 @@
 
     <form hx-post="{{.AktionsURL}}" hx-target="#rechnung-bereich" hx-swap="outerHTML"
           hx-indicator="#rechnung-laeuft">
-        <div class="grid gap-4 sm:grid-cols-2">
-            {{template "feld" feld "Empfänger" "empfaenger_name" "text" .Eingabe.Name true true}}
-            {{template "feld" feld "Adresse (Straße und Hausnummer)" "empfaenger_adresse" "text" .Eingabe.Adresse false true}}
-            {{template "feld" feld "Postleitzahl" "empfaenger_postleitzahl" "text" .Eingabe.Postleitzahl false false}}
-            {{template "feld" feld "Ort" "empfaenger_ort" "text" .Eingabe.Ort false false}}
-
-            {{/* Die Nummer wird eingetippt und nicht vergeben (ADR-0009): kein
-                 Vorschlag, keine Prüfung auf Eindeutigkeit. */}}
-            {{template "feld" feld "Rechnungsnummer" "nummer" "text" .Eingabe.Nummer true false}}
-            {{template "feld" feld "Steuersatz (%)" "steuersatz" "text" .Eingabe.Steuersatz true false}}
-            {{template "feld" feld "Rechnungsdatum" "rechnungsdatum" "date" .Eingabe.Rechnungsdatum true false}}
-            {{template "feld" feld "Zahlungsziel" "zahlungsziel" "date" .Eingabe.Zahlungsziel true false}}
-        </div>
-
-        <div class="mt-5 flex flex-col gap-2">
-            <span class="text-sm text-neutral-600">Positionen</span>
-            {{range .Eingabe.Positionen}}
-                <div class="flex flex-wrap gap-2 sm:flex-nowrap">
-                    <input name="position-bezeichnung" type="text" placeholder="Bezeichnung" value="{{.Bezeichnung}}"
-                           class="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-                    <input name="position-menge" type="text" placeholder="Menge" value="{{.Menge}}"
-                           class="w-20 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-                    <input name="position-einzelpreis" type="text" placeholder="Einzelpreis" value="{{.Einzelpreis}}"
-                           class="w-28 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Empfänger</p>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    {{template "feld" feld "Empfänger" "empfaenger_name" "text" .Eingabe.Name true true}}
+                    {{template "feld" feld "Adresse (Straße und Hausnummer)" "empfaenger_adresse" "text" .Eingabe.Adresse false true}}
+                    {{template "feld" feld "Postleitzahl" "empfaenger_postleitzahl" "text" .Eingabe.Postleitzahl false false}}
+                    {{template "feld" feld "Ort" "empfaenger_ort" "text" .Eingabe.Ort false false}}
                 </div>
-            {{end}}
-            <span class="text-sm text-neutral-500">
-                Menge und Einzelpreis (brutto), etwa "2" und "30,00". Leere Zeilen zählen nicht mit.
-            </span>
+            </div>
+
+            <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Rechnungsdaten</p>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    {{/* Die Nummer wird eingetippt und nicht vergeben
+                         (ADR-0009): kein Vorschlag, keine Prüfung auf
+                         Eindeutigkeit. */}}
+                    {{template "feld" feld "Rechnungsnummer" "nummer" "text" .Eingabe.Nummer true false}}
+                    {{template "feld" feld "Steuersatz (%)" "steuersatz" "text" .Eingabe.Steuersatz true false}}
+                    {{template "feld" feld "Rechnungsdatum" "rechnungsdatum" "date" .Eingabe.Rechnungsdatum true false}}
+                    {{template "feld" feld "Zahlungsziel" "zahlungsziel" "date" .Eingabe.Zahlungsziel true false}}
+                </div>
+            </div>
+
+            <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
+                <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Positionen</p>
+                <div class="flex flex-col gap-2">
+                    {{range .Eingabe.Positionen}}
+                        <div class="flex flex-wrap gap-2 sm:flex-nowrap">
+                            <input name="position-bezeichnung" type="text" placeholder="Bezeichnung" value="{{.Bezeichnung}}"
+                                   class="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                            <input name="position-menge" type="text" placeholder="Menge" value="{{.Menge}}"
+                                   class="w-20 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                            <input name="position-einzelpreis" type="text" placeholder="Einzelpreis" value="{{.Einzelpreis}}"
+                                   class="w-28 rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                        </div>
+                    {{end}}
+                    <span class="text-sm text-neutral-500">
+                        Menge und Einzelpreis (brutto), etwa "2" und "30,00". Leere Zeilen zählen nicht mit.
+                    </span>
+                </div>
+            </div>
         </div>
 
         <div class="mt-5 flex items-center gap-3">
