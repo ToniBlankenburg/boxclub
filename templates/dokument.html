@@ -1,17 +1,17 @@
-{{/* Die Vertragsablage (ADR-0007). Sie steht unter dem Mitgliedsformular und
-     nicht darin: ein Datei-Dialog braucht sein eigenes Formular, und Formulare
-     lassen sich nicht ineinander schachteln — abgeschickt würde dann entweder
-     das eine oder das andere.
+{{/* Die Vertragsablage (ADR-0007). Sie steht in einer eigenen Registerkarte
+     und nicht im Stammdaten-Formular (Ticket 08): ein Datei-Dialog braucht
+     sein eigenes Formular, und Formulare lassen sich nicht ineinander
+     schachteln — abgeschickt würde dann entweder das eine oder das andere.
 
      Jeder Zeitraum bekommt seinen eigenen Block, und jede Aktion tauscht nur
-     ihren eigenen Block aus. Das ist der Grund für die id am Rahmen: darüber
-     dem Mitgliedsformular soll die Tipparbeit stehen bleiben, während hier unten
-     eine Datei hochgeladen wird.
+     ihren eigenen Block aus. Das ist der Grund für die id am Rahmen: die
+     Tipparbeit im Stammdaten-Formular soll dabei unangetastet bleiben,
+     während hier eine Datei hochgeladen wird.
 
      Die Daten sind []vertragDaten. */}}
 {{define "vertraege"}}
 {{if .}}
-<section class="mt-6 rounded-lg border border-neutral-200 bg-white p-6">
+<section class="rounded-lg border border-neutral-200 bg-white p-6">
     <h2 class="mb-1 text-base font-semibold">Verträge</h2>
     <p class="mb-4 max-w-2xl text-sm text-neutral-600">
         Der eingescannte Vertrag steht bei dem Zeitraum, über den er geschlossen wurde —

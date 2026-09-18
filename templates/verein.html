@@ -9,13 +9,15 @@
      Kein Feld ist Pflicht. Was leer bleibt, fehlt später auf der Rechnung und
      hält nichts auf — eine Fehlerliste hat dieses Formular deshalb nicht.
 
-     Felder in drei flach getönten Boxen (Anschrift & Kontakt / Bankverbindung /
-     Rechnungstext) statt einem Raster — Ergebnis des UI-Prototyps zu
-     Trainingstermine/Import/Rechnung/Verein, siehe
-     .scratch/prototyp-vier-restbereiche-verdict.md und Branch
-     prototype/vier-restbereiche (Commit 0e35670). Dasselbe Prinzip wie das
-     Mitglied-Formular (siehe dort und
-     .scratch/prototyp-stilrichtungen-verdict.md).
+     Die drei Gruppenboxen (Anschrift & Kontakt / Bankverbindung /
+     Rechnungstext) stehen als Registerkarten statt gestapelt (Ticket 08) —
+     Ergebnis des UI-Prototyps zu Registerkarten, siehe
+     .scratch/prototyp-registerkarten-verdict.md und Branch
+     prototype/registerkarten (Commit 09ae7e4). Anders als am
+     Mitglied-Formular sind es hier keine drei eigenständigen Formulare,
+     sondern ein einziges — ein verstecktes Feld in einer inaktiven
+     Registerkarte würde trotzdem mit abgeschickt, das ist hier unproblematisch,
+     weil kein Feld Pflicht ist (siehe oben).
 
      Die Daten sind vereinDaten. */}}
 {{define "verein"}}
@@ -32,51 +34,73 @@
 
     <form class="rounded-lg border border-neutral-200 bg-white p-5"
           hx-post="/api/verein" hx-target="#inhalt" hx-swap="innerHTML">
-        <div class="grid gap-3 sm:grid-cols-2">
-            <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Anschrift &amp; Kontakt</p>
-                <div class="grid gap-3 sm:grid-cols-2">
-                    {{template "feld" feld "Name des Vereins" "name" "text" .Name false true}}
-                    {{/* Die Anschrift steht wie am Mitglied in drei Feldern
-                         (CONTEXT.md → Anschrift): Straße samt Hausnummer über
-                         die ganze Breite, Postleitzahl und Ort darunter
-                         nebeneinander. */}}
-                    {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Anschrift.Adresse false true}}
-                    {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Anschrift.Postleitzahl false false}}
-                    {{template "feld" feld "Ort" "ort" "text" .Anschrift.Ort false false}}
-                    {{template "feld" feld "E-Mail" "email" "email" .Email false false}}
-                    {{template "feld" feld "Telefon" "telefon" "tel" .Telefon false false}}
+        <div class="flex items-stretch gap-6" data-registerkarten>
+            <div class="flex w-44 flex-shrink-0 flex-col gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 p-1"
+                 role="tablist" aria-label="Verein-Bereiche">
+                <button type="button" role="tab" data-rk-tab="anschrift" aria-selected="true"
+                        class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+                    Anschrift &amp; Kontakt
+                </button>
+                <button type="button" role="tab" data-rk-tab="bank" aria-selected="false"
+                        class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+                    Bankverbindung
+                </button>
+                <button type="button" role="tab" data-rk-tab="rechnungstext" aria-selected="false"
+                        class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+                    Rechnungstext
+                </button>
+            </div>
+
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="anschrift">
+                <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Anschrift &amp; Kontakt</p>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        {{template "feld" feld "Name des Vereins" "name" "text" .Name false true}}
+                        {{/* Die Anschrift steht wie am Mitglied in drei Feldern
+                             (CONTEXT.md → Anschrift): Straße samt Hausnummer über
+                             die ganze Breite, Postleitzahl und Ort darunter
+                             nebeneinander. */}}
+                        {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Anschrift.Adresse false true}}
+                        {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Anschrift.Postleitzahl false false}}
+                        {{template "feld" feld "Ort" "ort" "text" .Anschrift.Ort false false}}
+                        {{template "feld" feld "E-Mail" "email" "email" .Email false false}}
+                        {{template "feld" feld "Telefon" "telefon" "tel" .Telefon false false}}
+                    </div>
                 </div>
             </div>
 
-            <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Bankverbindung</p>
-                <div class="grid gap-3 sm:grid-cols-2">
-                    {{/* Die IBAN wird wie am Mitglied als reiner Text
-                         gespeichert: keine Prüfziffer, kein Format, kein
-                         SEPA-Export (ADR-0006). */}}
-                    {{template "feld" feld "IBAN" "iban" "text" .IBAN false true}}
-                    {{template "feld" feld "BIC" "bic" "text" .BIC false false}}
-                    {{template "feld" feld "Kreditinstitut" "kreditinstitut" "text" .Kreditinstitut false true}}
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="bank" hidden>
+                <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Bankverbindung</p>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        {{/* Die IBAN wird wie am Mitglied als reiner Text
+                             gespeichert: keine Prüfziffer, kein Format, kein
+                             SEPA-Export (ADR-0006). */}}
+                        {{template "feld" feld "IBAN" "iban" "text" .IBAN false true}}
+                        {{template "feld" feld "BIC" "bic" "text" .BIC false false}}
+                        {{template "feld" feld "Kreditinstitut" "kreditinstitut" "text" .Kreditinstitut false true}}
+                    </div>
                 </div>
             </div>
 
-            <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
-                <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Rechnungstext</p>
-                {{/* Die Fußzeile ist mehrzeiliger Freitext und steht deshalb
-                     als einziges Feld nicht im "feld"-Raster: dort steht, was
-                     der Verein steuerlich schreiben muss. Die App kennt dazu
-                     keine Regel und prüft nichts — der Hinweis unter dem Feld
-                     nennt ein Beispiel und keine Vorschrift. */}}
-                <label class="flex flex-col gap-1.5">
-                    <span class="text-sm text-neutral-600">Fußzeile der Rechnung</span>
-                    <textarea name="fusszeile" rows="4"
-                              class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">{{.Fusszeile}}</textarea>
-                    <span class="text-sm text-neutral-500">
-                        Mehrzeilig. Hier steht, was unter der Rechnung stehen muss —
-                        etwa der Hinweis auf §&nbsp;19&nbsp;UStG. Die App prüft daran nichts.
-                    </span>
-                </label>
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="rechnungstext" hidden>
+                <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Rechnungstext</p>
+                    {{/* Die Fußzeile ist mehrzeiliger Freitext und steht deshalb
+                         als einziges Feld nicht im "feld"-Raster: dort steht, was
+                         der Verein steuerlich schreiben muss. Die App kennt dazu
+                         keine Regel und prüft nichts — der Hinweis unter dem Feld
+                         nennt ein Beispiel und keine Vorschrift. */}}
+                    <label class="flex flex-col gap-1.5">
+                        <span class="text-sm text-neutral-600">Fußzeile der Rechnung</span>
+                        <textarea name="fusszeile" rows="4"
+                                  class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">{{.Fusszeile}}</textarea>
+                        <span class="text-sm text-neutral-500">
+                            Mehrzeilig. Hier steht, was unter der Rechnung stehen muss —
+                            etwa der Hinweis auf §&nbsp;19&nbsp;UStG. Die App prüft daran nichts.
+                        </span>
+                    </label>
+                </div>
             </div>
         </div>
 

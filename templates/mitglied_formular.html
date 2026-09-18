@@ -3,7 +3,48 @@
      Ergebnis des UI-Prototyps zu Farbe/Navigation/Formular/Dashboard, siehe
      .scratch/prototyp-stilrichtungen-verdict.md und Branch
      prototype/stilrichtungen (Commit 391d4e3). */}}
+{{/* Stammdaten, Verträge und Rechnung stehen als drei Registerkarten statt
+     gestapelt untereinander (Ticket 08) — Ergebnis des UI-Prototyps zu
+     Registerkarten, siehe .scratch/prototyp-registerkarten-verdict.md und
+     Branch prototype/registerkarten (Commit 09ae7e4). Beim Anlegen gibt es
+     nur Stammdaten (keine Mitgliedschaft, an der Verträge/Rechnung hängen
+     könnten), deshalb dort keine Reiter. Das Umschalten übernimmt
+     registerkarten.js. */}}
 {{define "mitglied-formular"}}
+{{if .Bearbeiten}}
+<div class="flex items-stretch gap-6" data-registerkarten>
+    <div class="flex w-44 flex-shrink-0 flex-col gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 p-1"
+         role="tablist" aria-label="Mitglied-Bereiche">
+        <button type="button" role="tab" data-rk-tab="stammdaten" aria-selected="true"
+                class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+            Stammdaten
+        </button>
+        <button type="button" role="tab" data-rk-tab="vertraege" aria-selected="false"
+                class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+            Verträge
+        </button>
+        <button type="button" role="tab" data-rk-tab="rechnung" aria-selected="false"
+                class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+            Rechnung
+        </button>
+    </div>
+
+    <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="stammdaten">
+        {{template "mitglied-stammdaten-formular" .}}
+    </div>
+    <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="vertraege" hidden>
+        {{template "vertraege" .Vertraege}}
+    </div>
+    <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="rechnung" hidden>
+        {{template "rechnung-bereich" .Rechnung}}
+    </div>
+</div>
+{{else}}
+{{template "mitglied-stammdaten-formular" .}}
+{{end}}
+{{end}}
+
+{{define "mitglied-stammdaten-formular"}}
 <form class="rounded-lg border border-neutral-200 bg-white p-5"
       hx-post="{{if .Bearbeiten}}/api/mitglied/{{.MitgliedID}}{{else}}/api/mitglied{{end}}"
       hx-target="#inhalt" hx-swap="innerHTML">
@@ -132,19 +173,6 @@
         </button>
     </div>
 </form>
-
-{{/* Die Vertragsablage steht als eigener Abschnitt hinter dem Formular, nicht
-     darin: sie hat eigene Formulare, und geschachtelt wären sie ungültig. Beim
-     Anlegen ist die Liste leer — es gibt noch keinen Zeitraum, an dem ein
-     Vertrag hängen könnte. Siehe dokument.html. */}}
-{{template "vertraege" .Vertraege}}
-
-{{/* Die Rechnung steht aus demselben Grund als eigener Abschnitt hinter dem
-     Formular: ein eigenes Formular, das sich nicht schachteln lässt. Beim
-     Anlegen gibt es sie nicht — eine Rechnung braucht ein gespeichertes
-     Mitglied, an dem sie hängen kann (CONTEXT.md → Rechnung). Siehe
-     rechnung.html. */}}
-{{if .Bearbeiten}}{{template "rechnung-bereich" .Rechnung}}{{end}}
 {{end}}
 
 {{/* feld-nur-lesen zeigt eine Angabe, die an dieser Stelle nicht bearbeitet

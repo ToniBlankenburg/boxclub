@@ -31,7 +31,11 @@ Gruppen-Boxen, und jede Bericht-/Übersichtsansicht (Dashboard,
 Excel-Import-Bericht) folgt demselben Muster einer durchgehenden
 Kennzahlenleiste. Die Mitgliederliste bleibt eine Tabelle, die Dokumentablage
 bleibt bei ihrer bestehenden Statuskarte — beide wurden geprüft und passend
-befunden, nicht übersehen.
+befunden, nicht übersehen. Die Mitglied-Bearbeiten-Seite (Stammdaten /
+Verträge / Rechnung) und das Verein-Formular (seine drei Gruppen-Boxen)
+zeigen ihre Bereiche zusätzlich als Registerkarten statt gestapelt — die
+eigenständige Rechnung und das Trainingstermin-Formular bewusst nicht
+(Begründung in [ADR-0011](../../docs/adr/0011-registerkarten-fuer-mitglied-und-verein.md)).
 
 Jede Entscheidung wurde vorher an einem Wegwerf-Prototyp auf einem eigenen
 `prototype/*`-Branch visuell geprüft, bevor sie nach `main` gefoltet wurde.
@@ -45,11 +49,13 @@ Diese Branches bleiben als Primärquelle stehen:
   Verein
 - `prototype/dokument-ablage` — Vertragsablage (drei Varianten, bestehende
   Statuskarte bestätigt)
+- `prototype/registerkarten` — Mitglied- und Verein-Seite (drei Varianten:
+  Reiter oben/Unterstrich, Pillen, seitliche Reiter — siehe ADR-0011)
 
 Ein Teil der Umsetzung liegt durch die Prototyp-Folds bereits in `main`
-(Commits `8fa5778`, `f3a19fa`); die aus dieser Spec abgeleiteten Tickets
-verifizieren, härten und schließen diese Arbeit ab, statt sie neu zu
-entwerfen.
+(Commits `8fa5778`, `f3a19fa`, `<Fold-Commit Ticket 08>`); die aus dieser
+Spec abgeleiteten Tickets verifizieren, härten und schließen diese Arbeit ab,
+statt sie neu zu entwerfen.
 
 ## User Stories
 
@@ -127,15 +133,25 @@ entwerfen.
 22. Als Vereinsadmin möchte ich, dass der erste Mac-Release-Build (Ticket 11
     in `boxclub-v1`) erst nach Abschluss dieses Refactorings läuft, damit das
     ausgelieferte v1 das neue statt das alte UI zeigt.
+23. Als Vereinsadmin möchte ich, dass die Mitglied-Bearbeiten-Seite und das
+    Verein-Formular ihre Bereiche als Registerkarten statt gestapelt zeigen,
+    damit ich nicht durch drei aneinandergereihte Formulare bzw. Gruppen-
+    Boxen scrolle, um den gesuchten Abschnitt zu finden. Das sind
+    Registerkarten und kein mehrstufiger Assistent (Story 16 bleibt in
+    Kraft): jeder Reiter ist jederzeit anwählbar, kein Speichern-Schritt
+    hängt von einer Reihenfolge ab.
 
 ## Implementation Decisions
 
 - **Betroffene Module:** ausschließlich Präsentationsschicht —
   `frontend/index.html`, `frontend/src/style.css`, alle Templates in
   `templates/` außer keine strukturelle Änderung an `mitglieder_liste.html`
-  und `dokument.html` (dort nur Farbtoken-Ersetzung). Kein Fachcode in
-  `service/` oder `importer/` ist betroffen oder darf es werden — das ist
-  eine harte Grenze, keine Beobachtung.
+  und `dokument.html` (dort nur Farbtoken-Ersetzung, plus mit Ticket 08 der
+  Wegfall eines `mt-6`, das aus der alten Stapel-Anordnung stammte — die
+  Statuskarte selbst aus Ticket 06 bleibt unangetastet, nur ihr Platz auf der
+  Seite ändert sich). Kein Fachcode in `service/` oder `importer/` ist
+  betroffen oder darf es werden — das ist eine harte Grenze, keine
+  Beobachtung.
 - **Akzentfarbe als CSS-Variablen** in `frontend/src/style.css`:
   `--akzent: #2f5f78`, `--akzent-dunkel: #24485d`, `--akzent-hell: #eef4f7`,
   plus zwei Ring-Opazitäten. Templates referenzieren sie per
@@ -168,6 +184,17 @@ entwerfen.
   (`app/app.go`) — durch die Kennzahlenleiste nicht mehr gebraucht.
 - **Mitgliederliste bleibt Tabelle**, ein-/ausblendbare Spalten
   (Ticket 27) unverändert; nur Farbtoken-Ersetzung.
+- **Registerkarten-Muster** (Ticket 08, ADR-0011): seitliche Reiter mit
+  Trennlinie und getöntem Hintergrund für die Navigationsspalte, angewendet
+  auf `mitglied_formular.html` (Stammdaten/Verträge/Rechnung, nur beim
+  Bearbeiten) und `verein.html` (seine drei Gruppen-Boxen). Optik
+  ausschließlich über Tailwind-Klassen (`aria-selected:`-Varianten), Umschalten
+  über einen einzigen delegierten Klick-Handler
+  (`frontend/src/registerkarten.js`, `data-registerkarten`/`data-rk-tab`/
+  `data-rk-panel`). Bewusst nicht angewendet auf die eigenständige Rechnung
+  (Pflichtfelder über mehrere Boxen verteilt in einem einzigen Formular —
+  native Validierung bräche bei einem versteckten Pflichtfeld still ab) und
+  das Trainingstermin-Formular (nur eine Box, vier Felder).
 - **Dokumentablage bleibt die bestehende Statuskarte** mit Datei-Aktionen;
   nur Farbtoken-Ersetzung.
 - **ADR-0010** hält die Entscheidung "Top-Nav statt Sidebar" fest — bei

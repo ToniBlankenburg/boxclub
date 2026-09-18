@@ -4,10 +4,11 @@
      hier: nach dem Erstellen bietet die App das PDF genau einmal zum
      Speichern an (app/rechnung.go, rechnungAnbieten).
 
-     Zwei Wege führen zu diesem Formular: eingebettet unter den Stammdaten
-     eines Mitglieds (Empfänger vorbelegt, das PDF wird dort abgelegt) und als
-     eigenständiger Bereich für einen Empfänger ohne Mitglied (Empfänger leer,
-     das PDF wird nur ausgegeben). Navigation ist nur beim zweiten Weg gesetzt.
+     Zwei Wege führen zu diesem Formular: eingebettet als eigene
+     Registerkarte am Mitglied (Ticket 08; Empfänger vorbelegt, das PDF wird
+     dort abgelegt) und als eigenständiger Bereich für einen Empfänger ohne
+     Mitglied (Empfänger leer, das PDF wird nur ausgegeben). Navigation ist
+     nur beim zweiten Weg gesetzt.
 
      Felder in drei flach getönten Boxen (Empfänger / Rechnungsdaten /
      Positionen) statt einem Raster — Ergebnis des UI-Prototyps zu
@@ -20,7 +21,7 @@
 {{define "rechnung-bereich"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <section id="rechnung-bereich"
-         class="{{if not .Navigation}}mt-6 {{end}}rounded-lg border border-neutral-200 bg-white p-6">
+         class="rounded-lg border border-neutral-200 bg-white p-6">
     <h2 class="mb-1 text-base font-semibold">Rechnung</h2>
     <p class="mb-4 max-w-2xl text-sm text-neutral-600">
         Für eine Leistung neben dem Beitrag — typisch ein Einzeltraining. Der
