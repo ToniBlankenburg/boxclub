@@ -53,9 +53,9 @@ Diese Branches bleiben als Primärquelle stehen:
   Reiter oben/Unterstrich, Pillen, seitliche Reiter — siehe ADR-0011)
 
 Ein Teil der Umsetzung liegt durch die Prototyp-Folds bereits in `main`
-(Commits `8fa5778`, `f3a19fa`, `<Fold-Commit Ticket 08>`); die aus dieser
-Spec abgeleiteten Tickets verifizieren, härten und schließen diese Arbeit ab,
-statt sie neu zu entwerfen.
+(Commits `8fa5778`, `f3a19fa`, `597f400`); die aus dieser Spec abgeleiteten
+Tickets verifizieren, härten und schließen diese Arbeit ab, statt sie neu zu
+entwerfen.
 
 ## User Stories
 
