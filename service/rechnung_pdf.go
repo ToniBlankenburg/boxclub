@@ -1,8 +1,12 @@
 package service
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"strconv"
 	"strings"
 
@@ -125,16 +129,79 @@ func (z *zeichner) schreibenRechts(schriftart string, groesse, xRechts, y, breit
 	}
 }
 
-// briefkopf setzt Name, Anschrift und Kontakt des Vereins oben links — die
-// Angaben aus Ticket 23, die genau dafür gepflegt werden.
+// logoMaxMM ist die längste Kante der Bounding-Box, in die das Vereinslogo im
+// Briefkopf gesetzt wird — Seitenverhältnis erhalten (ADR-0012).
+const logoMaxMM = 30.0
+
+// logoAbstand ist der Weißraum zwischen einem gezeichneten Logo und dem Text
+// daneben.
+const logoAbstand = 6.0
+
+// briefkopf setzt das Vereinslogo, sofern eines hinterlegt ist, sowie Name,
+// Anschrift und Kontakt des Vereins oben links — die Angaben aus Ticket 23,
+// die genau dafür gepflegt werden, plus das Logo aus ADR-0012. Steht ein Logo
+// da, rückt der Text um seine Breite nach rechts; ohne Logo steht er wie
+// bisher am Rand.
 func (z *zeichner) briefkopf(verein Vereinsdaten) {
-	z.schreiben(schriftFett, 14, rand, 18, verein.Name)
+	x := rand
+	if breite := z.logo(verein.Logo); breite > 0 {
+		x += breite + logoAbstand
+	}
+
+	z.schreiben(schriftFett, 14, x, 18, verein.Name)
 
 	y := 25.0
 	for _, zeile := range vereinKontaktzeilen(verein) {
-		z.schreiben(schriftRegulaer, 9, rand, y, zeile)
+		z.schreiben(schriftRegulaer, 9, x, y, zeile)
 		y += 4.5
 	}
+}
+
+// logo zeichnet das Vereinslogo oben links in eine Bounding-Box von
+// logoMaxMM und liefert seine tatsächliche Breite, an der sich briefkopf für
+// den Text daneben richtet. Ohne Logo (inhalt leer) liefert es 0 und tut
+// sonst nichts.
+func (z *zeichner) logo(inhalt []byte) float64 {
+	if z.err != nil || len(inhalt) == 0 {
+		return 0
+	}
+
+	breite, hoehe, err := logoMasseMM(inhalt)
+	if err != nil {
+		z.err = fmt.Errorf("logo vermessen: %w", err)
+		return 0
+	}
+
+	holder, err := gopdf.ImageHolderByBytes(inhalt)
+	if err != nil {
+		z.err = fmt.Errorf("logo laden: %w", err)
+		return 0
+	}
+
+	if err := z.pdf.ImageByHolder(holder, rand, 14, &gopdf.Rect{W: breite, H: hoehe}); err != nil {
+		z.err = fmt.Errorf("logo zeichnen: %w", err)
+		return 0
+	}
+
+	return breite
+}
+
+// logoMasseMM liest die Pixelmaße des gespeicherten Logos (PNG oder JPEG,
+// nie SVG — das wurde beim Upload schon gerastert, ADR-0012) und skaliert sie
+// auf logoMaxMM als längste Kante, Seitenverhältnis erhalten.
+func logoMasseMM(inhalt []byte) (breite, hoehe float64, err error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(inhalt))
+	if err != nil {
+		return 0, 0, fmt.Errorf("bildgröße lesen: %w", err)
+	}
+
+	b, h := float64(cfg.Width), float64(cfg.Height)
+	if b <= 0 || h <= 0 {
+		return 0, 0, fmt.Errorf("ungültige bildgröße %dx%d", cfg.Width, cfg.Height)
+	}
+
+	breite, hoehe = skaliertAufKante(b, h, logoMaxMM)
+	return breite, hoehe, nil
 }
 
 // vereinKontaktzeilen sind Anschrift, Telefon und E-Mail des Vereins als
@@ -184,8 +251,8 @@ func (z *zeichner) empfaengerUndKopf(eingabe RechnungEingabe) {
 
 	kopfzeilen := []string{
 		"Rechnungsnummer: " + eingabe.Nummer,
-		"Rechnungsdatum: " + eingabe.Rechnungsdatum.Format("02.01.2006"),
-		"Zahlungsziel: " + eingabe.Zahlungsziel.Format("02.01.2006"),
+		"Rechnungsdatum: " + eingabe.Rechnungsdatum.Format(deutschesDatum),
+		"Zahlungsziel: " + eingabe.Zahlungsziel.Format(deutschesDatum),
 	}
 	y = startY
 	for _, zeile := range kopfzeilen {
@@ -223,8 +290,8 @@ func (z *zeichner) positionstabelle(positionen []Rechnungsposition) float64 {
 	tabelle := z.pdf.NewTableLayout(rand, positionsTabelleStartY, positionsZeilenhoehe, len(positionen))
 	tabelle.AddColumn("Bezeichnung", inhaltsbreite*0.46, "left")
 	tabelle.AddColumn("Menge", inhaltsbreite*0.14, "right")
-	tabelle.AddColumn("Einzelpreis", inhaltsbreite*0.2, "right")
-	tabelle.AddColumn("Summe", inhaltsbreite*0.2, "right")
+	tabelle.AddColumn("Einzelpreis (netto)", inhaltsbreite*0.2, "right")
+	tabelle.AddColumn("Summe (netto)", inhaltsbreite*0.2, "right")
 
 	tabelle.SetHeaderStyle(gopdf.CellStyle{
 		BorderStyle: rahmen, FillColor: gopdf.RGBColor{R: 235, G: 235, B: 235},

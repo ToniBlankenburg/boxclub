@@ -15,6 +15,7 @@ import (
 type dashboardDaten struct {
 	service.Monatsuebersicht
 	Navigation []navigationseintrag
+	Meldung    meldung
 
 	// RueckstandLink ist die Adresse der Mitgliederliste mit gesetztem
 	// Rückstandsfilter — die Zahl daneben ist nur nützlich, wenn man von ihr
@@ -42,6 +43,14 @@ func rueckstandLink() string {
 // für Trainer und Admin. Gerechnet wird bei jedem Aufruf neu; gespeichert wird
 // hier nichts.
 func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
+	a.dashboardRendern(w, meldung{})
+}
+
+// dashboardRendern zeigt das Dashboard mit dem Stand aus der Datenbank, dazu
+// eine Rückmeldung — gebraucht vom MoneyMoney-Export (app/moneymoney.go), der
+// nach dem Speichern auf dasselbe Dashboard zurückkehrt, auf dem der
+// Exportknopf steht.
+func (a *App) dashboardRendern(w http.ResponseWriter, m meldung) {
 	uebersicht, err := a.svc.Monatsuebersicht()
 	if err != nil {
 		fehlerAntwort(w, err)
@@ -51,6 +60,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
 	a.rendern(w, "dashboard", dashboardDaten{
 		Monatsuebersicht: uebersicht,
 		Navigation:       navigation(bereichDashboard),
+		Meldung:          m,
 		RueckstandLink:   rueckstandLink(),
 	})
 }

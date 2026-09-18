@@ -28,6 +28,8 @@
         Monate.
     </p>
 
+    {{template "meldung" .Meldung}}
+
     <div class="mb-4 flex flex-wrap divide-x divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 bg-white">
         <div class="min-w-40 flex-1 px-5 py-4">
             <p class="text-xs text-neutral-500">Monatssoll</p>
@@ -60,6 +62,22 @@
         <span class="text-neutral-600">Neu <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Neu}}</strong></span>
         <span class="text-neutral-600">Ruhend <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ruhend}}</strong></span>
         <span class="text-neutral-600">Ausgetreten <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ausgetreten}}</strong></span>
+    </div>
+
+    {{/* Der MoneyMoney-Export (ADR-0013) stößt den Lastschrifteinzug dieses
+         Monats an — dieselbe Menge wie das Monatssoll oben, nur als
+         Einzelzeilen statt als Summe. Ein POST, weil dabei etwas geschrieben
+         wird: die Datei über den Datei-Dialog, und am Mitgliedschaftsdatensatz
+         die enthaltene Anmeldegebühr als eingezogen. */}}
+    <div class="mt-4">
+        <button type="button"
+                class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                hx-post="/api/moneymoney/export" hx-target="#inhalt" hx-swap="innerHTML">
+            MoneyMoney-Export …
+        </button>
+        <span class="ml-2 text-sm text-neutral-500">
+            CSV für den Lastschrifteinzug dieses Monats, eine Zeile je Mitgliedschaft.
+        </span>
     </div>
 </div>
 {{end}}

@@ -110,9 +110,11 @@ func (s *MemberService) Monatsuebersicht() (Monatsuebersicht, error) {
 			u.RuhendCents += e.BeitragCents
 		case status.InKuendigungsfrist():
 			u.Mitgliederzahlen.InKuendigungsfrist++
-			u.MonatssollCents += e.BeitragCents
 		default:
 			u.Mitgliederzahlen.Aktiv++
+		}
+
+		if zaehltInsMonatssoll(status, e.Ruhend) {
 			u.MonatssollCents += e.BeitragCents
 		}
 	}
@@ -122,6 +124,15 @@ func (s *MemberService) Monatsuebersicht() (Monatsuebersicht, error) {
 	}
 
 	return u, nil
+}
+
+// zaehltInsMonatssoll sagt, ob eine Mitgliedschaft mit diesem Status und
+// Ruhend-Merkmal diesen Monat Beitrag einzieht — dieselbe Regel für
+// Monatsuebersicht hier und für den MoneyMoney-Export (service/moneymoney.go,
+// ADR-0013), an einer Stelle, damit beide nicht auseinanderlaufen können.
+// Aktiv und in Kündigungsfrist ziehen ein, Ausgetreten, Neu und Ruhend nicht.
+func zaehltInsMonatssoll(status Status, ruhend bool) bool {
+	return !status.Ausgetreten() && !status.Neu() && !ruhend
 }
 
 // monatsbewegungen zählt, wie viele Mitgliedschaften im Monat von heute bereits

@@ -68,6 +68,8 @@ Der einmalige Betrag, der beim Eintritt fällig war. Er ist ein **historischer W
 
 Sie hängt an der **Mitgliedschaft**, nicht an der Person: jeder Zeitraum hatte seine eigene Anmeldung. Bei einem Wiedereintritt wird sie deshalb nicht fortgeschrieben.
 
+Ob sie schon **eingezogen** ist, hält die Mitgliedschaft seit [ADR-0013](docs/adr/0013-moneymoney-csv-export-fuer-lastschrifteinzug.md) zusätzlich fest — die einzige Ausnahme vom sonst rein historischen Charakter dieser Angabe. Gesetzt wird das ausschließlich vom MoneyMoney-Export, nachdem eine Zeile mit dieser Gebühr tatsächlich gespeichert wurde, nie von Hand.
+
 **Nicht zu verwechseln mit:** dem *Beitrag* (monatlich, laufend).
 
 ## Kündigungsdatum
@@ -138,7 +140,23 @@ Der **Empfänger** ist frei eintragbar und wird aus dem Mitglied vorbelegt: ein 
 
 ## Vereinsdaten
 
-Name, Anschrift, Bankverbindung und Fußzeile des Vereins selbst — alles, was auf einer Rechnung über dem Inhalt steht. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
+Name, Anschrift, Bankverbindung, Fußzeile und *Vereinslogo* des Vereins selbst — alles, was auf einer Rechnung über dem Inhalt steht. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
+
+## Vereinslogo
+
+Das Bild des Vereins. Es erscheint im Verein-Bereich der App und im Briefkopf jeder erzeugten Rechnung, ist aber **freiwillig** wie jede andere Angabe der Vereinsdaten — fehlt es, bleibt der Briefkopf wie bisher reiner Text.
+
+Welches Format hochgeladen wurde und welches gespeichert ist, gehört nicht zum Begriff — das ist Ablage, kein Modell; siehe [ADR-0012](docs/adr/0012-vereinslogo-eigene-spalte-und-rasterisierung.md).
+
+**Nicht zu verwechseln mit:** der *Fußzeile* — Ticket 23 hatte dort einmal vorgesehen, dass später "auch ein Bild landen kann". Dabei ist es nicht geblieben: die Fußzeile bleibt reiner Text, das Logo ist eine eigene, unabhängig von ihr entfernbare Angabe.
+
+**Nicht zu verwechseln mit:** *Dokument* — ein Dokument ist eine PDF-Datei an einem Mitglied oder einer Mitgliedschaft. Das Vereinslogo hängt an keinem der beiden, sondern an den Vereinsdaten selbst, und ist kein PDF.
+
+## MoneyMoney-Export
+
+Eine CSV-Datei, mit der der Verein den Lastschrifteinzug eines Monats über MoneyMoney anstößt — eine Zeile je Mitgliedschaft, die diesen Monat einzieht, dieselbe Menge wie das Monatssoll ([ADR-0013](docs/adr/0013-moneymoney-csv-export-fuer-lastschrifteinzug.md)). Die Datei geht aus der App heraus, nicht herein.
+
+**Nicht zu verwechseln mit:** dem in CLAUDE.md ausgeschlossenen *MoneyMoney-Import* — jener meint Kontoumsätze, die in die App **hinein** sollen, um Rücklastschriften automatisch zu erkennen (v2). Dieser Export geht die andere Richtung und ersetzt nur das Abtippen in MoneyMoney, das der Verein ohnehin schon von Hand macht.
 
 ## Monatssoll
 

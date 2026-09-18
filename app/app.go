@@ -53,6 +53,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/mitglieder", a.mitgliederListe)
 	mux.HandleFunc("GET /api/mitglieder/ergebnis", a.mitgliederErgebnis)
 	mux.HandleFunc("GET /api/dashboard", a.dashboard)
+	mux.HandleFunc("POST /api/moneymoney/export", a.moneyMoneyExportieren)
 	mux.HandleFunc("GET /api/mitglied/formular", a.mitgliedFormular)
 	mux.HandleFunc("POST /api/mitglied", a.mitgliedAnlegen)
 	mux.HandleFunc("GET /api/mitglied/{id}/formular", a.mitgliedBearbeitenFormular)
@@ -87,6 +88,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/rechnung", a.rechnungErstellen)
 	mux.HandleFunc("GET /api/verein", a.vereinFormular)
 	mux.HandleFunc("POST /api/verein", a.vereinSpeichern)
+	mux.HandleFunc("GET /api/verein/logo", a.vereinLogo)
 
 	return mux
 }
@@ -1475,6 +1477,9 @@ var templateFunktionen = template.FuncMap{
 	// Service, damit der Hinweis unter dem Datei-Dialog dieselben Worte benutzt
 	// wie die Meldung, mit der eine zu große Datei abgewiesen wird.
 	"dokumentgrenze": service.Dokumentgrenze,
+	// logogrenze nennt die Obergrenze für ein hochgeladenes Vereinslogo,
+	// aus demselben Grund wie dokumentgrenze.
+	"logogrenze": service.Logogrenze,
 	// feld bündelt die Argumente für das Teil-Template "feld"; html/template
 	// kennt keine benannten Parameter.
 	"feld": func(beschriftung, name, typ, wert string, pflicht, breit bool) feldDaten {

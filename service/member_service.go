@@ -23,6 +23,11 @@ import (
 // Es sortiert lexikografisch korrekt und lässt sich in SQL direkt vergleichen.
 const isoDatum = "2006-01-02"
 
+// deutschesDatum ist das Anzeigeformat für ein Datum, das ein Mensch liest und
+// nicht die Datenbank — Rechnungs-PDF und MoneyMoney-Export schreiben beide in
+// dieser Schreibweise, an einer Stelle benannt, damit sie nicht auseinanderlaufen.
+const deutschesDatum = "02.01.2006"
+
 // Mitglied ist die natürliche Person, die dem Verein bekannt ist. Der Datensatz
 // bleibt derselbe, auch wenn die Person zwischenzeitlich aus- und wieder eintritt
 // — die zeitliche Zuordnung steckt in Mitgliedschaften.
@@ -341,6 +346,7 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft (
 	kuendigungsdatum        TEXT,
 	austritt                TEXT,
 	anmeldegebuehr_cents    INTEGER NOT NULL DEFAULT 0,
+	anmeldegebuehr_eingezogen INTEGER NOT NULL DEFAULT 0,
 	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0,
 	ruhend                  INTEGER NOT NULL DEFAULT 0
 );
@@ -414,8 +420,15 @@ CREATE INDEX IF NOT EXISTS idx_dokument_mitglied ON dokument(mitglied_id);
 -- damit eine zweite Zeile gar nicht erst entstehen kann. Ein zweiter Verein wäre
 -- eine zweite Installation und keine zweite Zeile.
 --
--- Jede Spalte hat den leeren Text als Standard: alle Angaben sind freiwillig,
--- und eine frisch angelegte Zeile ist die leere.
+-- Jede Textspalte hat den leeren Text als Standard: alle Angaben sind
+-- freiwillig, und eine frisch angelegte Zeile ist die leere.
+--
+-- logo ist NULL und nicht '', solange kein Bild hinterlegt ist — anders als
+-- die Textspalten gibt es für ein Blob keinen leeren Wert, der nicht schon
+-- selbst ein (leeres) Bild wäre. logo_mime steht daneben, weil die
+-- Auslieferung über HTTP den passenden Content-Type braucht, ohne die
+-- Bilddaten dafür erst zu untersuchen; sie ist "" genau dann, wenn logo NULL
+-- ist. Gespeichert wird hier immer Raster, nie ein SVG (ADR-0012).
 CREATE TABLE IF NOT EXISTS vereinsdaten (
 	id             INTEGER PRIMARY KEY CHECK (id = 1),
 	name           TEXT NOT NULL DEFAULT '',
@@ -427,7 +440,9 @@ CREATE TABLE IF NOT EXISTS vereinsdaten (
 	iban           TEXT NOT NULL DEFAULT '',
 	bic            TEXT NOT NULL DEFAULT '',
 	kreditinstitut TEXT NOT NULL DEFAULT '',
-	fusszeile      TEXT NOT NULL DEFAULT ''
+	fusszeile      TEXT NOT NULL DEFAULT '',
+	logo           BLOB,
+	logo_mime      TEXT NOT NULL DEFAULT ''
 );
 `
 
@@ -874,7 +889,7 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 // die Abfrage über alle Zeiträume eines Mitglieds und die über einen einzelnen
 // nicht auseinanderlaufen können.
 const mitgliedschaftsspalten = `id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
-	anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend`
+	anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, ruhend`
 
 // zeilenleser ist die Teilmenge von *sql.Row und *sql.Rows, die
 // mitgliedschaftZeileLesen braucht — so liest dieselbe Funktion die einzelne
@@ -894,7 +909,7 @@ func mitgliedschaftZeileLesen(zeile zeilenleser) (Mitgliedschaft, error) {
 		austritt         sql.NullString
 	)
 	if err := zeile.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &kuendigungsdatum, &austritt,
-		&ms.Anmeldung.GebuehrCents, &ms.BeitragCents, &ms.Ruhend); err != nil {
+		&ms.Anmeldung.GebuehrCents, &ms.Anmeldung.GebuehrEingezogen, &ms.BeitragCents, &ms.Ruhend); err != nil {
 		return Mitgliedschaft{}, err
 	}
 

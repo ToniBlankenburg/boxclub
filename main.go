@@ -55,13 +55,13 @@ func main() {
 		// Assetserver ist kein solcher Weg — das WebView von Wails behandelt
 		// keine.
 		OnStartup: func(ctx context.Context) {
-			anwendung.SpeicherzielSetzen(func(vorschlag string) (string, error) {
+			anwendung.SpeicherzielSetzen(func(vorschlag, filterBeschriftung, filterMuster string) (string, error) {
 				return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{
-					Title:                "Dokument speichern",
+					Title:                "Datei speichern",
 					DefaultFilename:      vorschlag,
 					CanCreateDirectories: true,
 					Filters: []runtime.FileFilter{
-						{DisplayName: "PDF-Dateien (*.pdf)", Pattern: "*.pdf"},
+						{DisplayName: filterBeschriftung, Pattern: filterMuster},
 					},
 				})
 			})

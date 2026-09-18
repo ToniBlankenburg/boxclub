@@ -106,7 +106,7 @@ func TestVertragHochladenUndExportieren(t *testing.T) {
 	// entgegen und nennt ein Ziel im Temp-Verzeichnis.
 	var vorgeschlagen string
 	ziel := filepath.Join(t.TempDir(), "export.pdf")
-	a.SpeicherzielSetzen(func(vorschlag string) (string, error) {
+	a.SpeicherzielSetzen(func(vorschlag, _, _ string) (string, error) {
 		vorgeschlagen = vorschlag
 
 		return ziel, nil
@@ -144,7 +144,7 @@ func TestVertragExportieren_AbgebrochenerDialogMeldetNichts(t *testing.T) {
 	}
 
 	gefragt := false
-	a.SpeicherzielSetzen(func(string) (string, error) {
+	a.SpeicherzielSetzen(func(string, string, string) (string, error) {
 		gefragt = true
 
 		return "", nil

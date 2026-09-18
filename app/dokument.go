@@ -42,7 +42,16 @@ const maxDokumentUpload = service.MaxDokumentBytes + (1 << 20)
 // Plattform). Als Funktionstyp und nicht als direkter Aufruf des Wails-Runtime,
 // damit main.go den Dialog einsetzt und ein Test etwas anderes einsetzen kann —
 // die Handler bleiben so testbar, ohne ein Fenster zu öffnen.
-type Speicherziel func(vorschlag string) (string, error)
+//
+// filterBeschriftung und filterMuster gehen mit, weil der Dialog inzwischen für
+// mehr als eine Dateiart steht (Vertrag und Rechnung als PDF, MoneyMoney-Export
+// als CSV) — ohne sie zeigte der Dialog immer denselben, fest verdrahteten
+// PDF-Filter, gleich was tatsächlich gespeichert wird.
+type Speicherziel func(vorschlag, filterBeschriftung, filterMuster string) (string, error)
+
+// pdfFilter ist der Dialog-Filter für die beiden PDF-Exporte (Vertrag,
+// Rechnung) — an einer Stelle benannt, damit beide dasselbe sagen.
+const pdfFilterBeschriftung, pdfFilterMuster = "PDF-Dateien (*.pdf)", "*.pdf"
 
 // SpeicherzielSetzen hinterlegt den Datei-Dialog. Er steht erst zur Verfügung,
 // wenn Wails gestartet ist (OnStartup), und kann deshalb nicht schon New
@@ -161,7 +170,7 @@ func (a *App) vertragExportieren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ziel, err := a.speicherziel(dokument.Name)
+	ziel, err := a.speicherziel(dokument.Name, pdfFilterBeschriftung, pdfFilterMuster)
 	if err != nil {
 		fehlerAntwort(w, fmt.Errorf("speicherort erfragen: %w", err))
 		return

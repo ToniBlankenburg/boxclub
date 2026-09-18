@@ -329,7 +329,7 @@ func (a *App) rechnungAnbieten(w http.ResponseWriter, mitgliedID *int64, nummer 
 		return
 	}
 
-	ziel, err := a.speicherziel(vorschlag)
+	ziel, err := a.speicherziel(vorschlag, pdfFilterBeschriftung, pdfFilterMuster)
 	if err != nil {
 		fehlerAntwort(w, fmt.Errorf("speicherort erfragen: %w", err))
 		return

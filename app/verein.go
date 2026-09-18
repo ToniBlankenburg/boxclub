@@ -1,6 +1,8 @@
 package app
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -15,12 +17,23 @@ import (
 // keine geprüft: die Service-Angabe *ist* die Eingabe, und ein zweiter Typ
 // daneben wäre eine Übersetzung zwischen zwei Gleichen.
 
+// maxVereinUpload begrenzt, was das Formular beim Logo-Upload überhaupt
+// entgegennimmt — derselbe Gedanke wie maxDokumentUpload: etwas Luft über der
+// Grenze des Service, damit eine Datei knapp über MaxLogoBytes die genaue
+// Meldung des Service bekommt und nicht die grobe von hier.
+const maxVereinUpload = service.MaxLogoBytes + (1 << 20)
+
 // vereinDaten speisen die Ansicht: die gespeicherten Angaben und optional eine
 // Rückmeldung.
 type vereinDaten struct {
 	service.Vereinsdaten
 	Meldung    meldung
 	Navigation []navigationseintrag
+
+	// Fehler sind die Gründe, aus denen ein hochgeladenes Logo nicht
+	// angenommen wurde — dieselbe Art Auskunft wie beim Vertrag (app/dokument.go):
+	// zu groß und falsches Format können beide zugleich zutreffen.
+	Fehler []string
 }
 
 // vereinsdatenLesen sammelt die Felder des abgeschickten Formulars ein. Die
@@ -45,27 +58,102 @@ func vereinsdatenLesen(r *http.Request) service.Vereinsdaten {
 
 // vereinFormular zeigt die gespeicherten Vereinsdaten zum Bearbeiten.
 func (a *App) vereinFormular(w http.ResponseWriter, r *http.Request) {
-	a.vereinRendern(w, meldung{})
+	a.vereinRendern(w, meldung{}, nil)
 }
 
 // vereinSpeichern schreibt die Angaben und zeigt das Formular erneut.
 //
-// Abgewiesen werden kann hier nichts: es gibt keine Pflichtangabe und keine
-// Regel, gegen die zu prüfen wäre (Ticket 23). Deshalb gibt es auch keinen
-// Zweig, der die getippten Werte zurückgeben müsste — was gespeichert wurde,
-// liest die Ansicht gleich wieder aus der Datenbank.
+// Für die Textfelder kann hier nichts abgewiesen werden: es gibt keine
+// Pflichtangabe und keine Regel, gegen die zu prüfen wäre (Ticket 23). Das
+// Logo dagegen hat eine Grenze und ein festes Format (LogoAusUpload,
+// ADR-0012) — deshalb der einzige Fehlerzweig, den dieses Formular kennt.
+//
+// Ersetzen und Entfernen des Logos wirken erst hier, zusammen mit den
+// Textfeldern: das Formular ist eines, kein Feld ist Pflicht, und eine
+// Sonderregel nur fürs Logo (etwa ein sofortiges Schreiben per Checkbox)
+// bräche mit dem Rest des Formulars.
 func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxVereinUpload)
+
+	if err := r.ParseMultipartForm(maxVereinUpload); err != nil {
+		a.vereinRendern(w, meldung{}, []string{
+			"Die Formulardaten ließen sich nicht entgegennehmen — das Logo ist größer als " +
+				service.Logogrenze() + "."})
+
+		return
+	}
+
+	// Das gespeicherte Logo ist der Ausgangspunkt, den LogoAktualisieren
+	// braucht, um "unverändert" von "entfernt" und "ersetzt" zu unterscheiden
+	// — SetVereinsdaten selbst kennt kein "unverändert lassen", es ersetzt die
+	// ganze Zeile.
+	aktuell, err := a.svc.GetVereinsdaten()
+	if err != nil {
 		fehlerAntwort(w, err)
 		return
 	}
 
-	if err := a.svc.SetVereinsdaten(vereinsdatenLesen(r)); err != nil {
+	aenderung := service.LogoAenderung{Entfernen: r.FormValue("logo_entfernen") != ""}
+	if datei, kopf, err := r.FormFile("logo"); err == nil {
+		defer datei.Close()
+
+		inhalt, err := io.ReadAll(datei)
+		if err != nil {
+			fehlerAntwort(w, err)
+			return
+		}
+
+		aenderung.Hochgeladen, aenderung.Dateiname, aenderung.Inhalt = true, kopf.Filename, inhalt
+	} else if !errors.Is(err, http.ErrMissingFile) {
 		fehlerAntwort(w, err)
 		return
 	}
 
-	a.vereinRendern(w, meldung{Text: "Die Vereinsdaten wurden gespeichert."})
+	logo, mime, err := service.LogoAktualisieren(aktuell.Logo, aktuell.LogoMime, aenderung)
+
+	var validierung *service.ValidierungsFehler
+	if errors.As(err, &validierung) {
+		a.vereinRendern(w, meldung{}, validierung.Meldungen)
+		return
+	}
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	daten := vereinsdatenLesen(r)
+	daten.Logo, daten.LogoMime = logo, mime
+
+	if err := a.svc.SetVereinsdaten(daten); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.vereinRendern(w, meldung{Text: "Die Vereinsdaten wurden gespeichert."}, nil)
+}
+
+// vereinLogo liefert das hinterlegte Vereinslogo aus — der einzige Weg, auf
+// dem das Bild außerhalb eines erzeugten PDFs zu sehen ist (CONTEXT.md →
+// Vereinslogo). Ohne Logo antwortet die Route mit 404: die Ansicht bindet den
+// Vorschau-<img> nur ein, wenn eines hinterlegt ist (siehe verein.html), ein
+// Aufruf von anderswo soll trotzdem nicht ins Leere laufen.
+func (a *App) vereinLogo(w http.ResponseWriter, r *http.Request) {
+	daten, err := a.svc.GetVereinsdaten()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+	if len(daten.Logo) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Kein Zwischenspeichern im WebView: ein ersetztes oder entferntes Logo
+	// soll sofort wirken und nicht erst nach einem harten Neuladen — derselbe
+	// Grund wie bei jedem gerenderten Fragment (siehe App.rendern).
+	w.Header().Set("Content-Type", daten.LogoMime)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(daten.Logo)
 }
 
 // vereinRendern zeigt die Ansicht mit dem Stand aus der Datenbank.
@@ -74,7 +162,7 @@ func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
 // wieder auszugeben: der Service schneidet umschließenden Leerraum ab, und das
 // Formular soll zeigen, was tatsächlich gespeichert ist, und nicht, was getippt
 // wurde.
-func (a *App) vereinRendern(w http.ResponseWriter, m meldung) {
+func (a *App) vereinRendern(w http.ResponseWriter, m meldung, fehler []string) {
 	daten, err := a.svc.GetVereinsdaten()
 	if err != nil {
 		fehlerAntwort(w, err)
@@ -84,6 +172,7 @@ func (a *App) vereinRendern(w http.ResponseWriter, m meldung) {
 	a.rendern(w, "verein", vereinDaten{
 		Vereinsdaten: daten,
 		Meldung:      m,
+		Fehler:       fehler,
 		Navigation:   navigation(bereichVerein),
 	})
 }

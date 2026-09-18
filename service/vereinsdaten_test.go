@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -39,7 +40,7 @@ func TestGetVereinsdaten_FrischeDatenbankLiefertLeereAngaben(t *testing.T) {
 		t.Fatalf("GetVereinsdaten: %v", err)
 	}
 
-	if daten != (service.Vereinsdaten{}) {
+	if !reflect.DeepEqual(daten, service.Vereinsdaten{}) {
 		t.Errorf("Vereinsdaten = %+v, erwartet leer", daten)
 	}
 }
@@ -56,7 +57,7 @@ func TestSetVereinsdaten_SchreibtUndLiestZurueck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVereinsdaten: %v", err)
 	}
-	if daten != erwartet {
+	if !reflect.DeepEqual(daten, erwartet) {
 		t.Errorf("Vereinsdaten = %+v, erwartet %+v", daten, erwartet)
 	}
 }
@@ -82,7 +83,7 @@ func TestSetVereinsdaten_ZweitesSpeichernErsetztDieAngaben(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVereinsdaten: %v", err)
 	}
-	if daten != geaendert {
+	if !reflect.DeepEqual(daten, geaendert) {
 		t.Errorf("Vereinsdaten = %+v, erwartet %+v", daten, geaendert)
 	}
 }
@@ -106,7 +107,7 @@ func TestSetVereinsdaten_NimmtLeereAngabenAn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVereinsdaten: %v", err)
 	}
-	if daten != (service.Vereinsdaten{}) {
+	if !reflect.DeepEqual(daten, service.Vereinsdaten{}) {
 		t.Errorf("Vereinsdaten = %+v, erwartet leer", daten)
 	}
 }
@@ -185,7 +186,7 @@ func TestVereinsdaten_UeberlebenDenNeustart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVereinsdaten: %v", err)
 	}
-	if daten != vereinsdatenImTest() {
+	if !reflect.DeepEqual(daten, vereinsdatenImTest()) {
 		t.Errorf("Vereinsdaten nach dem Neustart = %+v, erwartet unverändert %+v",
 			daten, vereinsdatenImTest())
 	}

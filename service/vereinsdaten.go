@@ -45,6 +45,18 @@ type Vereinsdaten struct {
 	// Sie ist auch der Ort, an dem später ein Logo landen könnte. Solange
 	// niemand danach fragt, bleibt es bei Text (Ticket 23).
 	Fusszeile string
+
+	// Logo ist das Bild des Vereins (CONTEXT.md → Vereinslogo) — nil, wenn
+	// keines hinterlegt ist. Anders als die übrigen Felder kommt es nie direkt
+	// aus dem Formular: Prüfung und die etwaige SVG-Rasterisierung passieren
+	// vorher in LogoAusUpload (ADR-0012).
+	Logo []byte
+
+	// LogoMime ist "image/png" oder "image/jpeg" — leer genau dann, wenn Logo
+	// nil ist. Sie steht daneben, damit die Auslieferung über HTTP den
+	// richtigen Content-Type setzen kann, ohne die Bilddaten selbst zu
+	// untersuchen.
+	LogoMime string
 }
 
 // vereinsdatenID ist der Schlüssel der einen Zeile. Die Vereinsdaten sind keine
@@ -64,11 +76,12 @@ func (s *MemberService) GetVereinsdaten() (Vereinsdaten, error) {
 
 	err := s.db.QueryRow(
 		`SELECT name, adresse, postleitzahl, ort, email, telefon,
-		 	iban, bic, kreditinstitut, fusszeile
+		 	iban, bic, kreditinstitut, fusszeile, logo, logo_mime
 		 FROM vereinsdaten WHERE id = ?`, vereinsdatenID).Scan(
 		&daten.Name, &daten.Anschrift.Adresse, &daten.Anschrift.Postleitzahl,
 		&daten.Anschrift.Ort, &daten.Email, &daten.Telefon,
-		&daten.IBAN, &daten.BIC, &daten.Kreditinstitut, &daten.Fusszeile)
+		&daten.IBAN, &daten.BIC, &daten.Kreditinstitut, &daten.Fusszeile,
+		&daten.Logo, &daten.LogoMime)
 	if err != nil {
 		return Vereinsdaten{}, fmt.Errorf("vereinsdaten lesen: %w", err)
 	}
@@ -95,8 +108,8 @@ func (s *MemberService) SetVereinsdaten(daten Vereinsdaten) error {
 	if _, err := s.db.Exec(
 		`INSERT INTO vereinsdaten
 		 	(id, name, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, bic, kreditinstitut, fusszeile)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 	 iban, bic, kreditinstitut, fusszeile, logo, logo_mime)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		 	name = excluded.name,
 		 	adresse = excluded.adresse,
@@ -107,20 +120,26 @@ func (s *MemberService) SetVereinsdaten(daten Vereinsdaten) error {
 		 	iban = excluded.iban,
 		 	bic = excluded.bic,
 		 	kreditinstitut = excluded.kreditinstitut,
-		 	fusszeile = excluded.fusszeile`,
+		 	fusszeile = excluded.fusszeile,
+		 	logo = excluded.logo,
+		 	logo_mime = excluded.logo_mime`,
 		vereinsdatenID, daten.Name,
 		daten.Anschrift.Adresse, daten.Anschrift.Postleitzahl, daten.Anschrift.Ort,
 		daten.Email, daten.Telefon,
-		daten.IBAN, daten.BIC, daten.Kreditinstitut, daten.Fusszeile); err != nil {
+		daten.IBAN, daten.BIC, daten.Kreditinstitut, daten.Fusszeile,
+		daten.Logo, daten.LogoMime); err != nil {
 		return fmt.Errorf("vereinsdaten speichern: %w", err)
 	}
 
 	return nil
 }
 
-// bereinigt schneidet von jeder Angabe den umschließenden Leerraum ab. Die
+// bereinigt schneidet von jeder Textangabe den umschließenden Leerraum ab. Die
 // Zeilenumbrüche *innerhalb* der Fußzeile bleiben stehen — sie sind dort die
 // Angabe und kein Leerraum.
+//
+// Logo und LogoMime laufen unverändert durch: sie sind kein Text, und ihre
+// Prüfung ist bereits gelaufen (LogoAusUpload), bevor sie hier ankommen.
 func (v Vereinsdaten) bereinigt() Vereinsdaten {
 	return Vereinsdaten{
 		Name: strings.TrimSpace(v.Name),
@@ -135,5 +154,7 @@ func (v Vereinsdaten) bereinigt() Vereinsdaten {
 		BIC:            strings.TrimSpace(v.BIC),
 		Kreditinstitut: strings.TrimSpace(v.Kreditinstitut),
 		Fusszeile:      strings.TrimSpace(v.Fusszeile),
+		Logo:           v.Logo,
+		LogoMime:       v.LogoMime,
 	}
 }

@@ -21,4 +21,17 @@ type Anmeldung struct {
 	// berechnet. 0 heißt "keine erhoben"; einen Unterschied zwischen "keine" und
 	// "null Euro" gibt es nicht, denn geflossen ist in beiden Fällen nichts.
 	GebuehrCents int64
+
+	// GebuehrEingezogen sagt, ob die Anmeldegebühr bereits per Lastschrift
+	// angefordert wurde — gesetzt vom MoneyMoney-Export (ADR-0013), sobald eine
+	// Zeile mit dieser Gebühr tatsächlich gespeichert wurde. Vorher ist sie
+	// "noch offen" und reist in der nächsten Beitragszeile mit; ist sie 0 €
+	// oder gar nicht erhoben, spielt dieses Feld keine Rolle.
+	//
+	// Anders als GebuehrCents ist das kein historischer Wert, sondern ein
+	// Bearbeitungsstand — die einzige Ausnahme an dieser sonst rein
+	// historischen Angabe, nötig, weil die App sonst keine Buchhaltung über
+	// Zahlungen führt (ADR-0006) und "schon eingezogen" sich aus nichts anderem
+	// ableiten ließe.
+	GebuehrEingezogen bool
 }

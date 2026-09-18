@@ -1,6 +1,6 @@
 # ADR-0006: Kein `bezahlt_bis` — der Verein zieht ein und verwaltet nur Rückstände
 
-**Status:** Accepted
+**Status:** Accepted — der Satz "ohne SEPA-Export" gilt seit [ADR-0013](0013-moneymoney-csv-export-fuer-lastschrifteinzug.md) nicht mehr uneingeschränkt: ein CSV-Export für den Lastschrifteinzug über MoneyMoney kam dazu. Alles andere hier — kein Zahlungsstatus, keine IBAN-Validierung, keine Zahlungshistorie — steht unverändert.
 **Datum:** 2026-09-11
 
 ## Kontext

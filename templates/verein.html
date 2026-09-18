@@ -32,8 +32,18 @@
 
     {{template "meldung" .Meldung}}
 
+    {{if .Fehler}}
+        <ul class="mb-3 list-disc rounded-md border border-red-700 bg-red-50 py-3 pr-3 pl-8 text-sm text-red-800"
+            role="alert">
+            {{range .Fehler}}
+                <li>{{.}}</li>
+            {{end}}
+        </ul>
+    {{end}}
+
     <form class="rounded-lg border border-neutral-200 bg-white p-5"
-          hx-post="/api/verein" hx-target="#inhalt" hx-swap="innerHTML">
+          hx-post="/api/verein" hx-target="#inhalt" hx-swap="innerHTML"
+          hx-encoding="multipart/form-data">
         <div class="flex items-stretch gap-6" data-registerkarten>
             <div class="flex w-44 flex-shrink-0 flex-col gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 p-1"
                  role="tablist" aria-label="Verein-Bereiche">
@@ -65,6 +75,34 @@
                         {{template "feld" feld "Ort" "ort" "text" .Anschrift.Ort false false}}
                         {{template "feld" feld "E-Mail" "email" "email" .Email false false}}
                         {{template "feld" feld "Telefon" "telefon" "tel" .Telefon false false}}
+                    </div>
+
+                    {{/* Das Vereinslogo (CONTEXT.md → Vereinslogo, ADR-0012)
+                         steht hier und nicht in einer eigenen Registerkarte:
+                         es ist Teil der Stammdaten des Vereins, wie Name und
+                         Anschrift. Ersetzen und Entfernen wirken erst mit dem
+                         "Speichern" des ganzen Formulars — keine Sonderregel
+                         nur fürs Logo. */}}
+                    <div class="mt-3 flex flex-col gap-1.5">
+                        <span class="text-sm text-neutral-600">Vereinslogo</span>
+                        <div class="flex flex-wrap items-center gap-3">
+                            {{if .Logo}}
+                                <img src="/api/verein/logo" alt="Aktuelles Vereinslogo"
+                                     class="h-16 w-16 rounded-md border border-neutral-200 bg-white object-contain p-1">
+                                <label class="flex items-center gap-2 text-sm text-neutral-600">
+                                    <input type="checkbox" name="logo_entfernen" value="1"
+                                           class="rounded border-neutral-300">
+                                    Entfernen
+                                </label>
+                            {{end}}
+                            <input type="file" name="logo" accept="image/png,image/jpeg,.svg,image/svg+xml"
+                                   aria-label="Vereinslogo auswählen"
+                                   class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
+                        </div>
+                        <span class="text-sm text-neutral-500">
+                            PNG, JPEG oder SVG, höchstens {{logogrenze}}. Erscheint in der App und im
+                            Briefkopf jeder erzeugten Rechnung.
+                        </span>
                     </div>
                 </div>
             </div>
