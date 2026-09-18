@@ -441,6 +441,81 @@ func TestLesen_KeinIstKeinTerminUndKeineMeldung(t *testing.T) {
 	}
 }
 
+// Der Verein trägt in der Anmeldegebühr oft „Keine" statt die Zelle leer zu
+// lassen. Beides meint dasselbe (service.AnmeldegebuehrAusEuro: leer heißt
+// „keine Gebühr erhoben"), und nur die leere Zelle ist Freitext-Konvention der
+// Excel, kein gültiger Betrag im Sinne von BeitragAusEuro — deshalb steht die
+// Deutung im Importer und nicht im Service, der auch das manuelle Formular
+// bedient.
+func TestLesen_KeineIstKeineGebuehrUndKeineMeldung(t *testing.T) {
+	for _, geschrieben := range []string{"Keine", "keine", "KEINE"} {
+		t.Run(geschrieben, func(t *testing.T) {
+			satz := einzigerSatz(t, lesen(t, mappe(t, spalten, mitZeile(map[string]any{
+				"Anmeldegebühr": geschrieben,
+			}))))
+
+			if satz.Anmeldung.GebuehrCents != 0 {
+				t.Errorf("Anmeldegebühr = %d Cent, erwartet 0", satz.Anmeldung.GebuehrCents)
+			}
+		})
+	}
+}
+
+// Für ein Montag/Donnerstag-Doppel schreibt der Verein oft eine Zelle statt
+// zwei Trainingsspalten: "Mo - Do 19:30 Uhr" statt "Montag 19:30 Uhr" in
+// Training-1 und "Donnerstag 19:30 Uhr" in Training-2. Andere Wochentage stehen
+// immer ausgeschrieben da und sind von dieser Kurzschreibweise nicht betroffen.
+func TestLesen_LoestMontagDonnerstagKurzschreibweiseAuf(t *testing.T) {
+	montag1930 := termin(10, service.Montag, "19:30")
+	donnerstag1930 := termin(11, service.Donnerstag, "19:30")
+	plan := importer.StundenplanAus([]service.Trainingstermin{montag1930, donnerstag1930})
+
+	t.Run("Mo - Do trifft beide Tage", func(t *testing.T) {
+		satz := einzigerSatz(t, lesenMit(t, mappe(t, spalten, mitZeile(map[string]any{
+			"Training - 1": "Mo - Do 19:30 Uhr", "1x 2x Woche": "2x Woche",
+		})), plan))
+
+		if got := satz.TrainingsterminIDs; !slices.Contains(got, montag1930.ID) || !slices.Contains(got, donnerstag1930.ID) || len(got) != 2 {
+			t.Errorf("TrainingsterminIDs = %v, erwartet Montag- und Donnerstag-ID", got)
+		}
+	})
+
+	t.Run("Mo - trifft nur Montag", func(t *testing.T) {
+		satz := einzigerSatz(t, lesenMit(t, mappe(t, spalten, mitZeile(map[string]any{
+			"Training - 1": "Mo - 19:30 Uhr", "1x 2x Woche": "1x Woche",
+		})), plan))
+
+		if got := satz.TrainingsterminIDs; len(got) != 1 || got[0] != montag1930.ID {
+			t.Errorf("TrainingsterminIDs = %v, erwartet nur Montag-ID", got)
+		}
+	})
+
+	t.Run("Do - trifft nur Donnerstag", func(t *testing.T) {
+		satz := einzigerSatz(t, lesenMit(t, mappe(t, spalten, mitZeile(map[string]any{
+			"Training - 1": "Do - 19:30 Uhr", "1x 2x Woche": "1x Woche",
+		})), plan))
+
+		if got := satz.TrainingsterminIDs; len(got) != 1 || got[0] != donnerstag1930.ID {
+			t.Errorf("TrainingsterminIDs = %v, erwartet nur Donnerstag-ID", got)
+		}
+	})
+
+	t.Run("fehlt einer der beiden Termine im Stundenplan, meldet der Bericht nur ihn", func(t *testing.T) {
+		nurMontag := importer.StundenplanAus([]service.Trainingstermin{montag1930})
+
+		ergebnis := lesenMit(t, mappe(t, spalten, mitZeile(map[string]any{
+			"Training - 1": "Mo - Do 19:30 Uhr", "1x 2x Woche": "2x Woche",
+		})), nurMontag)
+
+		if got := satzMitHinweisen(t, ergebnis).TrainingsterminIDs; len(got) != 1 || got[0] != montag1930.ID {
+			t.Errorf("TrainingsterminIDs = %v, erwartet nur Montag-ID", got)
+		}
+		if bericht := hinweise(ergebnis); !strings.Contains(bericht, "Donnerstag 19:30") {
+			t.Errorf("Hinweis nennt Donnerstag 19:30 nicht:\n%s", bericht)
+		}
+	})
+}
+
 // Ein archivierter Termin wird nicht vergeben: der Import darf keine Zeiten
 // austeilen, die es nicht mehr gibt (ADR-0008).
 func TestLesen_VergibtArchivierteTermineNicht(t *testing.T) {

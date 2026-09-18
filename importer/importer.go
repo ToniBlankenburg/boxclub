@@ -23,6 +23,7 @@ package importer
 import (
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -486,7 +487,12 @@ func (z *zeilenleser) beitrag() int64 {
 }
 
 func (z *zeilenleser) anmeldegebuehr() int64 {
-	cents, err := service.AnmeldegebuehrAusEuro(z.text(spalteAnmeldegebuehr))
+	wert := z.text(spalteAnmeldegebuehr)
+	if strings.EqualFold(wert, keineGebuehr) {
+		wert = ""
+	}
+
+	cents, err := service.AnmeldegebuehrAusEuro(wert)
 	if err != nil {
 		z.melden("in der Spalte „%s“: %s", spalteAnmeldegebuehr, err)
 
@@ -533,6 +539,44 @@ func (z *zeilenleser) bewertung() service.GoogleBewertung {
 // nicht gibt, und würde die Frequenz um eins zu hoch ablesen lassen.
 const keinTraining = "kein"
 
+// keineGebuehr ist der Wert, mit dem die Tabelle statt einer leeren Zelle
+// „keine Gebühr erhoben" ausdrückt. service.AnmeldegebuehrAusEuro liest schon
+// die leere Zeile so — hier steht dieselbe Aussage nur in Worten statt in
+// ihrer Abwesenheit, und beide sollen zum selben Ergebnis führen.
+const keineGebuehr = "keine"
+
+// tagDashMuster erkennt die Kurzschreibweise, mit der der Verein ein
+// Montag/Donnerstag-Doppel in eine einzige Zelle schreibt statt es auf zwei
+// Trainingsspalten zu verteilen: „Mo - Do 19:30 Uhr" für beide Tage zur
+// selben Zeit, „Mo - 19:30 Uhr" oder „Do - 19:30 Uhr" für nur einen davon.
+// Jeder andere Wochentag steht in der Tabelle immer ausgeschrieben da
+// („Dienstag 18:15 Uhr") und läuft am Muster einfach vorbei.
+var tagDashMuster = regexp.MustCompile(`(?i)^(Mo|Do)\s*-\s*(?:(Mo|Do)\s+)?(\d{1,2}:\d{2})\s*Uhr$`)
+
+// tagDashName übersetzt die Kürzel des Musters in den vollen Wochentagsnamen,
+// mit dem der Stundenplan seine Termine anzeigt (Trainingstermin.KurzeAnzeige).
+var tagDashName = map[string]string{"mo": "Montag", "do": "Donnerstag"}
+
+// tagDashAufloesen übersetzt die Kurzschreibweise in ein oder zwei vollständige
+// Kurzanzeigen ("Montag 19:30"), gegen die sich wie bei jedem anderen Freitext
+// im Stundenplan nachschlagen lässt. Passt der Text nicht, ist ok false, und
+// der Aufrufer schlägt ihn unverändert nach.
+func tagDashAufloesen(text string) (schreibweisen []string, ok bool) {
+	treffer := tagDashMuster.FindStringSubmatch(strings.TrimSpace(text))
+	if treffer == nil {
+		return nil, false
+	}
+
+	zeit := treffer[3]
+	schreibweisen = []string{tagDashName[strings.ToLower(treffer[1])] + " " + zeit}
+
+	if zweiter := strings.ToLower(treffer[2]); zweiter != "" {
+		schreibweisen = append(schreibweisen, tagDashName[zweiter]+" "+zeit)
+	}
+
+	return schreibweisen, true
+}
+
 // trainingstermine ordnet die Freitexte der drei Trainingsspalten den Terminen
 // des Stundenplans zu (ADR-0008). Was sich nicht zuordnen lässt, kommt als
 // Hinweis in den Bericht und fehlt der Mitgliedschaft — aufgehalten wird die
@@ -552,15 +596,22 @@ func (z *zeilenleser) trainingstermine() []int64 {
 			continue
 		}
 
-		id, meldung := z.plan.zuordnen(spalte, wert)
-		if meldung != "" {
-			z.hinweisen("%s", meldung)
-
-			continue
+		schreibweisen := []string{wert}
+		if aufgeloest, ok := tagDashAufloesen(wert); ok {
+			schreibweisen = aufgeloest
 		}
 
-		if !slices.Contains(ids, id) {
-			ids = append(ids, id)
+		for _, schreibweise := range schreibweisen {
+			id, meldung := z.plan.zuordnen(spalte, schreibweise)
+			if meldung != "" {
+				z.hinweisen("%s", meldung)
+
+				continue
+			}
+
+			if !slices.Contains(ids, id) {
+				ids = append(ids, id)
+			}
 		}
 	}
 
