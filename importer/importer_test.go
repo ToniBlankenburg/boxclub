@@ -623,6 +623,48 @@ func TestLesen_DeutetDenStatusFuerDasGekuendigtDatum(t *testing.T) {
 	}
 }
 
+// macOS und manche Excel-Exporte schreiben Umlaute gerne zerlegt (NFD: "u" +
+// combining diaeresis) statt vorkomponiert (NFC: "ü") — für das Auge derselbe
+// Text, für einen exakten String-Vergleich zwei verschiedene. Eine Vereins-Excel,
+// über Jahre auf mehreren Rechnern gepflegt, kann beide Formen in derselben
+// Spalte mischen.
+func TestLesen_ErkenntStatusUnabhaengigVonUnicodeNormalform(t *testing.T) {
+	zerlegtesGekuendigt := "Gekündigt"
+	zerlegteKuendigungsfrist := "Kündigungsfrist"
+
+	satz := einzigerSatz(t, lesen(t, mappe(t, spalten, mitZeile(map[string]any{
+		"Status": zerlegtesGekuendigt, "Gekündigt": "03.11.2026",
+	}))))
+	if satz.Kuendigung.Austritt == nil || !satz.Kuendigung.Austritt.Equal(datum(t, "2026-11-03")) {
+		t.Errorf("Austritt = %v, erwartet 2026-11-03 (Status zerlegt geschrieben)", satz.Kuendigung.Austritt)
+	}
+
+	satz = einzigerSatz(t, lesen(t, mappe(t, spalten, mitZeile(map[string]any{
+		"Status": zerlegteKuendigungsfrist, "Gekündigt": "03.11.2026",
+	}))))
+	if satz.Kuendigung.Datum == nil || !satz.Kuendigung.Datum.Equal(datum(t, "2026-11-03")) {
+		t.Errorf("Kündigungsdatum = %v, erwartet 2026-11-03 (Status zerlegt geschrieben)", satz.Kuendigung.Datum)
+	}
+}
+
+// Dieselbe Zerlegung wie beim Status kann auch die Überschriftenzeile selbst
+// treffen — dann fände kopfLesen die Pflichtspalte nicht und bräche die ganze
+// Datei ab, statt nur eine Zeile zu melden.
+func TestLesen_ErkenntUeberschriftUnabhaengigVonUnicodeNormalform(t *testing.T) {
+	zerlegteSpalten := slices.Clone(spalten)
+	for i, s := range zerlegteSpalten {
+		if s == "Gekündigt" {
+			zerlegteSpalten[i] = "Gekündigt"
+		}
+	}
+
+	_, err := importer.ExcelImporter{}.Lesen(
+		bytes.NewReader(mappe(t, zerlegteSpalten, musterzeile())), stundenplan())
+	if err != nil {
+		t.Fatalf("Lesen mit zerlegt geschriebener Überschrift: %v", err)
+	}
+}
+
 func TestLesen_UnbekannterStatusMachtDieZeileZumFehlerfall(t *testing.T) {
 	bericht := nurFehler(t, lesen(t, mappe(t, spalten,
 		mitZeile(map[string]any{"Status": "Halbtot"}))))

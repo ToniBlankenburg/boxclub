@@ -14,6 +14,11 @@ node_modules/
 *.db-shm
 *.db-wal
 
+# Echte Excel-Exporte des Vereins: Klarnamen, IBANs, Kontaktdaten — dürfen
+# nirgends hin (siehe importer_test.go). Test-Fixtures werden im Test selbst
+# gebaut, nie als Datei abgelegt.
+*.xlsx
+
 # Editor / OS
 .DS_Store
 *.swp

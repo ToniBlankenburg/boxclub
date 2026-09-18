@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/xuri/excelize/v2"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/ToniBlankenburg/boxclub/service"
 )
@@ -186,7 +187,7 @@ var trainingsspalten = []string{spalteTraining1, spalteTraining2, spalteTraining
 func kopfLesen(zeile []string) (kopf, error) {
 	k := make(kopf, len(zeile))
 	for i, ueberschrift := range zeile {
-		k[strings.TrimSpace(ueberschrift)] = i
+		k[norm.NFC.String(strings.TrimSpace(ueberschrift))] = i
 	}
 
 	for _, pflicht := range pflichtspalten {
@@ -329,13 +330,20 @@ func (z *zeilenleser) hinweisen(format string, args ...any) {
 
 // text liest eine Zelle als Freitext. Fehlt die Spalte in dieser Zeile — Excel
 // schneidet leere Zellen am Zeilenende ab —, ist das Ergebnis leer.
+//
+// Der Text kommt in Normalform NFC zurück: Umlaute stehen in einer über Jahre
+// von Hand gepflegten Excel mal vorkomponiert ("ü"), mal zerlegt ("u" + Trema)
+// da, je nachdem, auf welchem Rechner die Zeile zuletzt getippt wurde — für das
+// Auge derselbe Text, für einen exakten Vergleich zwei verschiedene. Ohne diese
+// Vereinheitlichung schlüge z. B. der Statusvergleich in lebenszyklus an genau
+// den Zeilen fehl, an denen es niemand bemerkt.
 func (z *zeilenleser) text(spalte string) string {
 	i, ok := z.kopf[spalte]
 	if !ok || i >= len(z.zeile) {
 		return ""
 	}
 
-	return strings.TrimSpace(z.zeile[i])
+	return norm.NFC.String(strings.TrimSpace(z.zeile[i]))
 }
 
 // pflichttext liest eine Angabe, die dastehen muss.
