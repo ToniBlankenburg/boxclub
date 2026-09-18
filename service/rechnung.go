@@ -17,9 +17,9 @@ import (
 // Die Nummer wird eingetippt, nicht vergeben: der Verein führt seine eigene
 // Nummernfolge in seiner Buchhaltung, und eine fortlaufende Nummer aus der App
 // wäre ein Versprechen, das sie neben einer zweiten Rechnungsquelle nicht halten
-// kann (ADR-0009). Beträge sind brutto — der Admin nennt den Preis, den er
-// vereinbart hat — und die App rechnet Netto und Steuer daraus heraus, statt sie
-// vorher verlangt zu haben.
+// kann (ADR-0009). Beträge sind netto — der Admin trägt den Preis ohne Steuer
+// ein, und die App schlägt die Steuer für die Anzeige auf, statt sie aus einem
+// Bruttopreis herauszurechnen.
 
 // StandardSteuersatz ist die Vorgabe im Formular: 19 %, änderbar bis 0. Welcher
 // Satz gilt, entscheidet der steuerliche Status des Vereins — die App kennt dazu
@@ -45,19 +45,19 @@ type Empfaenger struct {
 }
 
 // Rechnungsposition ist eine Zeile der Rechnung: Bezeichnung, Menge und ein
-// Einzelpreis in Cent, brutto.
+// Einzelpreis in Cent, netto.
 //
 // Die Menge ist eine ganze Zahl — Einzeltrainings werden gezählt, nicht
 // gewogen. Die Zeilensumme ist damit eine Ganzzahlmultiplikation und braucht
-// keine Rundung; die rundet erst die Netto/Steuer-Aufteilung des Gesamtbetrags
-// (siehe RechnungEingabe.Betraege).
+// keine Rundung; die rundet erst der Steueranteil des Gesamtbetrags (siehe
+// RechnungEingabe.Betraege).
 type Rechnungsposition struct {
 	Bezeichnung      string
 	Menge            int64
 	EinzelpreisCents int64
 }
 
-// SummeCents ist die Zeilensumme, brutto.
+// SummeCents ist die Zeilensumme, netto.
 func (p Rechnungsposition) SummeCents() int64 {
 	return p.Menge * p.EinzelpreisCents
 }
@@ -89,26 +89,27 @@ type Rechnungsbetraege struct {
 	BruttoCents int64
 }
 
-// Betraege rechnet Netto und Steuer aus dem Bruttobetrag der Positionen heraus
-// — der Admin nennt den Preis, den er vereinbart hat, und nicht den, den er
-// vorher hochrechnen müsste. Bei 0 % ist die Steuer 0 und Netto gleich Brutto,
-// ohne den Umweg über eine Division, die dort nichts zu runden hätte.
+// Betraege schlägt die Steuer auf den Nettobetrag der Positionen auf — der
+// Admin trägt den Preis ohne Steuer ein, und die App rechnet ihn hoch, statt
+// ihn vorher aus einem Bruttopreis herausrechnen zu lassen. Bei 0 % ist die
+// Steuer 0 und Brutto gleich Netto, ohne den Umweg über eine Multiplikation,
+// die dort nichts zu runden hätte.
 func (e RechnungEingabe) Betraege() Rechnungsbetraege {
-	var brutto int64
+	var netto int64
 	for _, p := range e.Positionen {
-		brutto += p.SummeCents()
+		netto += p.SummeCents()
 	}
 
 	if e.SteuersatzProzent == 0 {
-		return Rechnungsbetraege{NettoCents: brutto, BruttoCents: brutto}
+		return Rechnungsbetraege{NettoCents: netto, BruttoCents: netto}
 	}
 
-	netto := int64(math.Round(float64(brutto) / (1 + e.SteuersatzProzent/100)))
+	steuer := int64(math.Round(float64(netto) * e.SteuersatzProzent / 100))
 
 	return Rechnungsbetraege{
 		NettoCents:  netto,
-		SteuerCents: brutto - netto,
-		BruttoCents: brutto,
+		SteuerCents: steuer,
+		BruttoCents: netto + steuer,
 	}
 }
 
@@ -156,10 +157,10 @@ func (e RechnungEingabe) validieren() error {
 }
 
 // EinzelpreisAusEuro liest den Einzelpreis einer Position wie den Beitrag: in
-// Euro eingetippt, als Cent-Betrag zurück (siehe beitrag.go, dessen euroText
-// und centsAusEuroText hier mitbenutzt werden — dieselben Schreibweisen, dasselbe
-// Formular-Gefühl). 0 € ist erlaubt: eine Freikarte ist eine Position wie jede
-// andere und keine fehlende Angabe.
+// Euro eingetippt, netto, als Cent-Betrag zurück (siehe beitrag.go, dessen
+// euroText und centsAusEuroText hier mitbenutzt werden — dieselben
+// Schreibweisen, dasselbe Formular-Gefühl). 0 € ist erlaubt: eine Freikarte ist
+// eine Position wie jede andere und keine fehlende Angabe.
 func EinzelpreisAusEuro(eingabe string) (int64, error) {
 	text := euroText(eingabe)
 	if text == "" {

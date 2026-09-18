@@ -44,8 +44,8 @@ func TestRechnungsposition_SummeCents(t *testing.T) {
 	}
 }
 
-// Betraege addiert die Positionssumme über mehrere Zeilen, bevor Netto und
-// Steuer daraus herausgerechnet werden.
+// Betraege addiert die Positionssumme über mehrere Zeilen, bevor die Steuer
+// darauf aufgeschlagen wird.
 func TestRechnungEingabe_Betraege_AddiertDiePositionen(t *testing.T) {
 	e := service.RechnungEingabe{
 		SteuersatzProzent: 0,
@@ -62,7 +62,7 @@ func TestRechnungEingabe_Betraege_AddiertDiePositionen(t *testing.T) {
 }
 
 // Bei 0 % ist die Steuer 0 und Netto gleich Brutto — ohne den Umweg über eine
-// Division, die hier nichts zu runden hätte.
+// Multiplikation, die hier nichts zu runden hätte.
 func TestRechnungEingabe_Betraege_NullProzent(t *testing.T) {
 	e := service.RechnungEingabe{
 		SteuersatzProzent: 0,
@@ -75,12 +75,12 @@ func TestRechnungEingabe_Betraege_NullProzent(t *testing.T) {
 	}
 }
 
-// Bei einer glatten Division geht die Rechnung ohne Rest auf: 119,00 € brutto
-// bei 19 % sind exakt 100,00 € netto und 19,00 € Steuer.
-func TestRechnungEingabe_Betraege_RechnetNettoUndSteuerAusDemBrutto(t *testing.T) {
+// Bei einer glatten Multiplikation geht die Rechnung ohne Rest auf: 100,00 €
+// netto bei 19 % sind exakt 19,00 € Steuer und 119,00 € brutto.
+func TestRechnungEingabe_Betraege_SchlaegtSteuerAufDasNettoAuf(t *testing.T) {
 	e := service.RechnungEingabe{
 		SteuersatzProzent: 19,
-		Positionen:        []service.Rechnungsposition{{Menge: 1, EinzelpreisCents: 11900}},
+		Positionen:        []service.Rechnungsposition{{Menge: 1, EinzelpreisCents: 10000}},
 	}
 
 	betraege := e.Betraege()
@@ -89,14 +89,12 @@ func TestRechnungEingabe_Betraege_RechnetNettoUndSteuerAusDemBrutto(t *testing.T
 	}
 }
 
-// 100,00 € brutto bei 19 % gehen nicht glatt auf (100/1,19 = 84,0336...) — das
-// prüft die Rundung auf den Cent. Netto und Steuer ergeben dabei immer wieder
-// zusammen den Bruttobetrag: die Steuer ist der Rest und nicht ein zweites,
-// unabhängig gerundetes Ergebnis.
+// 84,03 € netto bei 19 % gehen nicht glatt auf (84,03 * 1,19 = 99,9957) — das
+// prüft die Rundung auf den Cent.
 func TestRechnungEingabe_Betraege_RundetAufDenCent(t *testing.T) {
 	e := service.RechnungEingabe{
 		SteuersatzProzent: 19,
-		Positionen:        []service.Rechnungsposition{{Menge: 1, EinzelpreisCents: 10000}},
+		Positionen:        []service.Rechnungsposition{{Menge: 1, EinzelpreisCents: 8403}},
 	}
 
 	betraege := e.Betraege()

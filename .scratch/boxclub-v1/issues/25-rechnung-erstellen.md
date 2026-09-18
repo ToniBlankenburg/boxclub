@@ -14,7 +14,7 @@ Eine Rechnung ist hier **ein Dokument und kein offener Posten**: es gibt keinen 
 - [x] Formular am Mitglied: **Empfänger** (Name, Anschrift) aus dem Mitglied vorbelegt und **frei überschreibbar**
 - [x] **Rechnungsnummer** wird eingetippt, nicht vergeben. Kein Vorschlag, keine Prüfung auf Eindeutigkeit — die Nummernfolge führt der Verein in seiner Buchhaltung
 - [x] **Positionen**: beliebig viele Zeilen mit Bezeichnung, Menge und Einzelpreis; die Summe wird gerechnet
-- [x] Beträge sind **brutto**. Ein **Steuersatz je Rechnung**, Vorgabe 19 %, änderbar bis 0. Das PDF weist Netto, Steuerbetrag und Bruttosumme getrennt aus; bei 0 % entfällt die Steuerzeile
+- [x] Beträge sind **netto**. Ein **Steuersatz je Rechnung**, Vorgabe 19 %, änderbar bis 0. Das PDF weist Netto, Steuerbetrag und Bruttosumme getrennt aus; bei 0 % entfällt die Steuerzeile
 - [x] **Rechnungsdatum** heute vorbelegt, **Zahlungsziel** 14 Tage darauf, beides überschreibbar
 - [x] Briefkopf, Bankverbindung und Fußzeile kommen aus den Vereinsdaten (Ticket 23)
 - [x] Das PDF wird als `dokument` der Art *Rechnung* am **Mitglied** abgelegt (nicht an der Mitgliedschaft)
@@ -27,7 +27,7 @@ Eine Rechnung ist hier **ein Dokument und kein offener Posten**: es gibt keinen 
 
 **Warum die Nummer von Hand:** eine fortlaufende Nummer aus der App wäre das Versprechen, sie lückenlos und eindeutig zu halten. Das kann sie nicht halten, wenn daneben noch anders Rechnungen entstehen (ADR-0009).
 
-**Warum brutto:** der Admin nennt den Preis, den er vereinbart hat — „das Einzeltraining kostet 60 €". Netto einzugeben hieße, ihn jedes Mal rückwärts rechnen zu lassen.
+**Warum netto:** der Admin trägt den vereinbarten Preis ohne Steuer ein, die App schlägt sie für die Anzeige auf (geändert am 2026-09-18, siehe Comments — ursprünglich war brutto vorgesehen).
 
 **Keine Steuerlogik.** Ob 19 %, 7 % oder gar nichts gilt, entscheidet der steuerliche Status des Vereins. Die App nimmt eine Zahl entgegen und rechnet damit — mehr nicht.
 
@@ -102,3 +102,15 @@ Sechs Entscheidungen, die über den Ticket-Text hinausgehen:
   `rechnungAblegen` ein unbekanntes Mitglied überhaupt bemerkte — verschwendete
   Arbeit bei jedem Aufruf mit einer falschen oder inzwischen gelöschten ID.
   `mitgliedPruefen` steht jetzt vor der PDF-Erzeugung, wie bei `VertragAblegen`.
+
+**2026-09-18 — Beträge auf netto umgestellt**
+
+Auf Wunsch des Vereinsadmins tragen Positionspreise jetzt **netto** ein; die
+App schlägt die Steuer für Anzeige und PDF auf, statt sie aus einem
+Bruttopreis herauszurechnen. Betrifft `RechnungEingabe.Betraege`
+(Multiplikation statt Division), die Formularbeschriftung
+(`templates/rechnung.html`), die PDF-Spaltenköpfe
+(`service/rechnung_pdf.go`) und die Service-Tests. ADR-0009 und dieses Ticket
+wurden entsprechend nachgezogen; die ursprüngliche Begründung für brutto
+("der Admin nennt den Preis, den er vereinbart hat") hat sich in der Praxis
+nicht gehalten.

@@ -41,8 +41,8 @@ Nummernfolge in seiner Buchhaltung. Eine fortlaufende Nummer aus der App wäre d
 Zusage, sie lückenlos und eindeutig zu halten — die kann eine App nicht einhalten,
 neben der noch andere Rechnungen geschrieben werden.
 
-**Beträge sind brutto, ein Steuersatz je Rechnung**, Vorgabe 19 %, änderbar bis 0.
-Die App rechnet den Steueranteil zur Anzeige heraus und kennt keine steuerlichen
+**Beträge sind netto, ein Steuersatz je Rechnung**, Vorgabe 19 %, änderbar bis 0.
+Die App schlägt den Steueranteil zur Anzeige auf und kennt keine steuerlichen
 Regeln — welcher Satz gilt, weiß der Verein.
 
 **Das Dashboard zeigt das *Monatssoll* des laufenden Monats**, nicht einen Verlauf:
