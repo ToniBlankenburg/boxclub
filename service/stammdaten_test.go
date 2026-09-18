@@ -7,10 +7,10 @@ import (
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
-// Die letzten sechs Spalten der Excel-Tabelle: IBAN, Geschlecht,
-// Google-Bewertung und Digital am Mitglied, Anmeldedatum und Anmeldegebühr an
-// der Mitgliedschaft (Ticket 16). Alle sechs sind freiwillig — keine davon darf
-// das Anlegen aufhalten.
+// Die letzten fünf Spalten der Excel-Tabelle: IBAN, Geschlecht und
+// Google-Bewertung am Mitglied, Anmeldedatum und Anmeldegebühr an der
+// Mitgliedschaft (Ticket 16). Alle fünf sind freiwillig — keine davon darf das
+// Anlegen aufhalten.
 
 func TestCreate_UebernimmtDieRestlichenStammdaten(t *testing.T) {
 	svc := neuerService(t)
@@ -25,7 +25,6 @@ func TestCreate_UebernimmtDieRestlichenStammdaten(t *testing.T) {
 		IBAN:            "DE02120300000000202051",
 		Geschlecht:      "Frau",
 		GoogleBewertung: true,
-		Digital:         "Digital",
 		Anmeldung: service.Anmeldung{
 			Datum:        &anmeldedatum,
 			GebuehrCents: 6000,
@@ -49,9 +48,6 @@ func TestCreate_UebernimmtDieRestlichenStammdaten(t *testing.T) {
 	if !m.GoogleBewertung {
 		t.Errorf("GoogleBewertung = false, erwartet true")
 	}
-	if m.Digital != "Digital" {
-		t.Errorf("Digital = %q", m.Digital)
-	}
 
 	ms := m.Mitgliedschaften[0]
 	if ms.Anmeldung.Datum == nil || !ms.Anmeldung.Datum.Equal(anmeldedatum) {
@@ -62,7 +58,7 @@ func TestCreate_UebernimmtDieRestlichenStammdaten(t *testing.T) {
 	}
 }
 
-// Alle sechs Felder sind freiwillig: ein Mitglied ohne sie ist ein gültiges
+// Alle fünf Felder sind freiwillig: ein Mitglied ohne sie ist ein gültiges
 // Mitglied. Das Anmeldedatum fehlt dann ganz (nil) und ist nicht etwa der
 // Eintritt — die beiden sind verschiedene Tage (CONTEXT.md → Anmeldedatum).
 func TestCreate_OhneDieRestlichenStammdatenBleibtMoeglich(t *testing.T) {
@@ -83,8 +79,8 @@ func TestCreate_OhneDieRestlichenStammdatenBleibtMoeglich(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 
-	if m.IBAN != "" || m.Geschlecht != "" || m.Digital != "" {
-		t.Errorf("erwarte leere Texte, bekam IBAN=%q Geschlecht=%q Digital=%q", m.IBAN, m.Geschlecht, m.Digital)
+	if m.IBAN != "" || m.Geschlecht != "" {
+		t.Errorf("erwarte leere Texte, bekam IBAN=%q Geschlecht=%q", m.IBAN, m.Geschlecht)
 	}
 	if m.GoogleBewertung {
 		t.Errorf("GoogleBewertung = true, erwartet false bei Neuanlage")
@@ -145,14 +141,12 @@ func TestUpdate_SchreibtDieRestlichenStammdaten(t *testing.T) {
 		iban            = "DE02120300000000202051"
 		geschlecht      = "Frau"
 		googleBewertung = service.GoogleBewertung(true)
-		digital         = "Digital"
 		anmeldedatum    = datum(t, "2025-12-28")
 	)
 	if err := svc.Update(id, service.MitgliedPatch{
 		IBAN:            &iban,
 		Geschlecht:      &geschlecht,
 		GoogleBewertung: &googleBewertung,
-		Digital:         &digital,
 		Anmeldung: &service.Anmeldung{
 			Datum:        &anmeldedatum,
 			GebuehrCents: 3000,
@@ -166,9 +160,9 @@ func TestUpdate_SchreibtDieRestlichenStammdaten(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 
-	if m.IBAN != iban || m.Geschlecht != geschlecht || m.Digital != digital || !m.GoogleBewertung {
-		t.Errorf("Stammdaten nach Update: IBAN=%q Geschlecht=%q Digital=%q GoogleBewertung=%v",
-			m.IBAN, m.Geschlecht, m.Digital, m.GoogleBewertung)
+	if m.IBAN != iban || m.Geschlecht != geschlecht || !m.GoogleBewertung {
+		t.Errorf("Stammdaten nach Update: IBAN=%q Geschlecht=%q GoogleBewertung=%v",
+			m.IBAN, m.Geschlecht, m.GoogleBewertung)
 	}
 
 	ms := m.Mitgliedschaften[0]
@@ -195,7 +189,6 @@ func TestUpdate_LeertDieRestlichenStammdaten(t *testing.T) {
 		IBAN:            "DE02120300000000202051",
 		Geschlecht:      "Frau",
 		GoogleBewertung: true,
-		Digital:         "Digital",
 		Anmeldung:       service.Anmeldung{Datum: &anmeldedatum, GebuehrCents: 6000},
 	})
 	if err != nil {
@@ -210,7 +203,6 @@ func TestUpdate_LeertDieRestlichenStammdaten(t *testing.T) {
 		IBAN:            &leer,
 		Geschlecht:      &leer,
 		GoogleBewertung: &keine,
-		Digital:         &leer,
 		Anmeldung:       &service.Anmeldung{},
 	}); err != nil {
 		t.Fatalf("Update: %v", err)
@@ -221,9 +213,9 @@ func TestUpdate_LeertDieRestlichenStammdaten(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 
-	if m.IBAN != "" || m.Geschlecht != "" || m.Digital != "" || m.GoogleBewertung {
-		t.Errorf("erwarte geleerte Stammdaten, bekam IBAN=%q Geschlecht=%q Digital=%q GoogleBewertung=%v",
-			m.IBAN, m.Geschlecht, m.Digital, m.GoogleBewertung)
+	if m.IBAN != "" || m.Geschlecht != "" || m.GoogleBewertung {
+		t.Errorf("erwarte geleerte Stammdaten, bekam IBAN=%q Geschlecht=%q GoogleBewertung=%v",
+			m.IBAN, m.Geschlecht, m.GoogleBewertung)
 	}
 
 	ms := m.Mitgliedschaften[0]
@@ -246,7 +238,6 @@ func TestUpdate_LaesstDieRestlichenStammdatenOhneAngabeUnberuehrt(t *testing.T) 
 		IBAN:            "DE02120300000000202051",
 		Geschlecht:      "Frau",
 		GoogleBewertung: true,
-		Digital:         "Digital",
 		Anmeldung:       service.Anmeldung{Datum: &anmeldedatum, GebuehrCents: 6000},
 	})
 	if err != nil {
@@ -263,9 +254,9 @@ func TestUpdate_LaesstDieRestlichenStammdatenOhneAngabeUnberuehrt(t *testing.T) 
 		t.Fatalf("Get: %v", err)
 	}
 
-	if m.IBAN != "DE02120300000000202051" || m.Geschlecht != "Frau" || m.Digital != "Digital" || !m.GoogleBewertung {
-		t.Errorf("Stammdaten wurden angetastet: IBAN=%q Geschlecht=%q Digital=%q GoogleBewertung=%v",
-			m.IBAN, m.Geschlecht, m.Digital, m.GoogleBewertung)
+	if m.IBAN != "DE02120300000000202051" || m.Geschlecht != "Frau" || !m.GoogleBewertung {
+		t.Errorf("Stammdaten wurden angetastet: IBAN=%q Geschlecht=%q GoogleBewertung=%v",
+			m.IBAN, m.Geschlecht, m.GoogleBewertung)
 	}
 
 	ms := m.Mitgliedschaften[0]

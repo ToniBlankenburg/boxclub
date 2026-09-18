@@ -183,12 +183,12 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 	if _, err := tx.Exec(
 		`INSERT INTO mitglied
 		 	(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, geschlecht, google_bewertung, digital)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 iban, geschlecht, google_bewertung)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		satz.ID, satz.Vorname, satz.Nachname, alsDatumsText(satz.Geburtsdatum),
 		satz.Anschrift.Adresse, satz.Anschrift.Postleitzahl, satz.Anschrift.Ort,
 		satz.Email, satz.Telefon,
-		satz.IBAN, satz.Geschlecht, bool(satz.GoogleBewertung), satz.Digital); err != nil {
+		satz.IBAN, satz.Geschlecht, bool(satz.GoogleBewertung)); err != nil {
 		return fmt.Errorf("mitglied %d anlegen: %w", satz.ID, err)
 	}
 
@@ -238,12 +238,12 @@ func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 		`UPDATE mitglied SET
 		 	vorname = ?, nachname = ?, geburtsdatum = ?,
 		 	adresse = ?, postleitzahl = ?, ort = ?, email = ?, telefon = ?,
-		 	iban = ?, geschlecht = ?, google_bewertung = ?, digital = ?
+		 	iban = ?, geschlecht = ?, google_bewertung = ?
 		 WHERE id = ?`,
 		satz.Vorname, satz.Nachname, alsDatumsText(satz.Geburtsdatum),
 		satz.Anschrift.Adresse, satz.Anschrift.Postleitzahl, satz.Anschrift.Ort,
 		satz.Email, satz.Telefon,
-		satz.IBAN, satz.Geschlecht, bool(satz.GoogleBewertung), satz.Digital,
+		satz.IBAN, satz.Geschlecht, bool(satz.GoogleBewertung),
 		id); err != nil {
 		return fmt.Errorf("mitglied %d aktualisieren: %w", id, err)
 	}

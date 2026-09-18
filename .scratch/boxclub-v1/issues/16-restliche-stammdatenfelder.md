@@ -46,3 +46,10 @@ In der Liste steht von den sechs nur die **Google-Bewertung**, als Stern am Name
 **Geprüft:** `go test ./...` grün, `go vet` sauber, `wails build` unter Linux erfolgreich. Die Templates sind über einen temporären `httptest`-Durchlauf gerendert worden (Anlegen, Vorbefüllen, Leeren, Fehlerfälle) — der Testlauf selbst ist wieder entfernt, weil `app/` laut CLAUDE.md nicht unit-getestet wird.
 
 **Offen für den Menschen:** `wails dev` und `wails build` unter Windows. Und: die Entwicklungs-Datenbank muss vor dem ersten Start gelöscht werden — das Schema benutzt `CREATE TABLE IF NOT EXISTS`, eine bestehende Datei behält also ihre alten Spalten und jede Abfrage scheitert dann an „no such column".
+
+### Nachtrag (2026-09-18)
+
+`digital` ist auf Wunsch des Vereins wieder vollständig entfernt: Spalte aus
+`mitglied`, Feld aus `NeuesMitglied`/`MitgliedPatch`/`Mitglied`, aus dem
+Formular und aus dem Excel-Import — die Spalte `Digital` wird jetzt beim
+Import verworfen statt übernommen. Entwicklungs-Datenbank erneut löschen.

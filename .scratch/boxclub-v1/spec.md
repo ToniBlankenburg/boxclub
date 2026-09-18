@@ -196,7 +196,7 @@ Sortierung weiterhin in Go über `collate.German`, damit Umlaute richtig einsort
 | `Adresse`, `Postleitzahl`, `Ort` | Mitglied, drei getrennte Felder |
 | `Telefonnummer`, `E-Mail`, `IBAN`, `Geschlecht` | Mitglied, gleichnamig |
 | `Bewertung` | `mitglied.google_bewertung` (ja/nein) |
-| `Digital` | `mitglied.digital` — **wortwörtlich als Freitext**, Bedeutung offen |
+| `Digital` | **kein Ziel** — Bedeutung blieb ungeklärt, Spalte wird beim Import verworfen |
 | `Beitrag` | `mitgliedschaft.beitrag_monatlich_cents` (Euro-Zahl × 100) |
 | `Anmeldegebühr` | `mitgliedschaft.anmeldegebuehr_cents` |
 | `Eintrit` *(sic)* | `mitgliedschaft.anmeldedatum` |
@@ -278,7 +278,7 @@ Nach jeder größeren Änderung müssen `wails dev` und `wails build` unter **Wi
 
 ### Offene Punkte
 
-- **Bedeutung der Spalte `Digital`** ist unbekannt. Sie wird als Freitext übernommen, damit keine Daten verloren gehen, bekommt aber keinen Eintrag im Glossar und keine Semantik im Modell. Sobald die Bedeutung klar ist, ist das eine eigene, kleine Änderung.
+- **Bedeutung der Spalte `Digital`** blieb ungeklärt. Statt sie weiter als bedeutungsloses Freitextfeld mitzuführen, wurde sie ganz aus dem Modell entfernt — der Import verwirft sie jetzt.
 
 ### Was diese Fassung kostet
 

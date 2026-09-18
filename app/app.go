@@ -164,11 +164,10 @@ type formularEingabe struct {
 	Ort          string
 	Email        string
 	Telefon      string
-	// IBAN, Geschlecht und Digital sind freier Text und gehen unverändert
-	// weiter: geprüft wird an keinem der drei etwas (ADR-0006, Spec → Digital).
+	// IBAN und Geschlecht sind freier Text und gehen unverändert weiter:
+	// geprüft wird an keinem der beiden etwas (ADR-0006).
 	IBAN       string
 	Geschlecht string
-	Digital    string
 	// GoogleBewertung kommt aus einem Kontrollkästchen und ist deshalb schon
 	// hier ein Wahrheitswert — parsen lässt sich daran nichts.
 	GoogleBewertung bool
@@ -751,7 +750,6 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 			IBAN:               m.IBAN,
 			Geschlecht:         m.Geschlecht,
 			GoogleBewertung:    bool(m.GoogleBewertung),
-			Digital:            m.Digital,
 			Beitrag:            beitrag,
 			Anmeldegebuehr:     anmeldegebuehr,
 			Anmeldedatum:       anmeldedatum,
@@ -1218,7 +1216,6 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Telefon:      r.FormValue("telefon"),
 		IBAN:         r.FormValue("iban"),
 		Geschlecht:   r.FormValue("geschlecht"),
-		Digital:      r.FormValue("digital"),
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
 		GoogleBewertung: r.FormValue("google_bewertung") != "",
 		Beitrag:         r.FormValue("beitrag"),
@@ -1318,7 +1315,6 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 		IBAN:               e.IBAN,
 		Geschlecht:         e.Geschlecht,
 		GoogleBewertung:    service.GoogleBewertung(e.GoogleBewertung),
-		Digital:            e.Digital,
 		Anmeldung:          anmeldung,
 		TrainingsterminIDs: e.alsTrainingsterminIDs(),
 	}
@@ -1367,7 +1363,6 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		IBAN:            &e.IBAN,
 		Geschlecht:      &e.Geschlecht,
 		GoogleBewertung: &googleBewertung,
-		Digital:         &e.Digital,
 	}
 
 	// Kein Kreuz ist auch eine Aussage — nämlich "gar kein Training mehr" — und

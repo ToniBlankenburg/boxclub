@@ -229,9 +229,6 @@ func TestLesen_UebernimmtDieMusterzeile(t *testing.T) {
 	if bool(satz.GoogleBewertung) {
 		t.Error("GoogleBewertung = true, erwartet false für ❌")
 	}
-	if satz.Digital != "Digital" {
-		t.Errorf("Digital = %q, erwartet den Wert wortwörtlich", satz.Digital)
-	}
 	if satz.Ruhend {
 		t.Error("Ruhend = true, erwartet false für Status „Neu“")
 	}

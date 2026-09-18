@@ -144,7 +144,6 @@ var pflichtspalten = []string{
 	spalteStatus, spalteEintritt, spalteGekuendigt, spalteIBAN, spalteAnmeldedatum,
 	spalteFrequenz, spalteTelefon, spalteEmail, spalteAdresse, spaltePLZ, spalteOrt,
 	spalteGeburtstag, spalteGeschlecht, spalteAnmeldegebuehr, spalteBewertung,
-	spalteDigital,
 }
 
 // Die Überschriften der Tabelle, wortwörtlich wie sie dort stehen.
@@ -171,7 +170,6 @@ const (
 	spalteGeschlecht     = "Geschlecht"
 	spalteAnmeldegebuehr = "Anmeldegebühr"
 	spalteBewertung      = "Bewertung"
-	spalteDigital        = "Digital"
 )
 
 // trainingsspalten sind die Termine in der Reihenfolge, in der sie in der
@@ -285,7 +283,6 @@ func (k kopf) zeileLesen(zeile []string, plan Stundenplan) (service.Importsatz, 
 			IBAN:            z.text(spalteIBAN),
 			Geschlecht:      z.text(spalteGeschlecht),
 			GoogleBewertung: z.bewertung(),
-			Digital:         z.text(spalteDigital),
 			BeitragCents:    z.beitrag(),
 			Anmeldung: service.Anmeldung{
 				Datum:        z.datum(spalteAnmeldedatum),

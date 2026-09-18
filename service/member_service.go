@@ -48,14 +48,6 @@ type Mitglied struct {
 	// GoogleBewertung ist zweiwertig (CONTEXT.md → Google-Bewertung).
 	GoogleBewertung GoogleBewertung
 
-	// Digital ist die gleichnamige Excel-Spalte, wortwörtlich als Freitext.
-	// Ihre Bedeutung ist unbekannt; sie fährt mit, damit beim Import keine
-	// Daten verloren gehen, und bekommt bis dahin bewusst keine Semantik —
-	// weder Prüfung noch Auswahl noch Glossareintrag. Sobald klar ist, was sie
-	// bedeutet, ist das eine eigene, kleine Änderung: umbenennen und einen Typ
-	// geben.
-	Digital string
-
 	// Rueckstand hängt am Mitglied und nicht an der Mitgliedschaft: ein Austritt
 	// erlässt keine Schulden (ADR-0006).
 	Rueckstand Rueckstand
@@ -239,11 +231,10 @@ type NeuesMitglied struct {
 	Telefon      string
 	Eintritt     time.Time
 
-	// Die vier freiwilligen Angaben am Mitglied — siehe Mitglied.
+	// Die drei freiwilligen Angaben am Mitglied — siehe Mitglied.
 	IBAN            string
 	Geschlecht      string
 	GoogleBewertung GoogleBewertung
-	Digital         string
 
 	// BeitragCents ist der individuell vereinbarte Monatsbeitrag in Cent. Er
 	// landet an der Mitgliedschaft, die mit dem Eintritt beginnt.
@@ -338,7 +329,6 @@ CREATE TABLE IF NOT EXISTS mitglied (
 	iban             TEXT    NOT NULL DEFAULT '',
 	geschlecht       TEXT    NOT NULL DEFAULT '',
 	google_bewertung INTEGER NOT NULL DEFAULT 0,
-	digital          TEXT    NOT NULL DEFAULT '',
 	rueckstand       INTEGER NOT NULL DEFAULT 0,
 	rueckstand_notiz TEXT    NOT NULL DEFAULT ''
 );
@@ -483,12 +473,12 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
 		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, geschlecht, google_bewertung, digital)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 iban, geschlecht, google_bewertung)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
 		n.Anschrift.Adresse, n.Anschrift.Postleitzahl, n.Anschrift.Ort,
 		n.Email, n.Telefon,
-		n.IBAN, n.Geschlecht, bool(n.GoogleBewertung), n.Digital)
+		n.IBAN, n.Geschlecht, bool(n.GoogleBewertung))
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -568,12 +558,11 @@ type MitgliedPatch struct {
 	Email    *string
 	Telefon  *string
 
-	// Die vier freiwilligen Angaben am Mitglied — siehe Mitglied. Ein Zeiger
+	// Die drei freiwilligen Angaben am Mitglied — siehe Mitglied. Ein Zeiger
 	// auf den leeren Wert heißt "leeren", nil heißt "nicht angerührt".
 	IBAN            *string
 	Geschlecht      *string
 	GoogleBewertung *GoogleBewertung
-	Digital         *string
 
 	// Anschrift ändert sich als Ganzes und nicht feldweise: ein Umzug betrifft
 	// alle drei Angaben, und im Formular stehen sie zusammen. Wer nur den Ort
@@ -799,9 +788,6 @@ func (p MitgliedPatch) zuweisungen() zuweisungssatz {
 	if p.GoogleBewertung != nil {
 		z.setze("google_bewertung", bool(*p.GoogleBewertung))
 	}
-	if p.Digital != nil {
-		z.setze("digital", *p.Digital)
-	}
 
 	return z
 }
@@ -857,13 +843,13 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 
 	err := s.db.QueryRow(
 		`SELECT id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort,
-		 	email, telefon, iban, geschlecht, google_bewertung, digital,
+		 	email, telefon, iban, geschlecht, google_bewertung,
 		 	rueckstand, rueckstand_notiz
 		 FROM mitglied WHERE id = ?`, id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
 			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
 			&m.Email, &m.Telefon,
-			&m.IBAN, &m.Geschlecht, &m.GoogleBewertung, &m.Digital,
+			&m.IBAN, &m.Geschlecht, &m.GoogleBewertung,
 			&m.Rueckstand.Offen, &m.Rueckstand.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
@@ -1263,7 +1249,7 @@ type Listeneintrag struct {
 
 	// GoogleBewertung ist die einzige der freiwilligen Angaben, die in der Liste
 	// steht: die Frage "wen kann ich noch fragen" beantwortet man durchsehend.
-	// IBAN, Geschlecht, Digital, Anmeldedatum und Anmeldegebühr stehen nur im
+	// IBAN, Geschlecht, Anmeldedatum und Anmeldegebühr stehen nur im
 	// Formular — sie helfen beim Überblick nicht und machten die Zeile nur breiter.
 	GoogleBewertung GoogleBewertung
 

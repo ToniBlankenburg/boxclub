@@ -44,7 +44,7 @@ go test ./service/... -run TestMemberService_Create
 
 **SQLite schema (three tables):** nothing is seeded — a fresh database is empty.
 
-- `mitglied(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon, iban, geschlecht, google_bewertung, digital, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries. The postal address is three separate columns (`adresse` is street + house number) — see `CONTEXT.md` → Anschrift
+- `mitglied(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon, iban, geschlecht, google_bewertung, rueckstand, rueckstand_notiz)` — person master data; one row per person even across re-entries. The postal address is three separate columns (`adresse` is street + house number) — see `CONTEXT.md` → Anschrift
 - `mitgliedschaft(id, mitglied_id, anmeldedatum NULL, eintritt, kuendigungsdatum NULL, austritt NULL, anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend)` — time-bound membership period; `austritt IS NULL` means currently active. `anmeldedatum` is the day the application was handed in and usually precedes `eintritt`; it is **not** the same day (see `CONTEXT.md` → Anmeldedatum)
 - `trainingstermin(id, wochentag, beginn, ende NULL, bezeichnung, archiviert)` — the club's weekly schedule, maintained in its own view. Entries exist on their own, independent of any member; an entry that is no longer offered is **archived, never deleted** (ADR-0008)
 - `mitgliedschaft_trainingstermin(mitgliedschaft_id, trainingstermin_id)` — a membership is signed up for zero to three schedule entries. Replaces the former `trainingsslot` free-text table
@@ -57,7 +57,7 @@ A **Rechnung has no table**. Recipient, line items, tax rate and number are ente
 
 The Excel importer **never creates schedule entries**. It matches the free text of `Training - 1/2/3` against existing ones and reports the rest through the error report from Ticket 09 (ADR-0008).
 
-`iban` is stored as plain text: no validation, no format check, no SEPA export (ADR-0006). `geschlecht` is free text — the Excel value list is a typing aid, not a constraint. `google_bewertung` is two-valued (`CONTEXT.md` → Google-Bewertung). `digital` carries the Excel column of the same name **verbatim and without meaning in the model** — its semantics are unknown, so it gets no check, no dropdown and no glossary entry until they are.
+`iban` is stored as plain text: no validation, no format check, no SEPA export (ADR-0006). `geschlecht` is free text — the Excel value list is a typing aid, not a constraint. `google_bewertung` is two-valued (`CONTEXT.md` → Google-Bewertung). The Excel column `Digital` is no longer carried into the model — its meaning was never known, so it is dropped on import rather than kept as unused free text.
 
 The **Anmeldegebühr** is a one-off historical value in cents: it records what was actually paid at the time and is never recalculated. Like the fee it hangs on the membership, so a rejoin does not carry it over — a new period starts with neither Anmeldedatum nor Anmeldegebühr, just as it starts without training slots.
 
