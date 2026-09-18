@@ -13,6 +13,7 @@
 import 'htmx.org';
 import './style.css';
 import './registerkarten.js';
+import './tastenkuerzel.js';
 
 // spaltenAusblendbar sind die Schlüssel der Spalten, die sich ausblenden
 // lassen — dieselben, die app.spaltenAusblendbar in Go kennt (Status,
