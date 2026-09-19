@@ -4,7 +4,7 @@ Status: ready-for-agent
 
 **What to build:** Der erste ship-fähige `.app`-Bundle für macOS, den der Vereinsadmin auf seinem Mac starten kann. Enthält eine kleine Vorab-Entscheidung ("gelegentlicher Mac vs. `macos-latest`-GitHub-Actions-Runner") plus die eigentliche Umsetzung.
 
-**Blocked by:** 09 (Excel-Import), 10 (Dev-Setup-Dokumentation) — und über 09 transitiv die Modell-Umbauten 12–18. Zusätzlich: das UI-Refactoring in `.scratch/ui-refactoring/` (eigener Feature-Slug) muss abgeschlossen sein, bevor dieses Ticket startet — siehe Comments.
+**Blocked by:** 09 (Excel-Import), 10 (Dev-Setup-Dokumentation) — und über 09 transitiv die Modell-Umbauten 12–18. Das UI-Refactoring in `.scratch/ui-refactoring/` (eigener Feature-Slug) war zusätzlich ein Blocker — erledigt, siehe Comments.
 
 ## Acceptance Criteria
 
@@ -35,3 +35,15 @@ abgeschlossen (Branches `prototype/mitgliederliste-layout`,
 Spec und Tickets dafür stehen noch aus. Der erste Mac-Release soll das neue
 UI zeigen, nicht das alte — deshalb wartet dieses Ticket zusätzlich zu den
 Modell-Umbauten auf den Abschluss dieses Feature-Slugs.
+
+### UI-Refactoring-Blocker erledigt (2026-09-19)
+
+`.scratch/ui-refactoring/issues/07-freigabe-ticket-11-entsperren.md` hat die
+Freigabe erteilt: alle Tickets 01–06 stehen auf `ready-for-human`,
+`go build ./...`, `go vet ./...`, `go test ./...` sowie `wails build`
+(Linux) laufen app-weit fehlerfrei, und der Durchlauf aller sechs Bereiche
+(Mitglieder, Dashboard, Trainingstermine, Import, Rechnung, Verein) zeigt
+keine vergessenen Rot-Reste außerhalb der zwei bewusst roten Warnstellen
+(Formular-Fehlerlisten, Rückstand-Kennzeichen inkl. dessen Ableger auf
+Dashboard und Import-Bericht). Dieses Ticket ist damit entsperrt und darf
+starten.
