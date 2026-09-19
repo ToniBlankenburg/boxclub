@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 
 # 11: Mac-Release-Build
 
@@ -8,12 +8,12 @@ Status: ready-for-agent
 
 ## Acceptance Criteria
 
-- [ ] Entscheidung dokumentiert (Kommentar in diesem Ticket): Mac-Build auf gelegentlich zugänglichem Mac vs. `macos-latest`-Runner auf GitHub Actions — mit Begründung
-- [ ] `wails build` erzeugt ein `.app`-Bundle für macOS (arm64 oder universal)
+- [x] Entscheidung dokumentiert (Kommentar in diesem Ticket): Mac-Build auf gelegentlich zugänglichem Mac vs. `macos-latest`-Runner auf GitHub Actions — mit Begründung
+- [ ] `wails build` erzeugt ein `.app`-Bundle für macOS (arm64 oder universal) — CI-Workflow dafür eingerichtet (siehe Comments), aber noch kein Lauf ausgelöst/verifiziert
 - [ ] Das Bundle startet auf einem Mac ohne installierten Go-Compiler und ohne Node.js
-- [ ] SQLite-Datei liegt an einem für macOS sinnvollen Ort (typischerweise `~/Library/Application Support/boxclub/`, nicht neben dem `.app`)
+- [x] SQLite-Datei liegt an einem für macOS sinnvollen Ort (typischerweise `~/Library/Application Support/boxclub/`, nicht neben dem `.app`) — bereits seit ADR-0003 in `main.go` (`datenbankPfad`) umgesetzt, keine Änderung nötig
 - [ ] Rauchtest im Bundle grün: Mitglied anlegen → in Liste sehen → Rückstand setzen → Kennzeichen wechselt auf rot → Rückstand aufheben → Kennzeichen wieder grün
-- [ ] Signierung mindestens als Ad-hoc-Signatur; volle Notarisierung (Apple Developer ID) ist v1.5, nicht v1
+- [ ] Signierung mindestens als Ad-hoc-Signatur; volle Notarisierung (Apple Developer ID) ist v1.5, nicht v1 — Ad-hoc-`codesign`-Schritt ist im CI-Workflow enthalten, noch nicht auf echter Hardware geprüft
 
 ## Notes
 
@@ -47,3 +47,35 @@ keine vergessenen Rot-Reste außerhalb der zwei bewusst roten Warnstellen
 (Formular-Fehlerlisten, Rückstand-Kennzeichen inkl. dessen Ableger auf
 Dashboard und Import-Bericht). Dieses Ticket ist damit entsperrt und darf
 starten.
+
+### Entscheidung: `macos-latest`-Runner statt gelegentlichem Mac (2026-09-19)
+
+Build läuft über GitHub Actions (`.github/workflows/macos-build.yml`) auf
+`macos-latest`, nicht auf einem gelegentlich zugänglichen Mac. Begründung:
+
+- Das README selbst hält fest, dass der Entwickler **keinen täglichen
+  Mac-Zugriff** hat und auf zwei Windows/Linux-Notebooks iteriert — ein
+  "gelegentlicher Mac" ist also kein verlässlicher, wiederholbarer Kanal,
+  sondern ein Gelegenheitsfenster.
+- Es existiert bereits ein GitHub-Remote (`ToniBlankenburg/boxclub`), der
+  Runner ist damit ohne zusätzliche Infrastruktur nutzbar.
+- Ein Release-Build muss reproduzierbar sein — bei einem Fehlschlag (z. B.
+  Signatur, Wails-Version) lässt sich der CI-Lauf beliebig oft wiederholen,
+  ohne auf erneuten Mac-Zugriff zu warten.
+- `wails build -platform darwin/universal` läuft auf `macos-latest`
+  standardmäßig (Xcode bringt beide SDKs mit) und deckt damit arm64 und
+  amd64 in einem Bundle ab.
+
+Der Workflow triggert auf `v*`-Tags und manuell per `workflow_dispatch`,
+installiert Go 1.25 + Node + die Wails-CLI, baut das `.app`-Bundle,
+signiert es ad-hoc (`codesign --sign -`) und lädt es als Build-Artefakt
+hoch. Volle Notarisierung bleibt v1.5 (siehe Acceptance Criteria).
+
+**Was von hier aus (Linux-Entwicklungsumgebung) nicht geprüft werden
+kann**, weil es echte macOS-Hardware braucht: dass der Workflow tatsächlich
+grün durchläuft (noch kein Tag gepusht, um ihn auszulösen), dass das
+Bundle ohne installierten Go-Compiler/Node.js startet, der Rauchtest im
+laufenden Bundle, und die Ad-hoc-Signatur auf einem echten Mac. Ticket
+bleibt deshalb auf `ready-for-human` — nächster Schritt: einen `v*`-Tag
+pushen (oder den Workflow manuell auslösen), den Lauf beobachten und die
+verbleibenden drei Haken von Hand abarbeiten.
