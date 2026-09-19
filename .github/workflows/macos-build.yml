@@ -12,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -40,3 +42,21 @@ jobs:
         with:
           name: boxclub-macos
           path: build/bin/boxclub.app
+
+      # Zip statt tar/actions/upload-artifact-Download: ditto erhält Rechte und
+      # Resource-Forks des .app-Bundles, ein normales zip/tar tut das nicht
+      # zuverlässig.
+      - name: Bundle für Release zippen
+        if: startsWith(github.ref, 'refs/tags/')
+        run: ditto -c -k --sequesterRsrc --keepParent build/bin/boxclub.app boxclub-macos.zip
+
+      # Nur bei einem Tag-Push: Release, an das jeder mit einem Mac direkt
+      # über den Browser-Link kommt — ohne gh-CLI, ohne GitHub-Login (Repo ist
+      # öffentlich). Reine Actions-Artefakte verlangen dagegen immer einen
+      # eingeloggten Account.
+      - name: GitHub-Release veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: boxclub-macos.zip
+          draft: true
