@@ -289,6 +289,14 @@ const (
 // Zählung, aus der auch die Auswahlliste entsteht.
 const frequenzAlle = ""
 
+// geschlechtAlle und terminAlle sind die Werte der beiden Auswahllisten für
+// "nicht eingrenzen" — wie bei der Frequenz der leere Wert. Die übrigen Werte
+// stammen aus dem Bestand: das getippte Geschlecht selbst, beim Termin dessen ID.
+const (
+	geschlechtAlle = ""
+	terminAlle     = ""
+)
+
 // Werte der Sortierrichtung, wie sie über die Adresszeile laufen. Aufsteigend
 // ist der leere Wert und damit der Standard — derselbe, den ein Suchfilter{}
 // ohnehin liefert (Ticket 27).
@@ -349,6 +357,8 @@ type suchEingabe struct {
 	Query      string
 	Rueckstand string
 	Frequenz   string
+	Geschlecht string
+	Termin     string
 	Ehemalige  bool
 
 	// Sortierspalte und Sortierrichtung sind die Rohwerte eines Klicks auf
@@ -371,6 +381,8 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		Ehemalige:       werte.Get("ehemalige") != "",
 		Rueckstand:      werte.Get("rueckstand"),
 		Frequenz:        werte.Get("frequenz"),
+		Geschlecht:      werte.Get("geschlecht"),
+		Termin:          werte.Get("termin"),
 		Sortierspalte:   werte.Get("sort"),
 		Sortierrichtung: werte.Get("richtung"),
 	}
@@ -394,6 +406,14 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 	// "alle", Leerraum, ein selbstgebauter Request — bleibt beim Standard.
 	if stufe, err := strconv.Atoi(e.Frequenz); err == nil && stufe >= 1 && stufe <= service.MaxTrainingstermine {
 		filter.Frequenz = service.Frequenzfilter(stufe)
+	}
+
+	filter.Geschlecht = e.Geschlecht
+
+	// Die ID eines Trainingstermins. Wie bei der Frequenz bleibt alles, was
+	// keine gültige ID ist, beim Standard.
+	if id, err := strconv.ParseInt(e.Termin, 10, 64); err == nil && id > 0 {
+		filter.Trainingstermin = id
 	}
 
 	if spalte, ok := sortierspalten[e.Sortierspalte]; ok {
@@ -454,6 +474,13 @@ type listeDaten struct {
 	Meldung    meldung
 	Suche      suchEingabe
 	Navigation []navigationseintrag
+
+	// Geschlechtswerte und Termine speisen die beiden Auswahllisten, die aus dem
+	// Bestand entstehen. Nur die ganze Ansicht trägt sie: das Ergebnis allein
+	// wird bei jedem Tastendruck neu gerendert, und die Filterleiste darüber
+	// bleibt stehen.
+	Geschlechtswerte []string
+	Termine          []service.Trainingstermin
 }
 
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
@@ -544,6 +571,34 @@ func (d listeDaten) Frequenzoptionen() []filteroption {
 	return gewaehlteOption(frequenzoptionen, d.Suche.Frequenz)
 }
 
+// Geschlechtsoptionen sind "jedes Geschlecht" und die Werte, die im Bestand
+// vorkommen, die gewählte darunter markiert.
+func (d listeDaten) Geschlechtsoptionen() []filteroption {
+	optionen := []filteroption{{Wert: geschlechtAlle, Beschriftung: "Jedes Geschlecht"}}
+	for _, wert := range d.Geschlechtswerte {
+		optionen = append(optionen, filteroption{Wert: wert, Beschriftung: wert})
+	}
+
+	return gewaehlteOption(optionen, d.Suche.Geschlecht)
+}
+
+// Terminoptionen sind "jeder Termin" und der Stundenplan in Wochenreihenfolge,
+// die gewählte darunter markiert. Archivierte stehen mit darin und sind als
+// solche beschriftet: wer für sie noch angemeldet ist, soll sich finden lassen
+// (ADR-0008).
+func (d listeDaten) Terminoptionen() []filteroption {
+	optionen := []filteroption{{Wert: terminAlle, Beschriftung: "Jeder Termin"}}
+	for _, t := range d.Termine {
+		beschriftung := t.Anzeige()
+		if t.Archiviert {
+			beschriftung += " (archiviert)"
+		}
+		optionen = append(optionen, filteroption{Wert: strconv.FormatInt(t.ID, 10), Beschriftung: beschriftung})
+	}
+
+	return gewaehlteOption(optionen, d.Suche.Termin)
+}
+
 // gewaehlteOption kopiert eine Auswahlliste und markiert darin den Eintrag zum
 // übergebenen Wert.
 //
@@ -592,6 +647,18 @@ func (a *App) listeRendern(w http.ResponseWriter, m meldung) {
 func (a *App) listeMitFilterRendern(w http.ResponseWriter, eingabe suchEingabe, m meldung) {
 	daten, ok := a.listeDatenLesen(w, eingabe, m)
 	if !ok {
+		return
+	}
+
+	// Die Auswahllisten aus dem Bestand gehören nur zur ganzen Ansicht, siehe
+	// listeDaten.
+	var err error
+	if daten.Geschlechtswerte, err = a.svc.Geschlechtswerte(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+	if daten.Termine, err = a.svc.ListTrainingstermine(true); err != nil {
+		fehlerAntwort(w, err)
 		return
 	}
 

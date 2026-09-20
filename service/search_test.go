@@ -579,3 +579,148 @@ func TestSearch_MitgliedsIDRespektiertDieFilter(t *testing.T) {
 		t.Errorf("Search(%d, in Ordnung) = %v, erwartet kein Ergebnis", aktiv, gefunden)
 	}
 }
+
+// mitGeschlechtAnlegen legt ein aktives Mitglied mit dem angegebenen
+// Geschlecht an, so wie es im Freitextfeld stand.
+func mitGeschlechtAnlegen(t *testing.T, svc *service.MemberService, nachname, geschlecht string) int64 {
+	t.Helper()
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:      "Test",
+		Nachname:     nachname,
+		Geschlecht:   geschlecht,
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-01-05"),
+	})
+	if err != nil {
+		t.Fatalf("Create(%s, %q): %v", nachname, geschlecht, err)
+	}
+
+	return id
+}
+
+// Das Geschlecht ist Freitext: der Filter vergleicht den getippten Wert, ohne
+// Groß-/Kleinschreibung und ohne umschließenden Leerraum — "frau " ist im
+// Formular dieselbe Angabe wie "Frau".
+func TestSearch_FiltertNachGeschlecht(t *testing.T) {
+	svc := neuerService(t)
+
+	mitGeschlechtAnlegen(t, svc, "Adler", "Frau")
+	mitGeschlechtAnlegen(t, svc, "Berger", "Mann")
+	mitGeschlechtAnlegen(t, svc, "Claasen", "frau ")
+	mitGeschlechtAnlegen(t, svc, "Dietz", "")
+	ehemalig := mitGeschlechtAnlegen(t, svc, "Ernst", "Frau")
+	if err := svc.SetKuendigung(ehemalig, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+
+	faelle := []struct {
+		name     string
+		filter   service.Suchfilter
+		erwartet []string
+	}{
+		{"ohne Filter", service.Suchfilter{}, []string{"Adler, Test", "Berger, Test", "Claasen, Test", "Dietz, Test"}},
+		{"Frau", service.Suchfilter{Geschlecht: "Frau"}, []string{"Adler, Test", "Claasen, Test"}},
+		{"Frau klein getippt", service.Suchfilter{Geschlecht: "frau"}, []string{"Adler, Test", "Claasen, Test"}},
+		{"Mann", service.Suchfilter{Geschlecht: "Mann"}, []string{"Berger, Test"}},
+		{"Wert, den niemand hat", service.Suchfilter{Geschlecht: "divers"}, nil},
+		{"nur Leerraum grenzt nicht ein", service.Suchfilter{Geschlecht: "  "}, []string{"Adler, Test", "Berger, Test", "Claasen, Test", "Dietz, Test"}},
+		{"Ehemalige gehen mit dem Filter durch", service.Suchfilter{Geschlecht: "Frau", AuchEhemalige: true}, []string{"Adler, Test", "Claasen, Test", "Ernst, Test"}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			gefunden := suchen(t, svc, "", f.filter)
+			if !slices.Equal(gefunden, f.erwartet) {
+				t.Errorf("Search(%+v) = %v, erwartet %v", f.filter, gefunden, f.erwartet)
+			}
+		})
+	}
+
+	// Der Filter greift zusammen mit dem Suchbegriff.
+	if gefunden := suchen(t, svc, "berger", service.Suchfilter{Geschlecht: "Frau"}); len(gefunden) != 0 {
+		t.Errorf("Search(berger, Frau) = %v, erwartet kein Ergebnis", gefunden)
+	}
+}
+
+// Die Auswahl der Filterleiste kommt aus dem, was tatsächlich eingetragen ist:
+// wer im Formular etwas anderes als "Frau" oder "Mann" getippt hat, muss danach
+// auch filtern können.
+func TestGeschlechtswerte_LiefertDieVorkommendenWerteOhneDoppelte(t *testing.T) {
+	svc := neuerService(t)
+
+	if werte, err := svc.Geschlechtswerte(); err != nil || len(werte) != 0 {
+		t.Fatalf("Geschlechtswerte() ohne Mitglieder = %v, %v, erwartet leer", werte, err)
+	}
+
+	mitGeschlechtAnlegen(t, svc, "Adler", "Mann")
+	mitGeschlechtAnlegen(t, svc, "Berger", "Frau")
+	mitGeschlechtAnlegen(t, svc, "Claasen", " frau")
+	mitGeschlechtAnlegen(t, svc, "Dietz", "")
+	mitGeschlechtAnlegen(t, svc, "Ernst", "divers")
+
+	werte, err := svc.Geschlechtswerte()
+	if err != nil {
+		t.Fatalf("Geschlechtswerte: %v", err)
+	}
+
+	// Die erste Schreibweise gewinnt, geordnet wird alphabetisch.
+	if erwartet := []string{"divers", "Frau", "Mann"}; !slices.Equal(werte, erwartet) {
+		t.Errorf("Geschlechtswerte() = %v, erwartet %v", werte, erwartet)
+	}
+}
+
+// Der Trainingstermin-Filter fragt: wer ist für diesen Termin angemeldet? Das
+// ist eine andere Frage als die Frequenz und zählt deshalb auch archivierte
+// Termine — solange die Anmeldung besteht, gilt sie (ADR-0008).
+func TestSearch_FiltertNachTrainingstermin(t *testing.T) {
+	svc := neuerService(t)
+
+	montag, mittwoch, samstag := stundenplan(t, svc)
+
+	mitTerminenAnlegen(t, svc, "Adler", montag.ID, mittwoch.ID)
+	mitTerminenAnlegen(t, svc, "Berger", samstag.ID)
+	mitTerminenAnlegen(t, svc, "Claasen", montag.ID)
+	mitTerminenAnlegen(t, svc, "Dietz")
+	ehemalig := mitTerminenAnlegen(t, svc, "Ernst", montag.ID)
+	if err := svc.SetKuendigung(ehemalig, austrittZum(datum(t, "2026-06-30"))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+
+	faelle := []struct {
+		name     string
+		filter   service.Suchfilter
+		erwartet []string
+	}{
+		{"Montag", service.Suchfilter{Trainingstermin: montag.ID}, []string{"Adler, Test", "Claasen, Test"}},
+		{"Mittwoch", service.Suchfilter{Trainingstermin: mittwoch.ID}, []string{"Adler, Test"}},
+		{"Samstag", service.Suchfilter{Trainingstermin: samstag.ID}, []string{"Berger, Test"}},
+		{"Ehemalige gehen mit dem Filter durch", service.Suchfilter{Trainingstermin: montag.ID, AuchEhemalige: true}, []string{"Adler, Test", "Claasen, Test", "Ernst, Test"}},
+		{"Termin, den es nicht gibt", service.Suchfilter{Trainingstermin: 9999}, nil},
+		{"Nullwert grenzt nicht ein", service.Suchfilter{}, []string{"Adler, Test", "Berger, Test", "Claasen, Test", "Dietz, Test"}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			gefunden := suchen(t, svc, "", f.filter)
+			if !slices.Equal(gefunden, f.erwartet) {
+				t.Errorf("Search(%+v) = %v, erwartet %v", f.filter, gefunden, f.erwartet)
+			}
+		})
+	}
+
+	// Zusammen mit der Frequenz: Adler trainiert zweimal, Claasen einmal.
+	gefunden := suchen(t, svc, "", service.Suchfilter{Trainingstermin: montag.ID, Frequenz: service.FrequenzfilterZweimal})
+	if !slices.Equal(gefunden, []string{"Adler, Test"}) {
+		t.Errorf("Search(Montag, 2×) = %v, erwartet [Adler, Test]", gefunden)
+	}
+
+	// Ein archivierter Termin bleibt im Filter, solange jemand dafür angemeldet ist.
+	if err := svc.SetTrainingsterminArchiviert(samstag.ID, true); err != nil {
+		t.Fatalf("SetTrainingsterminArchiviert: %v", err)
+	}
+	gefunden = suchen(t, svc, "", service.Suchfilter{Trainingstermin: samstag.ID})
+	if !slices.Equal(gefunden, []string{"Berger, Test"}) {
+		t.Errorf("Search(archivierter Samstag) = %v, erwartet [Berger, Test]", gefunden)
+	}
+}

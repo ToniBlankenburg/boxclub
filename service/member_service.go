@@ -1356,6 +1356,15 @@ type Suchfilter struct {
 	// Frequenz grenzt auf eine Trainingsfrequenz ein. Sie ist abgeleitet und
 	// wird deshalb wie der Rückstand in Go ausgewertet, nicht in SQL.
 	Frequenz Frequenzfilter
+	// Geschlecht grenzt auf den eingetragenen Wert ein. Das Feld ist Freitext,
+	// deshalb wird der getippte Wert verglichen — ohne Groß-/Kleinschreibung
+	// und ohne umschließenden Leerraum. Leer grenzt nicht ein.
+	Geschlecht string
+	// Trainingstermin grenzt auf die Mitglieder ein, deren Mitgliedschaft für
+	// diesen Termin angemeldet ist; 0 grenzt nicht ein. Archivierte Termine
+	// zählen mit, solange die Anmeldung besteht (ADR-0008). Ein Termin, den es
+	// nicht gibt, trifft niemanden.
+	Trainingstermin int64
 	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf — also
 	// die, deren Austritt erreicht ist. Ein bevorstehender Austritt macht
 	// niemanden ehemalig; solche Zeilen stehen auch ohne dieses Kennzeichen da.
@@ -1444,7 +1453,7 @@ const eintraegeAbfrage = `
 		m.adresse, m.postleitzahl, m.ort,
 		m.google_bewertung, m.rueckstand, m.rueckstand_notiz,
 		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt,
-		ms.beitrag_monatlich_cents, ms.ruhend
+		ms.beitrag_monatlich_cents, ms.ruhend, m.geschlecht
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
@@ -1461,6 +1470,10 @@ const eintraegeAbfrage = `
 type suchzeile struct {
 	eintrag    Listeneintrag
 	suchfelder []string
+
+	// geschlecht steht nicht im Listeneintrag, aus demselben Grund wie E-Mail
+	// und Telefon: die Liste zeigt es nicht, der Filter braucht es trotzdem.
+	geschlecht string
 
 	// mitgliedschaftID ist der Zeitraum, aus dem die Zeile ihre Angaben bezieht.
 	// Er verlässt den Service nicht und dient allein dazu, die Trainingstermine
@@ -1479,7 +1492,30 @@ func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
 		return false
 	}
 
+	if !filter.trifftGeschlecht(z.geschlecht) {
+		return false
+	}
+
+	if filter.Trainingstermin != 0 && !z.eintrag.angemeldetFuer(filter.Trainingstermin) {
+		return false
+	}
+
 	return z.trifftBegriff(begriff)
+}
+
+// trifftGeschlecht entscheidet, ob der eingetragene Wert durch den
+// Geschlechtsfilter kommt.
+func (f Suchfilter) trifftGeschlecht(geschlecht string) bool {
+	gesucht := strings.TrimSpace(f.Geschlecht)
+
+	return gesucht == "" || strings.EqualFold(gesucht, strings.TrimSpace(geschlecht))
+}
+
+// angemeldetFuer sagt, ob die Zeile für den Trainingstermin angemeldet ist.
+func (e Listeneintrag) angemeldetFuer(terminID int64) bool {
+	return slices.ContainsFunc(e.Trainingstermine, func(t Trainingstermin) bool {
+		return t.ID == terminID
+	})
 }
 
 // trifftBegriff prüft den bereits klein geschriebenen Suchbegriff gegen die
@@ -1529,6 +1565,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 		var (
 			e                Listeneintrag
 			email, telefon   string
+			geschlecht       string
 			mitgliedschaftID int64
 			eintritt         string
 			kuendigungsdatum sql.NullString
@@ -1538,7 +1575,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.GoogleBewertung, &e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&mitgliedschaftID, &eintritt, &kuendigungsdatum, &austritt,
-			&e.BeitragCents, &e.Ruhend); err != nil {
+			&e.BeitragCents, &e.Ruhend, &geschlecht); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 
@@ -1560,6 +1597,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 				strings.ToLower(email),
 				strings.ToLower(telefon),
 			},
+			geschlecht:       geschlecht,
 			mitgliedschaftID: mitgliedschaftID,
 		})
 	}
@@ -1583,6 +1621,46 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 	}
 
 	return zeilen, nil
+}
+
+// Geschlechtswerte liefert die Geschlechtsangaben, die im Bestand vorkommen —
+// die Auswahl der Filterleiste. Das Feld ist Freitext (siehe
+// GeschlechtVorschlaege); wer im Formular etwas anderes als "Frau" oder "Mann"
+// getippt hat, soll danach auch filtern können, und eine feste Liste hätte für
+// ihn keinen Platz.
+//
+// Schreibweisen, die sich nur in Groß-/Kleinschreibung oder Leerraum
+// unterscheiden, sind derselbe Wert (wie im Filter selbst); es gewinnt die
+// zuerst gefundene. Geordnet wird nach deutschen Regeln wie bei den Namen.
+func (s *MemberService) Geschlechtswerte() ([]string, error) {
+	rows, err := s.db.Query(`SELECT geschlecht FROM mitglied WHERE TRIM(geschlecht) <> '' ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("geschlechtswerte lesen: %w", err)
+	}
+	defer rows.Close()
+
+	var werte []string
+	gesehen := map[string]bool{}
+	for rows.Next() {
+		var roh string
+		if err := rows.Scan(&roh); err != nil {
+			return nil, fmt.Errorf("geschlechtswert lesen: %w", err)
+		}
+
+		wert := strings.TrimSpace(roh)
+		if schluessel := strings.ToLower(wert); !gesehen[schluessel] {
+			gesehen[schluessel] = true
+			werte = append(werte, wert)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("geschlechtswerte lesen: %w", err)
+	}
+
+	sortierung := collate.New(language.German)
+	slices.SortFunc(werte, sortierung.CompareString)
+
+	return werte, nil
 }
 
 // SetRueckstand setzt Kennzeichen und Notiz eines Mitglieds in einem Zug —

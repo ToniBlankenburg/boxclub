@@ -112,6 +112,10 @@ function sortierfallbackPruefen(sichtbar) {
     if (rueckstand && rueckstand.value) parameter.set('rueckstand', rueckstand.value);
     const frequenz = document.getElementById('filter-frequenz');
     if (frequenz && frequenz.value) parameter.set('frequenz', frequenz.value);
+    const geschlecht = document.getElementById('filter-geschlecht');
+    if (geschlecht && geschlecht.value) parameter.set('geschlecht', geschlecht.value);
+    const termin = document.getElementById('filter-termin');
+    if (termin && termin.value) parameter.set('termin', termin.value);
     const ehemalige = document.getElementById('filter-ehemalige');
     if (ehemalige && ehemalige.checked) parameter.set('ehemalige', '1');
     // sort und richtung bleiben weg: der fehlende Wert ist bereits der

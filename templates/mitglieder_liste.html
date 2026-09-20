@@ -27,7 +27,7 @@
      Service, hier verlassen nur die Rohwerte das Formular. Die Daten sind
      listeDaten.
 
-     Alle Kontrollen — Suchfeld, beide Filter, Ehemalige-Kästchen,
+     Alle Kontrollen — Suchfeld, alle Filter, Ehemalige-Kästchen,
      Zurücksetzen, Spaltenmenü — sind Geschwister in derselben, einzigen
      Umbruch-Reihe; das Formular selbst steht daneben, leer und ohne eigene
      Box (kein "display:flex" o.ä.), und jedes Feld hängt per HTML-Attribut
@@ -59,7 +59,7 @@
            Sortierklick auch dann erhalten, wenn direkt danach gesucht oder
            gefiltert wird (Ticket 27). */}}
       hx-include="#mitglieder-ergebnis"
-      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-ehemalige">
+      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-ehemalige">
 </form>
 
 {{/* Achtung bei einem weiteren Feld hier: es braucht ein eigenes
@@ -85,6 +85,23 @@
     <select form="mitglieder-filter" id="filter-frequenz" name="frequenz" aria-label="Nach Trainingsfrequenz filtern"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Frequenzoptionen}}
+            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+        {{end}}
+    </select>
+
+    {{/* Geschlecht ist Freitext; die Auswahl zeigt, was im Bestand steht. */}}
+    <select form="mitglieder-filter" id="filter-geschlecht" name="geschlecht" aria-label="Nach Geschlecht filtern"
+            class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        {{range .Geschlechtsoptionen}}
+            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+        {{end}}
+    </select>
+
+    {{/* Nach einem Trainingstermin des Stundenplans: wer ist dafür angemeldet.
+         Eine andere Frage als die Frequenz, die nur zählt. */}}
+    <select form="mitglieder-filter" id="filter-termin" name="termin" aria-label="Nach Trainingstermin filtern"
+            class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        {{range .Terminoptionen}}
             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
         {{end}}
     </select>
@@ -219,7 +236,7 @@
         aria-label="Nach {{.Beschriftung}} sortieren{{if .Aktiv}} (aktuell {{if eq .AriaSort "ascending"}}aufsteigend{{else}}absteigend{{end}}){{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-ehemalige"
+        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-ehemalige"
         hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
     {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
 </button>
