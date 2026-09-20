@@ -120,26 +120,36 @@ type trainingstermineDaten struct {
 	Navigation      []navigationseintrag
 }
 
-// terminzeile ist ein Termin, wie die Liste ihn zeigt: der Termin selbst und
-// die Adresse, die ihn archiviert oder zurückholt.
+// terminzeile ist ein Termin, wie die Liste ihn zeigt: der Termin selbst, seine
+// Teilnehmer und die Adresse, die ihn archiviert oder zurückholt.
 //
 // Die Adresse entsteht hier und nicht im Template, weil in ihr zwei Dinge
 // zusammenkommen — der gewünschte neue Zustand und der Stand der Einblendung —
 // und die Fallunterscheidung in einem Attribut nicht mehr zu lesen wäre.
 type terminzeile struct {
 	service.Trainingstermin
+	Teilnehmer []service.Teilnehmer
 	ArchivPfad string
 }
 
-// terminzeilen ergänzt jeden Termin um seine Archiv-Adresse.
+// Anzahl ist die Zahl der Teilnehmer — dieselbe Auskunft wie
+// Teilnehmerliste.Anzahl, hier, weil die Zeile die Liste nicht mehr als Ganzes
+// trägt.
+func (z terminzeile) Anzahl() int {
+	return len(z.Teilnehmer)
+}
+
+// terminzeilen ergänzt jeden Termin um seine Teilnehmer und seine Archiv-Adresse.
 //
 // Mitgeschickt wird der *gewünschte* Zustand und nicht der aktuelle: so tut ein
 // Klick aus einer veralteten Ansicht nicht das Gegenteil — dasselbe Muster wie
 // beim Ruhend-Kennzeichen. Der Stand der Einblendung fährt mit, damit die
 // Antwort dieselbe Ansicht zeigt, aus der geklickt wurde.
-func terminzeilen(termine []service.Trainingstermin, auchArchivierte bool) []terminzeile {
-	zeilen := make([]terminzeile, 0, len(termine))
-	for _, t := range termine {
+func terminzeilen(listen []service.Teilnehmerliste, auchArchivierte bool) []terminzeile {
+	zeilen := make([]terminzeile, 0, len(listen))
+	for _, liste := range listen {
+		t := liste.Termin
+
 		werte := url.Values{}
 		if !t.Archiviert {
 			werte.Set(parameterArchivieren, "1")
@@ -153,7 +163,7 @@ func terminzeilen(termine []service.Trainingstermin, auchArchivierte bool) []ter
 			pfad += "?" + werte.Encode()
 		}
 
-		zeilen = append(zeilen, terminzeile{Trainingstermin: t, ArchivPfad: pfad})
+		zeilen = append(zeilen, terminzeile{Trainingstermin: t, Teilnehmer: liste.Teilnehmer, ArchivPfad: pfad})
 	}
 
 	return zeilen
@@ -206,14 +216,14 @@ func (a *App) trainingstermineListe(w http.ResponseWriter, r *http.Request) {
 
 // trainingstermineRendern ist die Rückkehr-Ansicht nach jeder Aktion.
 func (a *App) trainingstermineRendern(w http.ResponseWriter, auchArchivierte bool, m meldung) {
-	termine, err := a.svc.ListTrainingstermine(auchArchivierte)
+	listen, err := a.svc.Teilnehmerlisten(auchArchivierte)
 	if err != nil {
 		fehlerAntwort(w, err)
 		return
 	}
 
 	a.rendern(w, "trainingstermine", trainingstermineDaten{
-		Termine:         terminzeilen(termine, auchArchivierte),
+		Termine:         terminzeilen(listen, auchArchivierte),
 		AuchArchivierte: auchArchivierte,
 		Meldung:         m,
 		Navigation:      navigation(bereichTrainingstermine),

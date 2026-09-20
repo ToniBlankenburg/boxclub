@@ -8,6 +8,8 @@
      nicht und soll es nicht geben — er nähme jeder angemeldeten Mitgliedschaft
      still ihre Trainingsfrequenz.
 
+     Jeder Eintrag trägt seine Teilnehmerliste zum Aufklappen (Ticket 28).
+
      Die Daten sind trainingstermineDaten. */}}
 {{define "trainingstermine"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
@@ -74,6 +76,34 @@
                                         archiviert
                                     </span>
                                 {{end}}
+                                {{/* Die Teilnehmerliste (CONTEXT.md → Teilnehmerliste):
+                                     wer für den Termin angemeldet ist, nicht wer
+                                     da war. Aufgeklappt wird per <details>, ohne
+                                     Skript. Klick und Enter bleiben bei ihr, sonst
+                                     öffnete das Aufklappen das Formular des
+                                     Termins — wie beim Archivieren-Knopf. Auch ein
+                                     Termin ohne Teilnehmer klappt auf: dahinter
+                                     steht dann, dass niemand angemeldet ist. */}}
+                                <details class="mt-1 text-sm"
+                                         hx-on:click="event.stopPropagation()"
+                                         hx-on:keyup="event.stopPropagation()">
+                                    <summary class="cursor-pointer text-neutral-600 hover:text-neutral-900">
+                                        {{.Anzahl}} angemeldet
+                                    </summary>
+                                    {{if .Teilnehmer}}
+                                        <ul class="mt-1 ml-4 list-disc space-y-0.5">
+                                            {{range .Teilnehmer}}
+                                                <li>
+                                                    <a href="#" class="text-[var(--akzent-dunkel)] hover:underline focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                                       hx-get="/api/mitglied/{{.MitgliedID}}/formular"
+                                                       hx-target="#inhalt" hx-swap="innerHTML">{{.Vorname}} {{.Nachname}}</a>
+                                                </li>
+                                            {{end}}
+                                        </ul>
+                                    {{else}}
+                                        <p class="mt-1 ml-4 text-neutral-500">niemand angemeldet</p>
+                                    {{end}}
+                                </details>
                             </td>
                             <td class="px-4 py-2 text-right">
                                 {{/* Die Adresse trägt den gewünschten Zustand und

@@ -46,6 +46,14 @@ Ein Termin, den es nicht mehr gibt, wird **archiviert**: er verschwindet aus der
 
 **Nicht zu verwechseln mit:** der Trainingsfrequenz — das ist die Anzahl. _Vermeiden:_ Trainingseinheit; das klingt nach der einzelnen Stunde am einzelnen Tag.
 
+## Teilnehmerliste
+
+Die Mitglieder, die für einen Trainingstermin angemeldet sind — die Antwort auf „wer trainiert samstags um 10:30?". Sie wird **abgelesen, nicht geführt**: es gibt keine Liste, die jemand pflegt, sondern nur die Anmeldungen der Mitgliedschaften, nach Termin gelesen.
+
+Aufgenommen ist, wer **Neu**, **Aktiv** oder **In Kündigungsfrist** ist und dessen Mitgliedschaft **nicht ruhend** ist. Maßgeblich ist die Mitgliedschaft, die auch die Mitgliederliste zeigt; ein früherer Zeitraum mit denselben Terminen zählt nicht. Ein Ausgetretener steht nicht darin, seine Anmeldung bleibt nur Historie. Ein *Neuer* steht schon darin, obwohl er noch nicht trainiert — bewusst, weil er sich für den Termin verbindlich angemeldet hat. Die Liste zeigt nur die Namen, alphabetisch nach Nachname und Vorname, dazu die Anzahl je Termin; der Anzahl steht keine Obergrenze gegenüber (siehe [ADR-0008](docs/adr/0008-trainingstermine-als-wochenplan.md)).
+
+**Nicht zu verwechseln mit:** einer Anwesenheitsliste. Die Teilnehmerliste sagt, wer *angemeldet* ist, nie, wer an einem bestimmten Tag *da war* — das wäre Anwesenheit und ist aus v1 ausgeschlossen. _Vermeiden:_ Anwesenheitsliste, „wer da ist", Belegung; die beiden ersten behaupten Anwesenheit, das dritte eine Platzzahl.
+
 ## Trainingsslot
 
 **Abgelöst:** der wöchentliche Termin als Freitext an der Mitgliedschaft ("Samstag 10:30 Uhr"). An seine Stelle tritt der Verweis auf einen *Trainingstermin* aus dem Stundenplan; siehe [ADR-0008](docs/adr/0008-trainingstermine-als-wochenplan.md). _Vermeiden:_ Slot, auch im Sinne von „Platz" — eine Platzzahl je Termin führt der Verein nicht.
