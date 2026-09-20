@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ToniBlankenburg/boxclub/service"
 )
@@ -128,8 +131,29 @@ type trainingstermineDaten struct {
 // und die Fallunterscheidung in einem Attribut nicht mehr zu lesen wäre.
 type terminzeile struct {
 	service.Trainingstermin
-	Teilnehmer []service.Teilnehmer
+	Teilnehmer []teilnehmerchip
 	ArchivPfad string
+}
+
+// teilnehmerchip ist ein Teilnehmer, wie die Liste ihn zeigt: der Name und die
+// Initialen für das Kürzel davor. Die Initialen sind reine Darstellung und
+// stehen deshalb hier und nicht im Service.
+type teilnehmerchip struct {
+	service.Teilnehmer
+	Initialen string
+}
+
+// initialenAus bildet das Kürzel aus dem ersten Buchstaben von Vor- und
+// Nachname. Fehlt einer der beiden, bleibt der andere allein stehen.
+func initialenAus(vorname, nachname string) string {
+	var kuerzel []rune
+	for _, name := range []string{vorname, nachname} {
+		if erster, _ := utf8.DecodeRuneInString(strings.TrimSpace(name)); erster != utf8.RuneError {
+			kuerzel = append(kuerzel, unicode.ToUpper(erster))
+		}
+	}
+
+	return string(kuerzel)
 }
 
 // Anzahl ist die Zahl der Teilnehmer — dieselbe Auskunft wie
@@ -163,7 +187,15 @@ func terminzeilen(listen []service.Teilnehmerliste, auchArchivierte bool) []term
 			pfad += "?" + werte.Encode()
 		}
 
-		zeilen = append(zeilen, terminzeile{Trainingstermin: t, Teilnehmer: liste.Teilnehmer, ArchivPfad: pfad})
+		chips := make([]teilnehmerchip, 0, len(liste.Teilnehmer))
+		for _, teilnehmer := range liste.Teilnehmer {
+			chips = append(chips, teilnehmerchip{
+				Teilnehmer: teilnehmer,
+				Initialen:  initialenAus(teilnehmer.Vorname, teilnehmer.Nachname),
+			})
+		}
+
+		zeilen = append(zeilen, terminzeile{Trainingstermin: t, Teilnehmer: chips, ArchivPfad: pfad})
 	}
 
 	return zeilen

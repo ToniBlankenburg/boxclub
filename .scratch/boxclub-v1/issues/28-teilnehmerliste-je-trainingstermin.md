@@ -19,7 +19,7 @@ Status: ready-for-human
 - [x] Ein Termin ohne Teilnehmer zeigt "niemand angemeldet", ist aber genauso aufklappbar wie die anderen
 - [x] In der Liste steht **nur der Name** — kein Beitrag, kein Rückstand, kein Kennzeichen für neu/Kündigungsfrist. Der Name führt ins Mitglied (wie in der Mitgliederliste)
 - [x] Der Schalter "Archivierte anzeigen" gilt auch hier: archivierte Termine samt ihren Teilnehmern stehen nur bei gesetztem Schalter da. Ein Mitglied, das nur für einen archivierten Termin angemeldet ist, ist in der Standardansicht dort also nicht zu sehen
-- [x] Aufklappen ist eine reine Ansicht: das bisherige "Zeile anklicken = bearbeiten" und das Archivieren/Zurückholen bleiben erhalten und werden nicht verdeckt
+- [x] Ein Klick auf den Termin klappt die Teilnehmer auf (Tastatur: Enter/Leertaste). Bearbeiten und Archivieren/Zurückholen bleiben erreichbar, aber als eigene Schaltflächen: die Zeile öffnet das Formular nicht mehr, damit es niemand versehentlich öffnet
 - [x] Es gibt **keine** Möglichkeit, in der Liste etwas abzuhaken, zu notieren oder zu ändern, und **keinen** PDF- oder Druckweg (Bildschirm reicht für v1)
 - [x] Service-Tests (Muster: `service/member_service_test.go`, echte SQLite, kein Mocking) für: jeden Status (Neu / Aktiv / In Kündigungsfrist / Ausgetreten), ruhend, Wiedereintritt mit anderen Terminen im neuen Zeitraum, archivierten Termin mit bestehender Anmeldung, Termin ohne Teilnehmer, Sortierung, Anzahl
 - [ ] `go test ./...` grün; `wails dev` und `wails build` unter Windows und Linux — `go test ./...` grün, `go vet` sauber, für Windows und macOS cross-kompiliert; `wails dev`, `wails build` und ein Klicktest im WebView stehen aus
@@ -46,8 +46,13 @@ sie nicht liefert — es gibt bewusst keine zweite Statusregel daneben (ADR-0004
 und zurück, alle vier Status, Wiedereintritt, doppelter Termin in altem und neuem Zeitraum,
 Archiv-Schalter).
 
-**Oberfläche:** `terminzeile` trägt die Teilnehmer, `templates/trainingstermine.html` zeigt sie
-als `<details>` in der Terminzeile. Klick und Enter bleiben im Aufklappbereich
-(`stopPropagation`, wie beim Archivieren-Knopf), damit das Aufklappen nicht das Formular des
-Termins öffnet. Nach Archivieren oder Zurückholen wird `#inhalt` ersetzt; aufgeklappte Listen
-klappen dann zu. Nur gerendert und im Quelltext geprüft, nicht im WebView angeklickt.
+**Oberfläche:** `terminzeile` trägt die Teilnehmer (als `teilnehmerchip` mit Initialen, reine
+Darstellung im Adapter), `templates/trainingstermine.html` zeigt jeden Termin als `<details>`,
+dessen `<summary>` die ganze Zeile ist: ein Klick auf den Termin klappt die Teilnehmer auf, ohne
+Skript. Die Teilnehmer stehen als Chips mit Initialen-Kürzel, jeder führt ins Mitglied. Bearbeiten
+und Archivieren/Zurückholen sind zwei Schaltflächen, die rechts *über* der Zeile liegen statt in
+der `<summary>` — eine Schaltfläche darin bliebe nicht zuverlässig bei sich, und so öffnet ein
+Klick auf den Termin nie das Formular. Vorher öffnete ein Klick auf die Zeile das Formular; das
+ist bewusst abgeschafft. Nach Archivieren oder Zurückholen wird `#inhalt` ersetzt; aufgeklappte
+Listen klappen dann zu. Nur gerendert, im Quelltext und im gebauten CSS geprüft, nicht im WebView
+angeklickt.

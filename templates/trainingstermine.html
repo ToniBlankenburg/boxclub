@@ -3,12 +3,11 @@
      für sich existieren und nicht an einem Mitglied hängen.
 
      Die Liste steht in Wochenreihenfolge; sortiert hat sie der Service. Zu
-     jedem Eintrag gehören genau zwei Wege: bearbeiten (die ganze Zeile) und
-     archivieren bzw. zurückholen (die Schaltfläche). Einen Löschpfad gibt es
-     nicht und soll es nicht geben — er nähme jeder angemeldeten Mitgliedschaft
-     still ihre Trainingsfrequenz.
-
-     Jeder Eintrag trägt seine Teilnehmerliste zum Aufklappen (Ticket 28).
+     jedem Eintrag gehören genau zwei Wege, beide als Schaltfläche rechts in der
+     Zeile: bearbeiten und archivieren bzw. zurückholen. Ein Klick auf den
+     Termin selbst öffnet nie das Formular, sondern klappt die Teilnehmerliste
+     auf (Ticket 28). Einen Löschpfad gibt es nicht und soll es nicht geben —
+     er nähme jeder angemeldeten Mitgliedschaft still ihre Trainingsfrequenz.
 
      Die Daten sind trainingstermineDaten. */}}
 {{define "trainingstermine"}}
@@ -42,90 +41,98 @@
     </div>
 
     {{if .Termine}}
-        <p class="mb-2 text-sm text-neutral-500" role="status" aria-live="polite">
+        <p class="mb-3 text-sm text-neutral-500" role="status" aria-live="polite">
             {{len .Termine}} {{if eq (len .Termine) 1}}Termin{{else}}Termine{{end}}
         </p>
-        <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="border-b border-neutral-200 text-sm text-neutral-600">
-                        <th class="px-4 py-2 font-medium">Termin</th>
-                        <th class="px-4 py-2 text-right font-medium">Stundenplan</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range .Termine}}
-                        {{/* $ ist die Ansicht: die Zeile braucht daraus den Stand
-                             der Einblendung, damit eine Aktion in dieselbe
-                             Ansicht zurückführt. */}}
-                        <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)]"
-                            tabindex="0" title="Bearbeiten"
-                            aria-label="{{.Anzeige}} bearbeiten"
-                            hx-get="/api/trainingstermin/{{.ID}}/formular{{$.Anhaengsel}}"
-                            hx-target="#inhalt" hx-swap="innerHTML"
-                            hx-trigger="click, keyup[key=='Enter']">
+        {{/* Jeder Termin ist ein <details>, dessen <summary> die ganze Zeile
+             ist: ein Klick auf den Termin klappt die Teilnehmer auf, per
+             Tastatur Enter oder Leertaste — ohne Skript. Die beiden Knöpfe
+             liegen rechts über der Zeile statt in ihr, weil eine Schaltfläche
+             in einer <summary> nicht zuverlässig bei sich bleibt; so öffnet
+             ein Klick auf sie nie das Formular und ein Klick auf den Termin
+             nie die Aktion. Der Abstand rechts in der Zeile hält den Text aus
+             ihrem Bereich.
+
+             $ ist die Ansicht: die Knöpfe brauchen daraus den Stand der
+             Einblendung, damit eine Aktion in dieselbe Ansicht zurückführt. */}}
+        <ul class="divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+            {{range .Termine}}
+                <li class="relative">
+                    <details class="group">
+                        <summary class="flex min-h-16 cursor-pointer list-none items-center gap-4 py-4 pr-72 pl-6 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)] [&::-webkit-details-marker]:hidden">
+                            <svg class="size-5 shrink-0 text-neutral-400 transition-transform group-open:rotate-90"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="M9 6l6 6-6 6"/>
+                            </svg>
                             {{/* Die Schreibweise des Termins entsteht im Service
                                  (Trainingstermin.Anzeige), damit Stundenplan,
                                  Meldung und die spätere Auswahl an der
                                  Mitgliedschaft dieselbe zeigen. */}}
-                            <td class="px-4 py-2">
-                                <span {{if .Archiviert}}class="text-neutral-500"{{end}}>{{.Anzeige}}</span>
-                                {{if .Archiviert}}
-                                    <span class="ml-2 inline-flex items-center rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600"
-                                          title="Archiviert — nicht mehr im Stundenplan und in keiner Auswahl. Bestehende Anmeldungen bleiben bestehen.">
-                                        archiviert
-                                    </span>
-                                {{end}}
-                                {{/* Die Teilnehmerliste (CONTEXT.md → Teilnehmerliste):
-                                     wer für den Termin angemeldet ist, nicht wer
-                                     da war. Aufgeklappt wird per <details>, ohne
-                                     Skript. Klick und Enter bleiben bei ihr, sonst
-                                     öffnete das Aufklappen das Formular des
-                                     Termins — wie beim Archivieren-Knopf. Auch ein
-                                     Termin ohne Teilnehmer klappt auf: dahinter
-                                     steht dann, dass niemand angemeldet ist. */}}
-                                <details class="mt-1 text-sm"
-                                         hx-on:click="event.stopPropagation()"
-                                         hx-on:keyup="event.stopPropagation()">
-                                    <summary class="cursor-pointer text-neutral-600 hover:text-neutral-900">
-                                        {{.Anzahl}} angemeldet
-                                    </summary>
-                                    {{if .Teilnehmer}}
-                                        <ul class="mt-1 ml-4 list-disc space-y-0.5">
-                                            {{range .Teilnehmer}}
-                                                <li>
-                                                    <a href="#" class="text-[var(--akzent-dunkel)] hover:underline focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                                                       hx-get="/api/mitglied/{{.MitgliedID}}/formular"
-                                                       hx-target="#inhalt" hx-swap="innerHTML">{{.Vorname}} {{.Nachname}}</a>
-                                                </li>
-                                            {{end}}
-                                        </ul>
-                                    {{else}}
-                                        <p class="mt-1 ml-4 text-neutral-500">niemand angemeldet</p>
+                            <span class="{{if .Archiviert}}text-neutral-500{{end}}">{{.Anzeige}}</span>
+                            {{if .Archiviert}}
+                                <span class="inline-flex items-center rounded-full border border-neutral-300 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600"
+                                      title="Archiviert — nicht mehr im Stundenplan und in keiner Auswahl. Bestehende Anmeldungen bleiben bestehen.">
+                                    archiviert
+                                </span>
+                            {{end}}
+                            {{/* Die Anzahl (CONTEXT.md → Teilnehmerliste): wer für
+                                 den Termin angemeldet ist, nicht wer da war. Ohne
+                                 Obergrenze und ohne Warnung. */}}
+                            <span class="inline-flex items-center rounded-full bg-[var(--akzent-hell)] px-3 py-1 text-xs font-medium text-[var(--akzent-dunkel)]">
+                                {{.Anzahl}} angemeldet
+                            </span>
+                        </summary>
+
+                        <div class="border-t border-neutral-100 bg-neutral-50/60 py-5 pr-6 pl-15">
+                            {{if .Teilnehmer}}
+                                <ul class="flex flex-wrap gap-x-3 gap-y-3">
+                                    {{range .Teilnehmer}}
+                                        <li>
+                                            {{/* Der Name führt ins Mitglied. Die Initialen
+                                                 sind ein Kürzel zum Wiederfinden, kein
+                                                 Bild; vorgelesen werden sie nicht. */}}
+                                            <a href="#"
+                                               class="inline-flex items-center gap-3 rounded-full border border-neutral-200 bg-white py-1.5 pr-4 pl-1.5 text-sm text-neutral-800 hover:border-[var(--akzent)] hover:bg-[var(--akzent-hell)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                               hx-get="/api/mitglied/{{.MitgliedID}}/formular"
+                                               hx-target="#inhalt" hx-swap="innerHTML">
+                                                <span class="inline-flex size-7 items-center justify-center rounded-full bg-[var(--akzent-hell)] text-[0.65rem] font-semibold text-[var(--akzent-dunkel)]"
+                                                      aria-hidden="true">{{.Initialen}}</span>
+                                                {{.Vorname}} {{.Nachname}}
+                                            </a>
+                                        </li>
                                     {{end}}
-                                </details>
-                            </td>
-                            <td class="px-4 py-2 text-right">
-                                {{/* Die Adresse trägt den gewünschten Zustand und
-                                     den Stand der Einblendung; gebaut wird sie in
-                                     Go (terminzeilen). Ihr Ereignis hält die
-                                     Schaltfläche bei sich, sonst öffnete der Klick
-                                     das Formular. */}}
-                                <button type="button"
-                                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                                        aria-label="{{.Anzeige}} {{if .Archiviert}}wieder in den Stundenplan aufnehmen{{else}}archivieren{{end}}"
-                                        hx-post="{{.ArchivPfad}}"
-                                        hx-target="#inhalt" hx-swap="innerHTML"
-                                        hx-on:click="event.stopPropagation()"
-                                        hx-on:keyup="event.stopPropagation()">
-                                    {{if .Archiviert}}Zurückholen{{else}}Archivieren{{end}}
-                                </button>
-                            </td>
-                        </tr>
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
+                                </ul>
+                            {{else}}
+                                <p class="text-sm text-neutral-500">niemand angemeldet</p>
+                            {{end}}
+                        </div>
+                    </details>
+
+                    <div class="absolute top-0 right-6 flex h-16 items-center gap-3">
+                        {{/* Bearbeiten öffnet das Formular des Termins; der Stand
+                             der Einblendung fährt mit, damit Speichern und
+                             Abbrechen in dieselbe Ansicht zurückführen. */}}
+                        <button type="button"
+                                class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                aria-label="{{.Anzeige}} bearbeiten"
+                                hx-get="/api/trainingstermin/{{.ID}}/formular{{$.Anhaengsel}}"
+                                hx-target="#inhalt" hx-swap="innerHTML">
+                            Bearbeiten
+                        </button>
+                        {{/* Die Adresse trägt den gewünschten Zustand und den
+                             Stand der Einblendung; gebaut wird sie in Go
+                             (terminzeilen). */}}
+                        <button type="button"
+                                class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                aria-label="{{.Anzeige}} {{if .Archiviert}}wieder in den Stundenplan aufnehmen{{else}}archivieren{{end}}"
+                                hx-post="{{.ArchivPfad}}"
+                                hx-target="#inhalt" hx-swap="innerHTML">
+                            {{if .Archiviert}}Zurückholen{{else}}Archivieren{{end}}
+                        </button>
+                    </div>
+                </li>
+            {{end}}
+        </ul>
     {{else}}
         <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500"
            role="status" aria-live="polite">
