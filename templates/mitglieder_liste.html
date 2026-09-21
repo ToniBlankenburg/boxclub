@@ -222,41 +222,55 @@
     <p class="mb-2 text-sm text-neutral-500" role="status" aria-live="polite">
         {{len .Eintraege}} {{if eq (len .Eintraege) 1}}Mitglied{{else}}Mitglieder{{end}}
     </p>
-    <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-        <table class="w-full text-left">
+    <div class="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+        <table class="w-full table-fixed text-left">
             <thead>
                 <tr class="border-b border-neutral-200 text-sm text-neutral-600">
                     {{/* Die Mitglieds-ID steht als eigene, schmale Spalte vor dem
-                         Namen. Sie ist dreistellig und kostet mit w-px nur ihre
-                         eigene Breite — die sieben bestehenden Spalten verlieren
-                         dadurch nichts. Über dem Namen in dessen Zelle wäre sie
-                         zwar noch sparsamer, aber dann keine Spalte mehr: die
-                         Nummern stünden untereinander verschieden weit eingerückt
-                         und ließen sich beim Durchsehen nicht mehr an der Kante
-                         entlang vergleichen. Genau das ist ihr Zweck, solange der
-                         Verein beide Systeme nebeneinander führt.
+                         Namen. Sie ist dreistellig und bekommt eine kleine feste
+                         Breite (table-fixed wächst Spalten nicht mehr am Inhalt,
+                         anders als das frühere w-px unter Auto-Layout) — die
+                         sieben bestehenden Spalten verlieren dadurch nichts. Über
+                         dem Namen in dessen Zelle wäre sie zwar noch sparsamer,
+                         aber dann keine Spalte mehr: die Nummern stünden
+                         untereinander verschieden weit eingerückt und ließen sich
+                         beim Durchsehen nicht mehr an der Kante entlang
+                         vergleichen. Genau das ist ihr Zweck, solange der Verein
+                         beide Systeme nebeneinander führt.
 
                          Jede Kopfzelle sortiert per Klick (Ticket 27); Nr. und
                          Name tragen dafür kein data-col, weil sie sich nicht
                          ausblenden lassen (siehe spaltenAusblendbar in app.go)
                          — die übrigen sechs schon, main.js blendet ihre Zellen
-                         anhand dieses Attributs aus. */}}
-                    <th class="w-px px-4 py-2 font-medium" title="Mitglieds-ID"
+                         anhand dieses Attributs aus.
+
+                         Aus demselben Grund lassen sich nur diese sechs auch in
+                         der Breite ziehen (spaltenbreite.js): Nr. und Name
+                         identifizieren die Zeile und bleiben deshalb fest — Nr.
+                         auf ihrer schmalen Breite, Name ohne eigene Breitenangabe,
+                         damit sie unter table-fixed den ganzen verbleibenden Platz
+                         übernimmt, wie zuvor unter Auto-Layout. Der Ziehgriff sitzt
+                         als eigenes Element am rechten Rand der Kopfzelle, damit er
+                         die Klickfläche der Sortierung daneben nicht stört; seine
+                         Spalte identifiziert data-resize-griff über dieselbe
+                         data-col-Kennung. Die gezogene Breite lebt wie die
+                         Spaltenwahl nur in localStorage (main.js oben), nie in Go. */}}
+                    <th class="w-16 px-4 py-2 font-medium" title="Mitglieds-ID"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
                     <th class="px-4 py-2 font-medium"
                         aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}</th>
-                    <th class="px-4 py-2 font-medium" data-col="status"
-                        aria-sort="{{.SpaltenkopfStatus.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfStatus}}</th>
-                    <th class="px-4 py-2 font-medium" data-col="anschrift"
-                        aria-sort="{{.SpaltenkopfAnschrift.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfAnschrift}}</th>
-                    <th class="px-4 py-2 font-medium" data-col="training"
-                        aria-sort="{{.SpaltenkopfTraining.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfTraining}}</th>
-                    <th class="px-4 py-2 text-right font-medium" data-col="beitrag"
-                        aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfBeitrag}}</th>
-                    <th class="px-4 py-2 font-medium" data-col="rueckstand"
-                        aria-sort="{{.SpaltenkopfRueckstand.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfRueckstand}}</th>
-                    <th class="px-4 py-2 font-medium" data-col="eintritt"
-                        aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfEintritt}}</th>
+                    <th class="relative w-36 px-4 py-2 font-medium" data-col="status"
+                        aria-sort="{{.SpaltenkopfStatus.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfStatus}}{{template "spaltengriff" "status"}}</th>
+                    <th class="relative w-56 px-4 py-2 font-medium" data-col="anschrift"
+                        aria-sort="{{.SpaltenkopfAnschrift.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfAnschrift}}{{template "spaltengriff" "anschrift"}}</th>
+                    <th class="relative w-48 px-4 py-2 font-medium" data-col="training"
+                        aria-sort="{{.SpaltenkopfTraining.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfTraining}}{{template "spaltengriff" "training"}}</th>
+                    <th class="relative w-24 px-4 py-2 text-right font-medium" data-col="beitrag"
+                        aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfBeitrag}}{{template "spaltengriff" "beitrag"}}</th>
+                    <th class="relative w-48 px-4 py-2 font-medium" data-col="rueckstand"
+                        aria-sort="{{.SpaltenkopfRueckstand.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfRueckstand}}{{template "spaltengriff" "rueckstand"}}</th>
+                    <th class="relative w-56 px-4 py-2 font-medium" data-col="eintritt"
+                        aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfEintritt}}{{template "spaltengriff" "eintritt"}}</th>
                 </tr>
             </thead>
             <tbody>
@@ -304,6 +318,15 @@
      holt nur das Ergebnis neu, wie Suche und Filter es auch tun (ADR-0004),
      und nimmt Suchbegriff und Filter über hx-include mit — sie leben in der
      Filterleiste außerhalb dieser Zelle. Die Daten sind ein app.spaltenkopf. */}}
+{{/* spaltengriff rendert den Ziehgriff am rechten Rand einer Kopfzelle, mit
+     dem sich ihre Spalte in der Breite ziehen lässt (spaltenbreite.js) — siehe
+     die Begründung bei der Mitglieds-ID oben. Die Daten sind die data-col-
+     Kennung der Spalte als einfache Zeichenkette. */}}
+{{define "spaltengriff"}}
+<span class="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none hover:bg-[var(--akzent-ring-40)]"
+      data-resize-griff data-resize-spalte="{{.}}" aria-hidden="true"></span>
+{{end}}
+
 {{define "spaltenkopf"}}
 <button type="button"
         class="inline-flex items-center gap-1 hover:text-neutral-900 focus:underline focus:outline-none"
