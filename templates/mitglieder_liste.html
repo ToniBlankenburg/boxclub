@@ -244,17 +244,23 @@
                          — die übrigen sechs schon, main.js blendet ihre Zellen
                          anhand dieses Attributs aus.
 
-                         Aus demselben Grund lassen sich nur diese sechs auch in
-                         der Breite ziehen (spaltenbreite.js): Nr. und Name
-                         identifizieren die Zeile und bleiben deshalb fest — Nr.
-                         auf ihrer schmalen Breite, Name ohne eigene Breitenangabe,
-                         damit sie unter table-fixed den ganzen verbleibenden Platz
-                         übernimmt, wie zuvor unter Auto-Layout. Der Ziehgriff sitzt
-                         als eigenes Element am rechten Rand der Kopfzelle, damit er
-                         die Klickfläche der Sortierung daneben nicht stört; seine
-                         Spalte identifiziert data-resize-griff über dieselbe
-                         data-col-Kennung. Die gezogene Breite lebt wie die
-                         Spaltenwahl nur in localStorage (main.js oben), nie in Go.
+                         Ausblenden lässt sich davon nur die sechs mit data-col
+                         in main.js' spaltenAusblendbar (Ticket 27) — Nr. und
+                         Name identifizieren die Zeile und bleiben deshalb immer
+                         sichtbar, obwohl Name unten ebenfalls ein data-col trägt
+                         (für spaltenAnwenden zählt nur die Mitgliedschaft in
+                         jener Liste, nicht das bloße Vorhandensein des
+                         Attributs). In der Breite ziehen lassen sich dagegen
+                         alle sieben außer Nr.: Name ohne eigene feste
+                         Breitenangabe, damit sie unter table-fixed den ganzen
+                         verbleibenden Platz übernimmt, wie zuvor unter
+                         Auto-Layout, solange niemand sie gezogen hat. Der
+                         Ziehgriff sitzt als eigenes Element am rechten Rand der
+                         Kopfzelle, damit er die Klickfläche der Sortierung
+                         daneben nicht stört; seine Spalte identifiziert
+                         data-resize-griff über dieselbe data-col-Kennung. Die
+                         gezogene Breite lebt wie die Spaltenwahl nur in
+                         localStorage (main.js oben), nie in Go.
 
                          w-max statt w-full auf der Tabelle: schon die sechs
                          festen Breiten allein (ohne jedes Ziehen) füllen das
@@ -272,8 +278,8 @@
                          statt einer stillen Überlappung. */}}
                     <th class="w-16 px-4 py-2 font-medium" title="Mitglieds-ID"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
-                    <th class="min-w-[7rem] px-4 py-2 font-medium"
-                        aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}</th>
+                    <th class="relative min-w-[7rem] px-4 py-2 font-medium" data-col="name"
+                        aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}{{template "spaltengriff" "name"}}</th>
                     <th class="relative w-36 px-4 py-2 font-medium" data-col="status"
                         aria-sort="{{.SpaltenkopfStatus.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfStatus}}{{template "spaltengriff" "status"}}</th>
                     <th class="relative w-56 px-4 py-2 font-medium" data-col="anschrift"
@@ -338,8 +344,14 @@
      die Begründung bei der Mitglieds-ID oben. Die Daten sind die data-col-
      Kennung der Spalte als einfache Zeichenkette. */}}
 {{define "spaltengriff"}}
-<span class="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none select-none hover:bg-[var(--akzent-ring-40)]"
-      data-resize-griff data-resize-spalte="{{.}}" aria-hidden="true"></span>
+{{/* Der breite Bereich (w-2) ist die Trefferfläche für die Maus; sichtbar ist
+     davon nur die schmale Linie darin (w-px) — ohne sie war der Griff nur am
+     Hover-Cursor zu erraten, mit ihr markiert eine dünne, dauerhaft sichtbare
+     Spaltengrenze, wo gezogen werden kann, und wird bei Hover kräftiger. */}}
+<span class="group absolute inset-y-0 -right-1 z-10 flex w-2 cursor-col-resize touch-none select-none justify-center"
+      data-resize-griff data-resize-spalte="{{.}}" aria-hidden="true">
+    <span class="h-full w-px bg-neutral-300 group-hover:w-0.5 group-hover:bg-[var(--akzent)]"></span>
+</span>
 {{end}}
 
 {{define "spaltenkopf"}}
