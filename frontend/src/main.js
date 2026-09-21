@@ -14,6 +14,13 @@
 // Die zweite ist das "Alle auswählen"-Kästchen der Serienmail-Spalte: es
 // setzt nur andere Kästchen im DOM und hat mit dem Server nichts zu tun,
 // anders als die Auswahl selbst, die als Formularwert über hx-include mitfährt.
+//
+// Die dritte ist der mailto-Link der Serienmail selbst (siehe unten): ein
+// gewöhnlicher <a href="mailto:..."> lässt das WebView versuchen, sich selbst
+// dorthin zu navigieren — es kann das Schema nicht darstellen, und die ganze
+// Ansicht wird schwarz. Wails' Laufzeit-Funktion BrowserOpenURL reicht die
+// Adresse stattdessen an das Betriebssystem weiter, wie ein Klick in einem
+// gewöhnlichen Browser das täte.
 import 'htmx.org';
 import './style.css';
 import './registerkarten.js';
@@ -186,4 +193,19 @@ document.body.addEventListener('change', (ereignis) => {
     document.querySelectorAll('[name="mitglied_id"]').forEach((kasten) => {
         kasten.checked = ereignis.target.checked;
     });
+});
+
+// Der "Mail-Programm öffnen"-Knopf der Serienmail (serienmail.html) ist ein
+// mailto-Link — abgefangen und an BrowserOpenURL gereicht statt das WebView
+// selbst navigieren zu lassen (siehe die Begründung oben). window.runtime
+// steht in jedem Wails-Fenster zur Verfügung, unabhängig von den eigenen
+// Go-Bindings, die diese App sonst nicht nutzt (ADR-0002).
+document.body.addEventListener('click', (ereignis) => {
+    const link = ereignis.target.closest('a[href^="mailto:"]');
+    if (!link) {
+        return;
+    }
+
+    ereignis.preventDefault();
+    window.runtime.BrowserOpenURL(link.href);
 });
