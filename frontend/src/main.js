@@ -83,6 +83,15 @@ function spaltenAnwenden() {
         kasten.checked = sichtbar.includes(kasten.value);
     });
 
+    // Der Zähler neben "Spalten" (ADR-0015) zeigt, wie viele der sechs
+    // ausblendbaren Spalten gerade versteckt sind — Go kennt diesen Wert nie,
+    // er lebt ausschließlich hier.
+    const versteckt = spaltenAusblendbar.length - sichtbar.length;
+    document.querySelectorAll('[data-spalten-badge]').forEach((badge) => {
+        badge.textContent = versteckt;
+        badge.hidden = versteckt === 0;
+    });
+
     sortierfallbackPruefen(sichtbar);
 }
 
@@ -144,5 +153,16 @@ document.body.addEventListener('change', (ereignis) => {
         return !kasten || kasten.checked;
     });
     sichtbareSpaltenSchreiben(sichtbar);
+    spaltenAnwenden();
+});
+
+// "Alle anzeigen" im Spaltenmenü setzt alle sechs Kästchen auf einmal zurück
+// statt jedes einzeln (ADR-0015).
+document.body.addEventListener('click', (ereignis) => {
+    if (!ereignis.target.closest('[data-spalten-alle-anzeigen]')) {
+        return;
+    }
+
+    sichtbareSpaltenSchreiben(spaltenAusblendbar.slice());
     spaltenAnwenden();
 });

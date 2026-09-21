@@ -1,6 +1,6 @@
 # ADR-0014: Werkzeugleisten zweizeilig mit Icon-Aktionen
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0015](0015-mitglieder-filterleiste-ausklappbares-filterpanel.md)
 **Datum:** 2026-09-21
 
 ## Kontext

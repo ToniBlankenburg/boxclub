@@ -27,11 +27,11 @@
      Service, hier verlassen nur die Rohwerte das Formular. Die Daten sind
      listeDaten.
 
-     Zwei Zeilen (ADR-0014): oben Suche und Aktionen (Zurücksetzen, Spalten),
-     darunter die Filter. Jede Zeile bricht für sich um — das hält den Umbruch
-     vorhersehbar, anders als zuvor in einer einzigen gemeinsamen Reihe, in der
-     Suche, Filter und Aktionen bei schmalem Fenster ununterscheidbar
-     durcheinander umbrachen.
+     Eine Zeile mit Suche und Aktionen, darunter ein Filterpanel, das nur
+     aufklappt, wenn tatsächlich gefiltert wird oder jemand es öffnet
+     (ADR-0015; löst ADR-0014 ab). Suche, Zurücksetzen und Spalten teilen
+     sich die ruhige obere Zeile; die vier Filter treten erst hervor, wenn
+     sie gebraucht werden, statt dauerhaft mitzulaufen.
 
      Alle Kontrollen, die den Server befragen — Suchfeld, alle Filter,
      Ehemalige-Kästchen — sind Geschwister, nicht Kinder des Formulars: das
@@ -78,12 +78,35 @@
            aria-label="Mitglieder durchsuchen"
            class="min-w-56 max-w-md flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
-    {{/* Zurücksetzen und Spalten sind Icon-Buttons rechts von der Suche
-         (ADR-0014): Zurücksetzen holt die Suche des Formulars nicht mit,
-         sondern die ganze Ansicht in den Standard zurück; Spalten löst
-         ohnehin keinen Server-Aufruf aus (siehe main.js). Beide bleiben
-         deshalb außerhalb des Formulars. */}}
+    {{/* Filter, Zurücksetzen und Spalten sind Icon-Buttons rechts von der
+         Suche (ADR-0015). Filter klappt das Panel darunter auf und zu —
+         kein <details>, dessen Inhaltsbox hinge sonst im selben Flex-Kind
+         wie die Suche und bräche dort ein zweites Mal um (siehe die lange
+         Begründung bei "mitglieder-filterleiste" oben); ein reines
+         Kästchen-Umschalten per hx-on:click umgeht das. Zurücksetzen holt
+         die Suche des Formulars nicht mit, sondern die ganze Ansicht in den
+         Standard zurück; Spalten löst ohnehin keinen Server-Aufruf aus
+         (siehe main.js). Alle drei bleiben deshalb außerhalb des Formulars. */}}
     <div class="flex shrink-0 items-center gap-2">
+        {{/* aria-expanded folgt dem tatsächlichen Anfangszustand des Panels
+             darunter (siehe dort): steht es schon offen, weil ein Filter
+             aktiv ist, soll der Button das nicht als "false" behaupten.
+             main.js' hx-on:click hält den Wert danach synchron. */}}
+        <button type="button" aria-expanded="{{if .AktiveFilterAnzahl}}true{{else}}false{{end}}" aria-controls="mitglieder-filterpanel"
+                class="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                hx-on:click="const p=document.getElementById('mitglieder-filterpanel'); const auf=p.classList.toggle('hidden'); this.setAttribute('aria-expanded', String(!auf))">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/>
+            </svg>
+            Filter
+            {{/* id="filter-badge": das /api/mitglieder/ergebnis-Fragment tauscht
+                 nur #mitglieder-ergebnis, nie diese Leiste — der aktuelle Wert
+                 kommt deshalb per hx-swap-oob mit (siehe "filter-badge-oob"
+                 unten und mitgliederErgebnis in app.go). */}}
+            <span id="filter-badge" {{if not .AktiveFilterAnzahl}}hidden{{end}}
+                  class="{{template "zaehler-badge-klasse"}}">{{.AktiveFilterAnzahl}}</span>
+        </button>
+
         <button type="button" title="Zurücksetzen" aria-label="Suche und Filter zurücksetzen"
                 class="rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
@@ -97,15 +120,24 @@
              und nie durch Go läuft (Ticket 27). Ein Kästchen darin löst
              keinen Server-Aufruf aus, das erledigt main.js. Name und Nr.
              stehen nicht zur Wahl — sie identifizieren die Zeile und bleiben
-             immer sichtbar. */}}
+             immer sichtbar. Der Zähler daneben lebt ebenfalls allein in
+             localStorage: die Badge steht hier serverseitig auf 0 und
+             verborgen, main.js zieht Text und Sichtbarkeit sofort nach
+             jedem Laden nach (spaltenAnwenden). */}}
         <details class="relative">
-            <summary title="Spalten" aria-label="Sichtbare Spalten wählen"
-                     class="cursor-pointer list-none rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+            <summary aria-label="Sichtbare Spalten wählen"
+                     class="flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M4 4v16"/><path d="M12 4v16"/><path d="M20 4v16"/>
                 </svg>
+                Spalten
+                <span data-spalten-badge hidden class="{{template "zaehler-badge-klasse"}}">0</span>
             </summary>
             <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                <button type="button" data-spalten-alle-anzeigen
+                        class="mb-1 w-full rounded px-2 py-1.5 text-left text-sm font-medium text-[var(--akzent)] hover:bg-neutral-50">
+                    Alle anzeigen
+                </button>
                 {{range .AusblendbareSpalten}}
                     <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
                         {{/* Checked ist hier nur der Anfangszustand vor dem ersten
@@ -120,7 +152,10 @@
     </div>
 </div>
 
-<div class="mb-4 flex flex-wrap items-center gap-2">
+{{/* Aufgeklappt beim ersten Rendern, sobald schon gefiltert ist (z.B. nach
+     einer Rückkehr aus dem Formular) — sonst verschwände ein aktiver Filter
+     scheinbar spurlos hinter einem geschlossenen Panel. */}}
+<div id="mitglieder-filterpanel" class="{{if not .AktiveFilterAnzahl}}hidden {{end}}mb-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-2">
     <select form="mitglieder-filter" id="filter-rueckstand" name="rueckstand" aria-label="Nach Rückstand filtern"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Rueckstandsoptionen}}
@@ -164,6 +199,12 @@
     </label>
 </div>
 {{end}}
+
+{{/* zaehler-badge-klasse ist die gemeinsame Optik der kleinen Zähler-Kreise
+     an "Filter" und "Spalten" — einmal notiert, an beiden Stellen
+     eingesetzt, damit eine spätere Anpassung nicht eine der beiden
+     vergisst. */}}
+{{define "zaehler-badge-klasse"}}inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--akzent)] px-1 text-[10px] font-semibold text-white{{end}}
 
 {{/* mitglieder-ergebnis ist der Teil, den Suche und Filter austauschen. Die
      Daten sind listeDaten. */}}
@@ -236,6 +277,27 @@
     </p>
 {{end}}
 {{end}}
+
+{{/* filter-badge-oob aktualisiert den Zähler am "Filter"-Button außerhalb
+     von #mitglieder-ergebnis, wenn nur dieses Fragment getauscht wird —
+     genau das Muster, das navigation.html für die Bereichsumschaltung
+     nutzt: hx-swap-oob="true" auf einem Element mit passender ID, als
+     direktes Geschwister im Antworttext (sonst erkennt htmx den Austausch
+     nicht, siehe dort). Eingesetzt wird sie ausschließlich über
+     "mitglieder-ergebnis-mit-filterbadge" unten — "mitglieder-ergebnis"
+     selbst bleibt unverändert, weil es auch beim vollständigen Rendern der
+     ganzen Ansicht läuft, wo der Zähler ohnehin frisch aus der
+     Filterleiste kommt. Die Daten sind listeDaten. */}}
+{{define "filter-badge-oob"}}
+<span id="filter-badge" hx-swap-oob="true" {{if not .AktiveFilterAnzahl}}hidden{{end}}
+      class="{{template "zaehler-badge-klasse"}}">{{.AktiveFilterAnzahl}}</span>
+{{end}}
+
+{{/* mitglieder-ergebnis-mit-filterbadge ist die Antwort auf
+     /api/mitglieder/ergebnis (siehe mitgliederErgebnis in app.go): das
+     Ergebnis-Fragment plus die Out-of-Band-Aktualisierung des
+     Filter-Zählers, als flache Geschwister im selben Antworttext. */}}
+{{define "mitglieder-ergebnis-mit-filterbadge"}}{{template "mitglieder-ergebnis" .}}{{template "filter-badge-oob" .}}{{end}}
 
 {{/* spaltenkopf rendert die klickbare Kopfzeile einer sortierbaren Spalte:
      Beschriftung plus Pfeil, wenn sie gerade die Sortierspalte ist. Der Klick

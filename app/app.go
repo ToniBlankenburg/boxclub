@@ -483,6 +483,29 @@ type listeDaten struct {
 	Termine          []service.Trainingstermin
 }
 
+// AktiveFilterAnzahl zählt die vom Standard abweichenden Filter — für die
+// Badge am Filter-Button (ADR-0015) und um das Filterpanel beim Rendern
+// offen zu lassen, wenn schon eingegrenzt ist.
+func (d listeDaten) AktiveFilterAnzahl() int {
+	n := 0
+	if d.Suche.Rueckstand != rueckstandAlle {
+		n++
+	}
+	if d.Suche.Frequenz != frequenzAlle {
+		n++
+	}
+	if d.Suche.Geschlecht != geschlechtAlle {
+		n++
+	}
+	if d.Suche.Termin != terminAlle {
+		n++
+	}
+	if d.Suche.Ehemalige {
+		n++
+	}
+	return n
+}
+
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
 // sich dann anders: "nichts gefunden" statt "noch nichts erfasst".
 //
@@ -632,7 +655,7 @@ func (a *App) mitgliederErgebnis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.rendern(w, "mitglieder-ergebnis", daten)
+	a.rendern(w, "mitglieder-ergebnis-mit-filterbadge", daten)
 }
 
 // listeRendern ist die Rückkehr-Ansicht nach jeder Aktion: htmx tauscht das
