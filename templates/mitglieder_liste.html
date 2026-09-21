@@ -223,7 +223,7 @@
         {{len .Eintraege}} {{if eq (len .Eintraege) 1}}Mitglied{{else}}Mitglieder{{end}}
     </p>
     <div class="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
-        <table class="w-full table-fixed text-left">
+        <table class="w-max min-w-full table-fixed text-left">
             <thead>
                 <tr class="border-b border-neutral-200 text-sm text-neutral-600">
                     {{/* Die Mitglieds-ID steht als eigene, schmale Spalte vor dem
@@ -254,10 +254,25 @@
                          die Klickfläche der Sortierung daneben nicht stört; seine
                          Spalte identifiziert data-resize-griff über dieselbe
                          data-col-Kennung. Die gezogene Breite lebt wie die
-                         Spaltenwahl nur in localStorage (main.js oben), nie in Go. */}}
+                         Spaltenwahl nur in localStorage (main.js oben), nie in Go.
+
+                         w-max statt w-full auf der Tabelle: schon die sechs
+                         festen Breiten allein (ohne jedes Ziehen) füllen das
+                         Standardfenster der App (1024px) mehr als aus. Unter
+                         w-full hätte table-fixed den Fehlbetrag komplett auf
+                         Name abgewälzt — die einzige Spalte ohne eigene
+                         Breite kollabiert dabei bis auf 0 und überlappt
+                         Status, denn table-fixed verteilt einen negativen
+                         Rest über seine Spaltenbreiten-Formel, nicht über die
+                         normale Mindestgröße einer Box (min-w-[7rem] unten
+                         griffe deshalb ins Leere). Mit w-max behält jede
+                         Spalte immer genau ihre gesetzte Breite, die Tabelle
+                         wächst bei Bedarf über ihren Rahmen hinaus, und
+                         overflow-x-auto oben macht daraus einen Scrollbalken
+                         statt einer stillen Überlappung. */}}
                     <th class="w-16 px-4 py-2 font-medium" title="Mitglieds-ID"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
-                    <th class="px-4 py-2 font-medium"
+                    <th class="min-w-[7rem] px-4 py-2 font-medium"
                         aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}</th>
                     <th class="relative w-36 px-4 py-2 font-medium" data-col="status"
                         aria-sort="{{.SpaltenkopfStatus.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfStatus}}{{template "spaltengriff" "status"}}</th>

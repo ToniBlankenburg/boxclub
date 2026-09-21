@@ -37,8 +37,12 @@ func main() {
 	}
 
 	err = wails.Run(&options.App{
-		Title:  "Mitgliederverwaltung",
-		Width:  1024,
+		Title: "Mitgliederverwaltung",
+		// 1360 statt zuvor 1024: die Mitgliederliste hat acht Spalten fester
+		// Breite (mitglieder_liste.html) und braucht das, um ohne horizontales
+		// Scrollen ins Standardfenster zu passen — bei 1024px reichte selbst
+		// die unberührte Breite nicht, Name lief auf 0px zusammen.
+		Width:  1360,
 		Height: 768,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

@@ -57,49 +57,10 @@ function breitenAnwenden() {
 
 document.body.addEventListener('htmx:afterSwap', breitenAnwenden);
 
-// mindestbreite verhindert, dass eine Spalte auf einen Bruchteil ihres
-// Inhalts schrumpft — Kennzeichen und Schaltflächen darin bräuchten sonst
-// mehr Platz, als die Spalte noch hätte. Sie gilt auch für Name (siehe
-// maximaleBreite): die Tabelle steht unter table-fixed auf w-full, und die
-// sechs gezogenen Spalten behalten dabei immer genau ihre gesetzte Breite —
-// bei zu wenig Platz geht der ganze Fehlbetrag sonst auf die einzige Spalte
-// ohne eigene Breite, Name, die dabei bis auf 0 kollabieren kann (in Chromium
-// beobachtet; CSS min-width auf der th greift dort nicht, weil table-fixed
-// den Fehlbetrag über die Spaltenbreiten-Formel verteilt statt über die
-// normale Box-Größenberechnung).
-const mindestbreite = 60;
-
 // ziehend hält den Zustand eines laufenden Ziehvorgangs — außerhalb jeder
 // Funktion, weil pointerdown, pointermove und pointerup drei getrennte
 // Ereignisse sind, die sich denselben Zustand teilen müssen.
 let ziehend = null;
-
-// andereSpalten liefert die Summe der Breiten aller Kopfzellen einer Zeile
-// außer der übergebenen und außer Name (deren Platz maximaleBreite reserviert)
-// — Nr. zählt mit, weil sie wie die sechs gezogenen Spalten der Tabelle ihre
-// Breite entzieht, nur eben fest statt gezogen.
-function andereSpalten(kopf) {
-    const zeile = kopf.closest('tr');
-    let summe = 0;
-    for (const zelle of zeile.children) {
-        if (zelle === kopf || zelle === zeile.children[1]) {
-            continue;
-        }
-        summe += zelle.getBoundingClientRect().width;
-    }
-    return summe;
-}
-
-// maximaleBreite deckelt, wie weit sich eine Spalte ziehen lässt: die Tabelle
-// selbst wächst nicht über ihren Container hinaus (w-full), also muss für
-// Name mindestens mindestbreite übrig bleiben — sonst kollabiert sie (siehe
-// mindestbreite oben). Während des Ziehens ändert sich nur die eine Spalte,
-// die Tabellenbreite und die übrigen Spalten bleiben also fest, weshalb sich
-// das einmal beim Griff-Runterdrücken ausrechnen lässt.
-function maximaleBreite(kopf) {
-    const tabelle = kopf.closest('table');
-    return tabelle.getBoundingClientRect().width - andereSpalten(kopf) - mindestbreite;
-}
 
 document.body.addEventListener('pointerdown', (ereignis) => {
     const griff = ereignis.target.closest('[data-resize-griff]');
@@ -117,7 +78,6 @@ document.body.addEventListener('pointerdown', (ereignis) => {
         kopf,
         startX: ereignis.clientX,
         startBreite: kopf.getBoundingClientRect().width,
-        maxBreite: maximaleBreite(kopf),
     };
     // Pointer Capture hält Bewegung und Loslassen am Griff, auch wenn der
     // Zeiger dabei die schmale Griff-Spanne verlässt — sonst bräche das Ziehen
@@ -127,13 +87,17 @@ document.body.addEventListener('pointerdown', (ereignis) => {
     ereignis.preventDefault();
 });
 
+// mindestbreite verhindert, dass eine Spalte auf einen Bruchteil ihres
+// Inhalts schrumpft — Kennzeichen und Schaltflächen darin bräuchten sonst
+// mehr Platz, als die Spalte noch hätte.
+const mindestbreite = 60;
+
 document.body.addEventListener('pointermove', (ereignis) => {
     if (!ziehend) {
         return;
     }
 
-    const gewuenscht = ziehend.startBreite + (ereignis.clientX - ziehend.startX);
-    const breite = Math.min(ziehend.maxBreite, Math.max(mindestbreite, gewuenscht));
+    const breite = Math.max(mindestbreite, ziehend.startBreite + (ereignis.clientX - ziehend.startX));
     ziehend.kopf.style.width = breite + 'px';
 });
 
