@@ -27,17 +27,23 @@
      Service, hier verlassen nur die Rohwerte das Formular. Die Daten sind
      listeDaten.
 
-     Alle Kontrollen — Suchfeld, alle Filter, Ehemalige-Kästchen,
-     Zurücksetzen, Spaltenmenü — sind Geschwister in derselben, einzigen
-     Umbruch-Reihe; das Formular selbst steht daneben, leer und ohne eigene
-     Box (kein "display:flex" o.ä.), und jedes Feld hängt per HTML-Attribut
-     "form" an ihm, statt sein DOM-Kind zu sein.
+     Zwei Zeilen (ADR-0014): oben Suche und Aktionen (Zurücksetzen, Spalten),
+     darunter die Filter. Jede Zeile bricht für sich um — das hält den Umbruch
+     vorhersehbar, anders als zuvor in einer einzigen gemeinsamen Reihe, in der
+     Suche, Filter und Aktionen bei schmalem Fenster ununterscheidbar
+     durcheinander umbrachen.
+
+     Alle Kontrollen, die den Server befragen — Suchfeld, alle Filter,
+     Ehemalige-Kästchen — sind Geschwister, nicht Kinder des Formulars: das
+     Formular selbst steht daneben, leer und ohne eigene Box (kein
+     "display:flex" o.ä.), und jedes Feld hängt per HTML-Attribut "form" an
+     ihm, statt sein DOM-Kind zu sein.
      Der naheliegendere Weg — die Felder als Kinder *in* das Formular zu
      schachteln — wurde probiert und wieder verworfen: das Formular wäre dann
-     selbst ein Flex-Kind der äußeren Reihe und bräche bei schmalem Fenster
-     *innerhalb seiner eigenen Box* ein zweites Mal um, während Zurücksetzen
-     und Spalten daneben auf halber Höhe der so entstandenen Zeilen schweben —
-     ein verschachtelter Umbruch, den niemand vorhersagen kann. "display:
+     selbst ein Flex-Kind seiner Zeile und bräche bei schmalem Fenster
+     *innerhalb seiner eigenen Box* ein zweites Mal um, während Aktionen
+     daneben auf halber Höhe der so entstandenen Zeilen schweben — ein
+     verschachtelter Umbruch, den niemand vorhersagen kann. "display:
      contents" auf dem Formular sollte das umgehen, deckte aber einen echten
      Chromium-Bug auf: das einzelne Feld, das dann allein umbricht, bekommt
      die volle Breite der Zeile *davor* zugewiesen statt seiner eigenen
@@ -66,12 +72,55 @@
      form="mitglieder-filter" — ohne das Attribut sieht es zwar richtig aus,
      wird aber bei jeder Suche und jedem Filter stillschweigend nicht
      mitgeschickt (siehe die Erklärung bei "mitglieder-filterleiste" oben). */}}
-<div class="mb-4 flex flex-wrap items-center gap-2">
+<div class="mb-2 flex items-center justify-between gap-2">
     <input form="mitglieder-filter" id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
            placeholder="Name, E-Mail, Telefon oder Mitglieds-ID" autocomplete="off"
            aria-label="Mitglieder durchsuchen"
-           class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+           class="min-w-56 max-w-md flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
+    {{/* Zurücksetzen und Spalten sind Icon-Buttons rechts von der Suche
+         (ADR-0014): Zurücksetzen holt die Suche des Formulars nicht mit,
+         sondern die ganze Ansicht in den Standard zurück; Spalten löst
+         ohnehin keinen Server-Aufruf aus (siehe main.js). Beide bleiben
+         deshalb außerhalb des Formulars. */}}
+    <div class="flex shrink-0 items-center gap-2">
+        <button type="button" title="Zurücksetzen" aria-label="Suche und Filter zurücksetzen"
+                class="rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+            </svg>
+        </button>
+
+        {{/* Das Spaltenmenü stellt nur, welche Spalten sichtbar sind — eine
+             Ansichtsvorliebe an diesem einen Rechner, die localStorage trägt
+             und nie durch Go läuft (Ticket 27). Ein Kästchen darin löst
+             keinen Server-Aufruf aus, das erledigt main.js. Name und Nr.
+             stehen nicht zur Wahl — sie identifizieren die Zeile und bleiben
+             immer sichtbar. */}}
+        <details class="relative">
+            <summary title="Spalten" aria-label="Sichtbare Spalten wählen"
+                     class="cursor-pointer list-none rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M4 4v16"/><path d="M12 4v16"/><path d="M20 4v16"/>
+                </svg>
+            </summary>
+            <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                {{range .AusblendbareSpalten}}
+                    <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
+                        {{/* Checked ist hier nur der Anfangszustand vor dem ersten
+                             Rendern durch main.js — sie gleicht ihn sofort danach
+                             mit localStorage ab (siehe dort, spaltenAnwenden). */}}
+                        <input type="checkbox" class="accent-[var(--akzent)]" data-spalten-kasten value="{{.Schluessel}}" checked>
+                        {{.Beschriftung}}
+                    </label>
+                {{end}}
+            </div>
+        </details>
+    </div>
+</div>
+
+<div class="mb-4 flex flex-wrap items-center gap-2">
     <select form="mitglieder-filter" id="filter-rueckstand" name="rueckstand" aria-label="Nach Rückstand filtern"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Rueckstandsoptionen}}
@@ -113,43 +162,6 @@
                class="accent-[var(--akzent)]" {{if .Suche.Ehemalige}}checked{{end}}>
         Auch Ehemalige
     </label>
-
-    {{/* Zurücksetzen und Spalten stehen als Paar zusammen — nicht, weil sie
-         zusammengehören (Zurücksetzen wirkt auf die Suche, Spalten nur auf die
-         Anzeige), sondern damit sie beim Umbrechen als Einheit auf die nächste
-         Zeile wandern und nicht getrennt werden. Beide bleiben außerhalb des
-         Formulars: Zurücksetzen soll dessen Werte nicht mitschicken, sondern
-         die ganze Ansicht in den Standard zurückholen, und Spalten löst
-         ohnehin keinen Server-Aufruf aus (siehe unten). */}}
-    <div class="flex items-center gap-2">
-        <button type="button"
-                class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
-            Zurücksetzen
-        </button>
-
-        {{/* Das Spaltenmenü stellt nur, welche Spalten sichtbar sind — eine
-             Ansichtsvorliebe an diesem einen Rechner, die localStorage trägt und
-             nie durch Go läuft (Ticket 27). Ein Kästchen darin löst keinen
-             Server-Aufruf aus, das erledigt main.js. Name und Nr. stehen nicht
-             zur Wahl — sie identifizieren die Zeile und bleiben immer sichtbar. */}}
-        <details class="relative">
-            <summary class="cursor-pointer list-none rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                Spalten
-            </summary>
-            <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
-                {{range .AusblendbareSpalten}}
-                    <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
-                        {{/* Checked ist hier nur der Anfangszustand vor dem ersten
-                             Rendern durch main.js — sie gleicht ihn sofort danach
-                             mit localStorage ab (siehe dort, spaltenAnwenden). */}}
-                        <input type="checkbox" class="accent-[var(--akzent)]" data-spalten-kasten value="{{.Schluessel}}" checked>
-                        {{.Beschriftung}}
-                    </label>
-                {{end}}
-            </div>
-        </details>
-    </div>
 </div>
 {{end}}
 
