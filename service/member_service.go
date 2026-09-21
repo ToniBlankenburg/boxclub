@@ -1663,6 +1663,47 @@ func (s *MemberService) Geschlechtswerte() ([]string, error) {
 	return werte, nil
 }
 
+// EmailsZuIDs liest die E-Mail-Adressen der angegebenen Mitglieder — für die
+// Serienmail gedacht (siehe SerienmailVorbereiten), sonst gehört E-Mail nicht
+// in eine Liste (siehe eintraegeAbfrage und suchzeile oben). Wer keine
+// hinterlegt hat, liefert eine leere Zeichenkette statt keiner Zeile; die
+// Serienmail sortiert leere Adressen ohnehin selbst aus.
+//
+// Eine unbekannte ID liefert einfach keine Zeile, keinen Fehler: die Auswahl
+// stammt aus bereits angezeigten Zeilen, und eine inzwischen gelöschte ID ist
+// dort schlicht nicht mehr zu finden.
+func (s *MemberService) EmailsZuIDs(ids []int64) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	platzhalter := strings.Repeat(", ?", len(ids)-1)
+	werte := make([]any, len(ids))
+	for i, id := range ids {
+		werte[i] = id
+	}
+
+	zeilen, err := s.db.Query(`SELECT email FROM mitglied WHERE id IN (?`+platzhalter+`)`, werte...)
+	if err != nil {
+		return nil, fmt.Errorf("emails zu mitgliedern lesen: %w", err)
+	}
+	defer zeilen.Close()
+
+	var emails []string
+	for zeilen.Next() {
+		var email string
+		if err := zeilen.Scan(&email); err != nil {
+			return nil, fmt.Errorf("email lesen: %w", err)
+		}
+		emails = append(emails, email)
+	}
+	if err := zeilen.Err(); err != nil {
+		return nil, fmt.Errorf("emails zu mitgliedern lesen: %w", err)
+	}
+
+	return emails, nil
+}
+
 // SetRueckstand setzt Kennzeichen und Notiz eines Mitglieds in einem Zug —
 // beides zusammen, weil der Nutzer beides im selben Formular vor sich hat.
 //

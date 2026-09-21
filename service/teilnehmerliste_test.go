@@ -280,3 +280,46 @@ func TestTeilnehmerlisten_ArchivierteNurAufWunsch(t *testing.T) {
 		t.Errorf("archivierter Mittwoch = %v, erwartet %v", got, want)
 	}
 }
+
+// Die Serienmail an eine Teilnehmerliste (CONTEXT.md → Teilnehmerliste)
+// braucht nur die E-Mail-Adressen der dort Angemeldeten — andere Termine
+// bleiben außen vor.
+func TestTeilnehmerEmails_NurDerAngegebeneTermin(t *testing.T) {
+	svc := neuerService(t)
+	montag, _, samstag := stundenplan(t, svc)
+	eintritt := heuteVersetzt(-90)
+
+	_, err := svc.Create(service.NeuesMitglied{
+		Vorname: "Anna", Nachname: "Berger", Email: "anna@example.org",
+		BeitragCents: beitragImTest, Eintritt: eintritt, TrainingsterminIDs: ids(samstag),
+	})
+	if err != nil {
+		t.Fatalf("Create Anna: %v", err)
+	}
+	_, err = svc.Create(service.NeuesMitglied{
+		Vorname: "Ben", Nachname: "Conrad", Email: "ben@example.org",
+		BeitragCents: beitragImTest, Eintritt: eintritt, TrainingsterminIDs: ids(montag),
+	})
+	if err != nil {
+		t.Fatalf("Create Ben: %v", err)
+	}
+
+	emails, err := svc.TeilnehmerEmails(samstag.ID)
+	if err != nil {
+		t.Fatalf("TeilnehmerEmails: %v", err)
+	}
+	if erwartet := []string{"anna@example.org"}; !slices.Equal(emails, erwartet) {
+		t.Errorf("TeilnehmerEmails(Samstag) = %v, erwartet %v", emails, erwartet)
+	}
+}
+
+// Ein Termin ohne Anmeldungen liefert keine Adressen und keinen Fehler.
+func TestTeilnehmerEmails_OhneAnmeldungenLeer(t *testing.T) {
+	svc := neuerService(t)
+	_, mittwoch, _ := stundenplan(t, svc)
+
+	emails, err := svc.TeilnehmerEmails(mittwoch.ID)
+	if err != nil || len(emails) != 0 {
+		t.Fatalf("TeilnehmerEmails(Mittwoch) = %v, %v, erwartet leer", emails, err)
+	}
+}

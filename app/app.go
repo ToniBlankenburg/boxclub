@@ -52,6 +52,7 @@ func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/mitglieder", a.mitgliederListe)
 	mux.HandleFunc("GET /api/mitglieder/ergebnis", a.mitgliederErgebnis)
+	mux.HandleFunc("POST /api/mitglieder/serienmail", a.mitgliederSerienmail)
 	mux.HandleFunc("GET /api/dashboard", a.dashboard)
 	mux.HandleFunc("POST /api/moneymoney/export", a.moneyMoneyExportieren)
 	mux.HandleFunc("GET /api/mitglied/formular", a.mitgliedFormular)
@@ -77,6 +78,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/trainingstermin/{id}/formular", a.trainingsterminBearbeitenFormular)
 	mux.HandleFunc("POST /api/trainingstermin/{id}", a.trainingsterminAktualisieren)
 	mux.HandleFunc("POST /api/trainingstermin/{id}/archiv", a.trainingsterminArchivSchalten)
+	mux.HandleFunc("POST /api/trainingstermin/{id}/serienmail", a.trainingsterminSerienmail)
 	mux.HandleFunc("GET /api/import", a.importFormular)
 	mux.HandleFunc("POST /api/import", a.importAusfuehren)
 	// Die Rechnung "am Mitglied" (CONTEXT.md → Rechnung) hängt an dessen Formular
@@ -656,6 +658,32 @@ func (a *App) mitgliederErgebnis(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.rendern(w, "mitglieder-ergebnis-mit-filterbadge", daten)
+}
+
+// mitgliederSerienmail bereitet die Serienmail an die angekreuzten Zeilen der
+// Mitgliederliste vor. Geprüft wird nichts an den Rohwerten — was keine Zahl
+// ist, kann nur aus einem selbstgebauten Request stammen und fällt beim
+// Parsen einfach weg (dasselbe Muster wie formularEingabe.alsTrainingsterminIDs).
+func (a *App) mitgliederSerienmail(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	var ids []int64
+	for _, roh := range r.Form["mitglied_id"] {
+		if id, err := strconv.ParseInt(roh, 10, 64); err == nil {
+			ids = append(ids, id)
+		}
+	}
+
+	emails, err := a.svc.EmailsZuIDs(ids)
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.rendern(w, "serienmail-ergebnis", service.SerienmailVorbereiten(emails))
 }
 
 // listeRendern ist die Rückkehr-Ansicht nach jeder Aktion: htmx tauscht das

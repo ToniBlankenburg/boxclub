@@ -1,0 +1,34 @@
+{{/* serienmail-ergebnis ist die Rückmeldung, nachdem eine Serienmail
+     vorbereitet wurde — geöffnet über den "Serienmail"-Knopf der
+     Mitgliederliste oder den "Serienmail"-Knopf an einem Trainingstermin.
+     Beide Wege enden hier, mit unterschiedlicher Empfängerauswahl (CONTEXT.md
+     → Teilnehmerliste).
+
+     Ein echter mailto-Link statt eines automatischen Sprungs: das Öffnen des
+     Mailprogramms soll ein bewusster Klick sein und nicht die unmittelbare
+     Folge des ersten Knopfdrucks, der ja auch die Auswahl erst zusammenträgt.
+     Die Adressen stehen im Bcc der mailto-Adresse (service.SerienmailVorbereiten)
+     — sie kommen sonst nirgends in der Oberfläche vor, weder in dieser noch in
+     einer anderen Ansicht.
+
+     Ohne Empfänger — keine Auswahl, oder keiner der Ausgewählten hat eine
+     E-Mail-Adresse hinterlegt — gibt es nichts zu öffnen, nur den Hinweis.
+
+     Die Daten sind service.Serienmail. */}}
+{{define "serienmail-ergebnis"}}
+{{if .Link}}
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--akzent)] bg-[var(--akzent-hell)] px-4 py-3 text-sm text-[var(--akzent-dunkel)]">
+        {{/* "Empfänger" bleibt in der Mehrzahl unverändert — keine
+             Fallunterscheidung nötig wie bei "Mitglied"/"Mitglieder". */}}
+        <span>{{.Empfaenger}} Empfänger für die Serienmail vorbereitet.</span>
+        <a href="{{.Link}}"
+           class="rounded-md bg-[var(--akzent)] px-3 py-1.5 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+            Mail-Programm öffnen
+        </a>
+    </div>
+{{else}}
+    <p class="mb-5 rounded-md border border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
+        Keine E-Mail-Adresse unter den Ausgewählten.
+    </p>
+{{end}}
+{{end}}

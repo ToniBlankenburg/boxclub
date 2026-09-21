@@ -22,6 +22,7 @@
     </div>
 
     {{template "meldung" .Meldung}}
+    <div id="serienmail-ergebnis"></div>
 
     {{/* Archivierte Termine sind aus dem Stundenplan genommen, aber nicht
          verloren: eingeblendet stehen sie an ihrem Platz in der Woche, und von
@@ -59,7 +60,11 @@
             {{range .Termine}}
                 <li class="relative">
                     <details class="group">
-                        <summary class="flex min-h-16 cursor-pointer list-none items-center gap-4 py-4 pr-72 pl-6 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)] [&::-webkit-details-marker]:hidden">
+                        {{/* pr-96 statt der früheren pr-72: die dritte
+                             Schaltfläche (Serienmail) braucht mehr Platz in
+                             der Reserve rechts, sonst überlappt sie die
+                             Kürzel-Zeile der Zusammenfassung. */}}
+                        <summary class="flex min-h-16 cursor-pointer list-none items-center gap-4 py-4 pr-96 pl-6 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)] [&::-webkit-details-marker]:hidden">
                             <svg class="size-5 shrink-0 text-neutral-400 transition-transform group-open:rotate-90"
                                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                 <path d="M9 6l6 6-6 6"/>
@@ -109,6 +114,21 @@
                     </details>
 
                     <div class="absolute top-0 right-6 flex h-16 items-center gap-3">
+                        {{/* Serienmail an alle, die gerade für den Termin
+                             angemeldet sind (CONTEXT.md → Teilnehmerliste) —
+                             keine eigene Auswahl wie in der Mitgliederliste,
+                             die Teilnehmerliste selbst ist die Auswahl.
+                             Das Ergebnis landet oben in der Ansicht, nicht in
+                             der aufklappbaren Zeile: es betrifft den ganzen
+                             Termin und nicht nur die geöffnete Ansicht seiner
+                             Teilnehmer. */}}
+                        <button type="button"
+                                class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                aria-label="Serienmail an die Teilnehmer von {{.Anzeige}}"
+                                hx-post="/api/trainingstermin/{{.ID}}/serienmail"
+                                hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
+                            Serienmail
+                        </button>
                         {{/* Bearbeiten öffnet das Formular des Termins; der Stand
                              der Einblendung fährt mit, damit Speichern und
                              Abbrechen in dieselbe Ansicht zurückführen. */}}

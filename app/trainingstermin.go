@@ -411,6 +411,25 @@ func (a *App) terminMeldung(id int64, was string) meldung {
 	return meldung{Text: fmt.Sprintf("»%s« %s.", termin.Anzeige(), was)}
 }
 
+// trainingsterminSerienmail bereitet die Serienmail an die Teilnehmerliste
+// eines Trainingstermins vor (CONTEXT.md → Teilnehmerliste) — anders als bei
+// der Mitgliederliste ohne eigene Auswahl: die Empfänger sind, wer gerade für
+// den Termin angemeldet ist.
+func (a *App) trainingsterminSerienmail(w http.ResponseWriter, r *http.Request) {
+	id, ok := terminID(w, r)
+	if !ok {
+		return
+	}
+
+	emails, err := a.svc.TeilnehmerEmails(id)
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.rendern(w, "serienmail-ergebnis", service.SerienmailVorbereiten(emails))
+}
+
 // terminNichtGefundenOderFehler beantwortet einen Service-Fehler im
 // Stundenplan. Eine ID, zu der es nichts mehr gibt, ist kein Serverfehler,
 // sondern eine veraltete Ansicht — dann kehrt das Fragment zur Liste zurück und

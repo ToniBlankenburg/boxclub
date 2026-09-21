@@ -4,13 +4,27 @@
 <div>
     <div class="mb-5 flex items-center justify-between gap-4">
         <h2 class="text-base font-semibold">Mitglieder</h2>
-        <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
-            Neues Mitglied
-        </button>
+        <div class="flex gap-2">
+            {{/* Serienmail nimmt die angekreuzten Zeilen des Ergebnisses mit
+                 (siehe die Kontrollkästchen in "mitglied-zeile" unten) —
+                 hx-include sammelt sie unabhängig davon, wie viele es gerade
+                 sind. Ohne Auswahl kommt einfach der Hinweis zurück, dass es
+                 keine E-Mail-Adresse zum Öffnen gibt (serienmail.html). */}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    hx-post="/api/mitglieder/serienmail" hx-include="[name='mitglied_id']"
+                    hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
+                Serienmail
+            </button>
+            <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
+                Neues Mitglied
+            </button>
+        </div>
     </div>
 
     {{template "meldung" .Meldung}}
+    <div id="serienmail-ergebnis"></div>
 
     {{template "mitglieder-filterleiste" .}}
 
@@ -276,6 +290,12 @@
                          wächst bei Bedarf über ihren Rahmen hinaus, und
                          overflow-x-auto oben macht daraus einen Scrollbalken
                          statt einer stillen Überlappung. */}}
+                    {{/* Die Auswahlspalte für die Serienmail: kein data-col, sie
+                         lässt sich weder ausblenden noch sortieren noch ziehen —
+                         wie Nr. und Name identifiziert sie keine Zeile, aber
+                         anders als die beiden trägt sie auch keine
+                         Kopfzeilen-Beschriftung, nur die stille schmale Spalte. */}}
+                    <th class="w-8 px-2 py-2" aria-hidden="true"></th>
                     <th class="w-16 px-4 py-2 font-medium" title="Mitglieds-ID"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
                     <th class="relative min-w-[7rem] px-4 py-2 font-medium" data-col="name"
@@ -380,6 +400,16 @@
     hx-get="/api/mitglied/{{.MitgliedID}}/formular"
     hx-target="#inhalt" hx-swap="innerHTML"
     hx-trigger="click, keyup[key=='Enter']">
+    {{/* Die Auswahl für die Serienmail — siehe die Kopfzelle oben. Ein Klick
+         auf das Kästchen öffnet nicht das Bearbeitungsformular, dasselbe
+         Muster wie bei den übrigen Schaltflächen der Zeile. */}}
+    <td class="px-2 py-2">
+        <input type="checkbox" name="mitglied_id" value="{{.MitgliedID}}"
+               class="accent-[var(--akzent)]"
+               aria-label="{{.Vorname}} {{.Nachname}} für die Serienmail auswählen"
+               hx-on:click="event.stopPropagation()"
+               hx-on:keyup="event.stopPropagation()">
+    </td>
     {{/* Die Mitglieds-ID ist die Nummer, unter der der Verein das Mitglied kennt
          (CONTEXT.md → Mitglieds-ID) — seit dem Excel-Import die echte aus der
          alten Tabelle. Sie fährt in jeder htmx-Adresse dieser Zeile ohnehin mit;
@@ -549,6 +579,9 @@
 {{define "mitglied-kuendigung-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
+    {{/* Leere Zelle an der Stelle der Auswahlspalte — die Zeile ersetzt sich
+         gerade selbst, keine Auswahl zum Ankreuzen. */}}
+    <td class="px-2 py-2"></td>
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
     {{/* colspan="6" ist der Ausgangswert bei allen sechs ausblendbaren Spalten
@@ -598,6 +631,9 @@
 {{define "mitglied-wiedereintritt-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input').focus()">
+    {{/* Leere Zelle an der Stelle der Auswahlspalte, siehe
+         mitglied-kuendigung-formular oben. */}}
+    <td class="px-2 py-2"></td>
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
     {{/* data-colspan-optional siehe mitglied-kuendigung-formular oben. */}}
@@ -675,6 +711,9 @@
 {{define "mitglied-rueckstand-formular"}}
 <tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
     hx-on::load="this.querySelector('input[name=notiz]').focus()">
+    {{/* Leere Zelle an der Stelle der Auswahlspalte, siehe
+         mitglied-kuendigung-formular oben. */}}
+    <td class="px-2 py-2"></td>
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
     <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
     {{/* data-colspan-optional siehe mitglied-kuendigung-formular oben. */}}

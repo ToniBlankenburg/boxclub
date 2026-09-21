@@ -73,3 +73,26 @@ func (s *MemberService) Teilnehmerlisten(auchArchivierte bool) ([]Teilnehmerlist
 
 	return listen, nil
 }
+
+// TeilnehmerEmails liefert die E-Mail-Adressen der Teilnehmerliste eines
+// Trainingstermins — für die Serienmail an alle, die dafür angemeldet sind
+// (siehe SerienmailVorbereiten). Ein unbekannter oder archivierter Termin
+// ohne Anmeldungen liefert einfach keine Adressen, keinen Fehler.
+func (s *MemberService) TeilnehmerEmails(terminID int64) ([]string, error) {
+	listen, err := s.Teilnehmerlisten(true)
+	if err != nil {
+		return nil, err
+	}
+
+	var ids []int64
+	for _, liste := range listen {
+		if liste.Termin.ID != terminID {
+			continue
+		}
+		for _, teilnehmer := range liste.Teilnehmer {
+			ids = append(ids, teilnehmer.MitgliedID)
+		}
+	}
+
+	return s.EmailsZuIDs(ids)
+}
