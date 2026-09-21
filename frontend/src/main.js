@@ -1,15 +1,19 @@
 // htmx wird von Vite mitgebündelt, damit die App vollständig offline läuft.
-// Eigene Logik gibt es hier bis auf eine Ausnahme nicht: alle Interaktionen
-// laufen über hx-*-Attribute gegen die Go-Handler in app/.
+// Eigene Logik gibt es hier bis auf zwei Ausnahmen nicht: alle übrigen
+// Interaktionen laufen über hx-*-Attribute gegen die Go-Handler in app/.
 //
-// Die Ausnahme ist die Spaltenwahl der Mitgliederliste (Ticket 27): welche
-// Spalten sichtbar sind, ist eine reine Ansichtsvorliebe an diesem einen
-// Rechner und überlebt den Neustart über localStorage — "kein Go, keine
+// Die erste Ausnahme ist die Spaltenwahl der Mitgliederliste (Ticket 27):
+// welche Spalten sichtbar sind, ist eine reine Ansichtsvorliebe an diesem
+// einen Rechner und überlebt den Neustart über localStorage — "kein Go, keine
 // Datenbank" (CLAUDE.md). Dafür braucht es zwangsläufig Code im Browser: Go
 // bekommt localStorage nie zu Gesicht. Die Sortierung selbst läuft dagegen
 // wie gehabt über hx-*-Attribute gegen den Server (ADR-0004) — hier unten
 // steht nur der Rückfall, wenn eine ausgeblendete Spalte gerade die aktive
 // Sortierspalte ist.
+//
+// Die zweite ist das "Alle auswählen"-Kästchen der Serienmail-Spalte: es
+// setzt nur andere Kästchen im DOM und hat mit dem Server nichts zu tun,
+// anders als die Auswahl selbst, die als Formularwert über hx-include mitfährt.
 import 'htmx.org';
 import './style.css';
 import './registerkarten.js';
@@ -166,4 +170,20 @@ document.body.addEventListener('click', (ereignis) => {
 
     sichtbareSpaltenSchreiben(spaltenAusblendbar.slice());
     spaltenAnwenden();
+});
+
+// Das Kästchen in der Kopfzelle der Auswahlspalte (Serienmail) setzt alle
+// sichtbaren Kästchen der Zeilen auf einmal — reine Bedienungshilfe, ohne
+// eigenen Zustand: bei jedem htmx-Austausch kommt die Kopfzelle unangekreuzt
+// zurück, wie die Zeilen selbst auch (siehe mitglieder_liste.html). Gesucht
+// wird bei jedem Klick neu statt einmalig gebunden, weil htmx die Zeilen bei
+// Suche und Filter ersetzt.
+document.body.addEventListener('change', (ereignis) => {
+    if (!ereignis.target.matches('[data-mitglied-alle-auswaehlen]')) {
+        return;
+    }
+
+    document.querySelectorAll('[name="mitglied_id"]').forEach((kasten) => {
+        kasten.checked = ereignis.target.checked;
+    });
 });

@@ -11,9 +11,10 @@
                  sind. Ohne Auswahl kommt einfach der Hinweis zurück, dass es
                  keine E-Mail-Adresse zum Öffnen gibt (serienmail.html). */}}
             <button type="button"
-                    class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    class="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-post="/api/mitglieder/serienmail" hx-include="[name='mitglied_id']"
                     hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
+                {{template "icon-serienmail"}}
                 Serienmail
             </button>
             <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
@@ -292,10 +293,18 @@
                          statt einer stillen Überlappung. */}}
                     {{/* Die Auswahlspalte für die Serienmail: kein data-col, sie
                          lässt sich weder ausblenden noch sortieren noch ziehen —
-                         wie Nr. und Name identifiziert sie keine Zeile, aber
-                         anders als die beiden trägt sie auch keine
-                         Kopfzeilen-Beschriftung, nur die stille schmale Spalte. */}}
-                    <th class="w-8 px-2 py-2" aria-hidden="true"></th>
+                         wie Nr. und Name identifiziert sie keine Zeile. Das
+                         Kästchen in der Kopfzelle wählt alle sichtbaren Zeilen
+                         auf einmal; main.js hält es rein clientseitig, ohne
+                         Server-Aufruf, wie die Spaltenwahl (spaltenAnwenden). */}}
+                    <th class="w-9 p-0">
+                        <label class="flex h-full w-full cursor-pointer items-center justify-center py-2"
+                               hx-on:click="event.stopPropagation()">
+                            <input type="checkbox" data-mitglied-alle-auswaehlen
+                                   class="size-[1.1rem] cursor-pointer accent-[var(--akzent)]"
+                                   aria-label="Alle sichtbaren Mitglieder auswählen">
+                        </label>
+                    </th>
                     <th class="w-16 px-4 py-2 font-medium" title="Mitglieds-ID"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
                     <th class="relative min-w-[7rem] px-4 py-2 font-medium" data-col="name"
@@ -400,15 +409,22 @@
     hx-get="/api/mitglied/{{.MitgliedID}}/formular"
     hx-target="#inhalt" hx-swap="innerHTML"
     hx-trigger="click, keyup[key=='Enter']">
-    {{/* Die Auswahl für die Serienmail — siehe die Kopfzelle oben. Ein Klick
-         auf das Kästchen öffnet nicht das Bearbeitungsformular, dasselbe
-         Muster wie bei den übrigen Schaltflächen der Zeile. */}}
-    <td class="px-2 py-2">
-        <input type="checkbox" name="mitglied_id" value="{{.MitgliedID}}"
-               class="accent-[var(--akzent)]"
-               aria-label="{{.Vorname}} {{.Nachname}} für die Serienmail auswählen"
-               hx-on:click="event.stopPropagation()"
-               hx-on:keyup="event.stopPropagation()">
+    {{/* Die Auswahl für die Serienmail — siehe die Kopfzelle oben. Das Kästchen
+         steckt in einem Label, das die ganze Zelle ausfüllt: die eigentliche
+         Klickfläche eines nackten Kästchens ist sonst nur wenige Pixel groß
+         und bei 50–200 Zeilen zu knapp zum Treffen. Ein Klick darauf öffnet
+         nicht das Bearbeitungsformular, dasselbe Muster wie bei den übrigen
+         Schaltflächen der Zeile — hier auf dem Label, weil ein Klick auf das
+         Kästchen selbst auch einen (bubbelnden) Klick auf sein Label auslöst
+         und umgekehrt. */}}
+    <td class="p-0">
+        <label class="flex h-full w-full cursor-pointer items-center justify-center py-3"
+               hx-on:click="event.stopPropagation()">
+            <input type="checkbox" name="mitglied_id" value="{{.MitgliedID}}"
+                   class="size-[1.1rem] cursor-pointer accent-[var(--akzent)]"
+                   aria-label="{{.Vorname}} {{.Nachname}} für die Serienmail auswählen"
+                   hx-on:keyup="event.stopPropagation()">
+        </label>
     </td>
     {{/* Die Mitglieds-ID ist die Nummer, unter der der Verein das Mitglied kennt
          (CONTEXT.md → Mitglieds-ID) — seit dem Excel-Import die echte aus der

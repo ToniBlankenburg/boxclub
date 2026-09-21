@@ -123,10 +123,11 @@
                              Termin und nicht nur die geöffnete Ansicht seiner
                              Teilnehmer. */}}
                         <button type="button"
-                                class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                class="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                                 aria-label="Serienmail an die Teilnehmer von {{.Anzeige}}"
                                 hx-post="/api/trainingstermin/{{.ID}}/serienmail"
                                 hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
+                            {{template "icon-serienmail"}}
                             Serienmail
                         </button>
                         {{/* Bearbeiten öffnet das Formular des Termins; der Stand
