@@ -182,4 +182,73 @@ var deutsch = map[string]string{
 	"dashboard.moneymoney_warnung": "Achtung: In den Vereinsdaten ist ein eigener Verwendungszweck " +
 		"hinterlegt — der Export verwendet ihn statt \"Vereinsname Beitrag MM/JJJJ\" und aktualisiert ihn " +
 		"nicht selbst. Vor dem Export prüfen, ob er noch zu diesem Monat passt.",
+
+	// trainingstermine.* ist der Stundenplan (Ticket 04,
+	// templates/trainingstermine.html, app/trainingstermin.go). Die
+	// Schreibweise eines einzelnen Termins selbst (Trainingstermin.Anzeige,
+	// z. B. "Samstag 10:30 – 12:00 · Anfänger") entsteht im Service und bleibt
+	// unübersetzt wie die übrigen Bezeichnung()-Ausgaben (Ticket 07) — hier
+	// stehen nur die Texte drumherum. Feldbeschriftungen des Terminformulars
+	// stehen unter feld.*, damit spätere Formulare sie mitbenutzen können.
+	"trainingstermine.titel":                     "Trainingstermine",
+	"trainingstermine.neu_knopf":                 "Neuer Trainingstermin",
+	"trainingstermine.archivierte_anzeigen":      "Archivierte anzeigen",
+	"trainingstermine.eintrag_singular":          "Termin",
+	"trainingstermine.eintrag_plural":            "Termine",
+	"trainingstermine.archiviert_abzeichen":      "archiviert",
+	"trainingstermine.archiviert_titel":          "Archiviert — nicht mehr im Stundenplan und in keiner Auswahl. Bestehende Anmeldungen bleiben bestehen.",
+	"trainingstermine.angemeldet_anzahl":         "%d angemeldet",
+	"trainingstermine.niemand_angemeldet":        "niemand angemeldet",
+	"trainingstermine.serienmail_aria":           "Serienmail an die Teilnehmer von %s",
+	"trainingstermine.serienmail_knopf":          "Serienmail",
+	"trainingstermine.bearbeiten_aria":           "%s bearbeiten",
+	"trainingstermine.bearbeiten_knopf":          "Bearbeiten",
+	"trainingstermine.zurueckholen_aria":         "%s wieder in den Stundenplan aufnehmen",
+	"trainingstermine.archivieren_aria":          "%s archivieren",
+	"trainingstermine.zurueckholen_knopf":        "Zurückholen",
+	"trainingstermine.archivieren_knopf":         "Archivieren",
+	"trainingstermine.leer_alle":                 "Kein Trainingstermin erfasst.",
+	"trainingstermine.leer_aktiv":                "Kein Trainingstermin im Stundenplan.",
+	"trainingstermine.leer_hinweis_import":       "Vor dem ersten Excel-Import sollte der Stundenplan stehen: der Import legt keine Termine an.",
+	"trainingstermine.formular_titel_bearbeiten": "Trainingstermin bearbeiten",
+	"trainingstermine.formular_titel_neu":        "Neuen Trainingstermin anlegen",
+	"trainingstermine.formular_archiviert_hinweis": "Dieser Termin ist archiviert: er steht nicht im Stundenplan " +
+		"und in keiner Auswahl. Das Speichern ändert daran nichts.",
+	"trainingstermine.abschnitt_titel":   "Trainingstermin",
+	"trainingstermine.ende_hinweis":      "Das Ende ist freiwillig. Ein Termin ist wiederkehrend und kein Datum: „Samstag 10:30“ gilt bis auf Weiteres.",
+	"trainingstermine.wochentag_waehlen": "Bitte wählen",
+
+	// Die vier Rückmeldungen nach Anlegen/Speichern/Archivieren/Zurückholen
+	// kommen paarweise: die "_mit_name"-Variante nennt den Termin
+	// (Trainingstermin.Anzeige), die "_ohne_name"-Variante greift, wenn er
+	// zwischen Aktion und erneutem Lesen verschwunden ist (terminMeldung).
+	"trainingstermine.angelegt_mit_name":     "»%s« wurde angelegt.",
+	"trainingstermine.angelegt_ohne_name":    "Der Trainingstermin wurde angelegt.",
+	"trainingstermine.gespeichert_mit_name":  "»%s« wurde gespeichert.",
+	"trainingstermine.gespeichert_ohne_name": "Der Trainingstermin wurde gespeichert.",
+	"trainingstermine.archiviert_mit_name":   "»%s« wurde archiviert und steht nicht mehr zur Auswahl.",
+	"trainingstermine.archiviert_ohne_name":  "Der Trainingstermin wurde archiviert und steht nicht mehr zur Auswahl.",
+	"trainingstermine.reaktiviert_mit_name":  "»%s« steht wieder im Stundenplan.",
+	"trainingstermine.reaktiviert_ohne_name": "Der Trainingstermin steht wieder im Stundenplan.",
+	"trainingstermine.nicht_gefunden":        "Diesen Trainingstermin gibt es nicht mehr.",
+
+	"feld.wochentag":   "Wochentag",
+	"feld.beginn":      "Beginn",
+	"feld.ende":        "Ende",
+	"feld.bezeichnung": "Bezeichnung",
+
+	// wochentag.* sind die Wochentagsnamen der Auswahlliste im Terminformular
+	// (Ticket 04) — anders als Wochentag.Bezeichnung() im Service (die die
+	// Kurzschreibweise eines Termins bildet und deshalb unübersetzt bleiben
+	// muss, siehe oben) ist diese Auswahlliste reine Formularbeschriftung
+	// ohne Bezug zum Excel-Abgleich. Nummeriert nach service.Wochentag
+	// (Montag = 1 … Sonntag = 7), damit die Zuordnung ohne zweite
+	// Wochentagsliste im App-Paket auskommt.
+	"wochentag.1": "Montag",
+	"wochentag.2": "Dienstag",
+	"wochentag.3": "Mittwoch",
+	"wochentag.4": "Donnerstag",
+	"wochentag.5": "Freitag",
+	"wochentag.6": "Samstag",
+	"wochentag.7": "Sonntag",
 }

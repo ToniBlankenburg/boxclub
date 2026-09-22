@@ -10,6 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -66,21 +67,24 @@ func terminEingabeAus(t service.Trainingstermin) terminEingabe {
 	}
 }
 
-// wochentagsoptionen sind die Einträge der Wochentagsauswahl. Wie die
-// Filteroptionen entstehen sie in Go aus der Aufzählung des Service, damit
-// Wert, Beschriftung und Reihenfolge aus derselben Quelle kommen.
+// wochentagsoptionenBauen sind die Einträge der Wochentagsauswahl. Wie die
+// übrigen Filteroptionen entstehen sie in Go aus der Aufzählung des Service,
+// damit Wert und Reihenfolge aus derselben Quelle kommen — die Beschriftung
+// selbst kommt aber aus dem Katalog (wochentag.*) und nicht aus
+// service.Wochentag.Bezeichnung(): die dient dem Excel-Abgleich (ADR-0008)
+// und der Kurzschreibweise eines Termins und muss deshalb unabhängig von der
+// Anzeigesprache bleiben, während diese Auswahlliste reine
+// Formularbeschriftung ist (Ticket 04).
 //
 // Der erste Eintrag ist leer: ein Termin ohne gewählten Tag soll als solcher
 // abgeschickt und vom Service abgewiesen werden können. Stünde dort Montag
 // vorbelegt, bekäme jeder Termin, bei dem der Tag vergessen wurde, still einen.
-var wochentagsoptionen = wochentagsoptionenBauen()
-
-func wochentagsoptionenBauen() []filteroption {
-	optionen := []filteroption{{Wert: "", Beschriftung: "Bitte wählen"}}
+func wochentagsoptionenBauen(sprache i18n.Sprache) []filteroption {
+	optionen := []filteroption{{Wert: "", Beschriftung: i18n.Text(sprache, "trainingstermine.wochentag_waehlen")}}
 	for _, tag := range service.Wochentage() {
 		optionen = append(optionen, filteroption{
 			Wert:         strconv.Itoa(int(tag)),
-			Beschriftung: tag.Bezeichnung(),
+			Beschriftung: i18n.Text(sprache, "wochentag."+strconv.Itoa(int(tag))),
 		})
 	}
 
@@ -94,6 +98,11 @@ type terminformularDaten struct {
 	Bearbeiten bool
 	TerminID   int64
 	Eingabe    terminEingabe
+
+	// Sprache ist die aktuelle Anzeigesprache — gebraucht, um die
+	// Wochentagsauswahl erst hier aufzulösen (i18n.Text), statt sie wie vor
+	// Ticket 04 als deutsches Literal mitzuführen.
+	Sprache i18n.Sprache
 
 	// Archiviert sagt, ob der bearbeitete Termin derzeit aus dem Stundenplan
 	// genommen ist. Das Formular ändert daran nichts und weist nur darauf hin —
@@ -111,7 +120,7 @@ type terminformularDaten struct {
 
 // Wochentagsoptionen sind die sieben Tage, der gewählte darunter markiert.
 func (d terminformularDaten) Wochentagsoptionen() []filteroption {
-	return gewaehlteOption(wochentagsoptionen, d.Eingabe.Wochentag)
+	return gewaehlteOption(wochentagsoptionenBauen(d.Sprache), d.Eingabe.Wochentag)
 }
 
 // trainingstermineDaten trägt den Stundenplan, den Stand der Einblendung und
@@ -265,6 +274,7 @@ func (a *App) trainingstermineRendern(w http.ResponseWriter, auchArchivierte boo
 // trainingsterminFormular liefert das leere Formular für einen neuen Termin.
 func (a *App) trainingsterminFormular(w http.ResponseWriter, r *http.Request) {
 	a.rendern(w, "trainingstermin-formular", terminformularDaten{
+		Sprache:         a.Sprache(),
 		AuchArchivierte: auchArchivierteLesen(r),
 	})
 }
@@ -280,7 +290,8 @@ func (a *App) trainingsterminAnlegen(w http.ResponseWriter, r *http.Request) {
 
 	id, err := a.svc.CreateTrainingstermin(eingabe.alsAngabe())
 	if err == nil {
-		a.trainingstermineRendern(w, auchArchivierte, a.terminMeldung(id, "wurde angelegt"))
+		a.trainingstermineRendern(w, auchArchivierte,
+			a.terminMeldung(id, "trainingstermine.angelegt_mit_name", "trainingstermine.angelegt_ohne_name"))
 		return
 	}
 
@@ -294,6 +305,7 @@ func (a *App) trainingsterminAnlegen(w http.ResponseWriter, r *http.Request) {
 	// beim Mitgliedsformular bewusst mit Status 200 — htmx tauscht Antworten mit
 	// Fehlerstatus standardmäßig nicht ein.
 	a.rendern(w, "trainingstermin-formular", terminformularDaten{
+		Sprache:         a.Sprache(),
 		Eingabe:         eingabe,
 		AuchArchivierte: auchArchivierte,
 		Fehler:          validierung.Meldungen,
@@ -315,6 +327,7 @@ func (a *App) trainingsterminBearbeitenFormular(w http.ResponseWriter, r *http.R
 	}
 
 	a.rendern(w, "trainingstermin-formular", terminformularDaten{
+		Sprache:         a.Sprache(),
 		Bearbeiten:      true,
 		TerminID:        termin.ID,
 		Eingabe:         terminEingabeAus(termin),
@@ -339,7 +352,8 @@ func (a *App) trainingsterminAktualisieren(w http.ResponseWriter, r *http.Reques
 
 	err := a.svc.UpdateTrainingstermin(id, eingabe.alsAngabe())
 	if err == nil {
-		a.trainingstermineRendern(w, auchArchivierte, a.terminMeldung(id, "wurde gespeichert"))
+		a.trainingstermineRendern(w, auchArchivierte,
+			a.terminMeldung(id, "trainingstermine.gespeichert_mit_name", "trainingstermine.gespeichert_ohne_name"))
 		return
 	}
 
@@ -353,6 +367,7 @@ func (a *App) trainingsterminAktualisieren(w http.ResponseWriter, r *http.Reques
 	// der abgelehnten Eingabe nicht abzulesen. Einen zweiten Lesezugriff ist der
 	// Hinweis nicht wert: fehlt er einmal, sagt ihn die Liste danach wieder.
 	a.rendern(w, "trainingstermin-formular", terminformularDaten{
+		Sprache:         a.Sprache(),
 		Bearbeiten:      true,
 		TerminID:        id,
 		Eingabe:         eingabe,
@@ -383,11 +398,11 @@ func (a *App) trainingsterminArchivSchalten(w http.ResponseWriter, r *http.Reque
 
 	// Erst die Meldung bauen, dann schalten: sie nennt den Termin beim Namen,
 	// und gelesen wird er dafür ohnehin.
-	text := "wurde archiviert und steht nicht mehr zur Auswahl"
+	schluesselMitName, schluesselOhneName := "trainingstermine.archiviert_mit_name", "trainingstermine.archiviert_ohne_name"
 	if !archiviert {
-		text = "steht wieder im Stundenplan"
+		schluesselMitName, schluesselOhneName = "trainingstermine.reaktiviert_mit_name", "trainingstermine.reaktiviert_ohne_name"
 	}
-	m := a.terminMeldung(id, text)
+	m := a.terminMeldung(id, schluesselMitName, schluesselOhneName)
 
 	if err := a.svc.SetTrainingsterminArchiviert(id, archiviert); err != nil {
 		a.terminNichtGefundenOderFehler(w, r, err)
@@ -401,14 +416,17 @@ func (a *App) trainingsterminArchivSchalten(w http.ResponseWriter, r *http.Reque
 // dafür noch einmal — die Anzeige entsteht im Service (Trainingstermin.Anzeige),
 // damit in der Meldung dieselbe Schreibweise steht wie in der Liste. Scheitert
 // das Lesen, bleibt die Meldung ohne Namen: sie ist eine Rückmeldung und kein
-// Ergebnis, für das sich ein Fehlerbild lohnte.
-func (a *App) terminMeldung(id int64, was string) meldung {
+// Ergebnis, für das sich ein Fehlerbild lohnte — schluesselOhneName trägt
+// diesen Fall als eigene, namenlose Formulierung.
+func (a *App) terminMeldung(id int64, schluesselMitName, schluesselOhneName string) meldung {
+	sprache := a.Sprache()
+
 	termin, err := a.svc.GetTrainingstermin(id)
 	if err != nil {
-		return meldung{Text: "Der Trainingstermin " + was + "."}
+		return meldung{Text: i18n.Text(sprache, schluesselOhneName)}
 	}
 
-	return meldung{Text: fmt.Sprintf("»%s« %s.", termin.Anzeige(), was)}
+	return meldung{Text: i18n.Text(sprache, schluesselMitName, termin.Anzeige())}
 }
 
 // trainingsterminSerienmail bereitet die Serienmail an die Teilnehmerliste
@@ -437,7 +455,7 @@ func (a *App) trainingsterminSerienmail(w http.ResponseWriter, r *http.Request) 
 func (a *App) terminNichtGefundenOderFehler(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, service.ErrNichtGefunden) {
 		a.trainingstermineRendern(w, auchArchivierteLesen(r),
-			meldung{Text: "Diesen Trainingstermin gibt es nicht mehr.", Warnung: true})
+			meldung{Text: i18n.Text(a.Sprache(), "trainingstermine.nicht_gefunden"), Warnung: true})
 		return
 	}
 
