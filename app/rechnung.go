@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -95,7 +96,7 @@ func rechnungEingabeLesen(r *http.Request) rechnungEingabe {
 // formularEingabe.alsNeuesMitglied es für das Mitgliedsformular tut. Leere
 // Pflichtfelder meldet nicht diese Funktion, sondern der Service; hier wird nur
 // geprüft, was *gefüllt* und trotzdem unlesbar ist.
-func (e rechnungEingabe) alsRechnungEingabe() (service.RechnungEingabe, []string) {
+func (e rechnungEingabe) alsRechnungEingabe(sprache i18n.Sprache) (service.RechnungEingabe, []string) {
 	var fehler []string
 
 	rechnung := service.RechnungEingabe{
@@ -109,7 +110,7 @@ func (e rechnungEingabe) alsRechnungEingabe() (service.RechnungEingabe, []string
 	if e.Rechnungsdatum != "" {
 		d, err := time.Parse(isoDatum, e.Rechnungsdatum)
 		if err != nil {
-			fehler = append(fehler, "Rechnungsdatum ist kein gültiges Datum.")
+			fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_rechnungsdatum"))
 		} else {
 			rechnung.Rechnungsdatum = d
 		}
@@ -118,7 +119,7 @@ func (e rechnungEingabe) alsRechnungEingabe() (service.RechnungEingabe, []string
 	if e.Zahlungsziel != "" {
 		d, err := time.Parse(isoDatum, e.Zahlungsziel)
 		if err != nil {
-			fehler = append(fehler, "Zahlungsziel ist kein gültiges Datum.")
+			fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_zahlungsziel"))
 		} else {
 			rechnung.Zahlungsziel = d
 		}
@@ -129,7 +130,7 @@ func (e rechnungEingabe) alsRechnungEingabe() (service.RechnungEingabe, []string
 	rechnung.SteuersatzProzent = steuersatz
 
 	for i, p := range e.Positionen {
-		if position, meldungen := p.alsRechnungsposition(i + 1); meldungen != nil {
+		if position, meldungen := p.alsRechnungsposition(i+1, sprache); meldungen != nil {
 			fehler = append(fehler, meldungen...)
 		} else if position != nil {
 			rechnung.Positionen = append(rechnung.Positionen, *position)
@@ -143,7 +144,7 @@ func (e rechnungEingabe) alsRechnungEingabe() (service.RechnungEingabe, []string
 // weder eine Position noch eine Meldung — sie kommt von den ungenutzten
 // Feldern, die das Formular vorsorglich anbietet (rechnungPositionenImFormular),
 // und zählt beim Erstellen nicht mit.
-func (p rechnungPositionEingabe) alsRechnungsposition(nr int) (*service.Rechnungsposition, []string) {
+func (p rechnungPositionEingabe) alsRechnungsposition(nr int, sprache i18n.Sprache) (*service.Rechnungsposition, []string) {
 	if strings.TrimSpace(p.Bezeichnung) == "" && strings.TrimSpace(p.Menge) == "" && strings.TrimSpace(p.Einzelpreis) == "" {
 		return nil, nil
 	}
@@ -152,14 +153,14 @@ func (p rechnungPositionEingabe) alsRechnungsposition(nr int) (*service.Rechnung
 	position := service.Rechnungsposition{Bezeichnung: p.Bezeichnung}
 
 	if menge, err := strconv.ParseInt(strings.TrimSpace(p.Menge), 10, 64); err != nil {
-		fehler = append(fehler, fmt.Sprintf("Position %d: die Menge ist keine gültige Zahl.", nr))
+		fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_position_menge", nr))
 	} else {
 		position.Menge = menge
 	}
 
 	cents, err := service.EinzelpreisAusEuro(p.Einzelpreis)
 	for _, meldung := range validierungsMeldungen(err) {
-		fehler = append(fehler, fmt.Sprintf("Position %d: %s", nr, meldung))
+		fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_position_praefix", nr, meldung))
 	}
 	position.EinzelpreisCents = cents
 
@@ -232,6 +233,31 @@ type rechnungDaten struct {
 	Navigation []navigationseintrag
 }
 
+// rechnungBeschriftungen löst die Textbausteine des PDFs (ADR-0009,
+// service.RechnungBeschriftungen) in sprache auf — die zum Erstellzeitpunkt
+// aktive Anzeigesprache, damit eine erzeugte Rechnung sie trägt (Ticket 06).
+// SpalteBezeichnung/-Menge/-Einzelpreis greifen bewusst auf dieselben
+// feld.*-Schlüssel zurück wie das Formular selbst, statt sie zu verdoppeln.
+func rechnungBeschriftungen(sprache i18n.Sprache) service.RechnungBeschriftungen {
+	return service.RechnungBeschriftungen{
+		TelefonPraefix:         i18n.Text(sprache, "rechnung.pdf.telefon_praefix"),
+		EMailPraefix:           i18n.Text(sprache, "rechnung.pdf.email_praefix"),
+		RechnungsnummerPraefix: i18n.Text(sprache, "rechnung.pdf.rechnungsnummer_praefix"),
+		RechnungsdatumPraefix:  i18n.Text(sprache, "rechnung.pdf.rechnungsdatum_praefix"),
+		ZahlungszielPraefix:    i18n.Text(sprache, "rechnung.pdf.zahlungsziel_praefix"),
+		TitelPraefix:           i18n.Text(sprache, "rechnung.pdf.titel_praefix"),
+		SpalteBezeichnung:      i18n.Text(sprache, "feld.position_bezeichnung"),
+		SpalteMenge:            i18n.Text(sprache, "feld.menge"),
+		SpalteEinzelpreis:      i18n.Text(sprache, "feld.einzelpreis_netto"),
+		SpalteSumme:            i18n.Text(sprache, "rechnung.pdf.spalte_summe"),
+		NettoPraefix:           i18n.Text(sprache, "rechnung.pdf.netto_praefix"),
+		SteuerVorlage:          i18n.Text(sprache, "rechnung.pdf.steuer_vorlage"),
+		GesamtbetragPraefix:    i18n.Text(sprache, "rechnung.pdf.gesamtbetrag_praefix"),
+		IBANPraefix:            i18n.Text(sprache, "rechnung.pdf.iban_praefix"),
+		BICPraefix:             i18n.Text(sprache, "rechnung.pdf.bic_praefix"),
+	}
+}
+
 // rechnungAktionsURL ist die Adresse, an die das Formular abschickt.
 func rechnungAktionsURL(mitgliedID *int64) string {
 	if mitgliedID == nil {
@@ -283,10 +309,10 @@ func (a *App) rechnungVerarbeiten(w http.ResponseWriter, r *http.Request, mitgli
 	}
 
 	eingabe := rechnungEingabeLesen(r)
-	rechnung, fehler := eingabe.alsRechnungEingabe()
+	rechnung, fehler := eingabe.alsRechnungEingabe(a.Sprache())
 
 	if len(fehler) == 0 {
-		pdf, err := a.svc.RechnungErstellen(mitgliedID, rechnung)
+		pdf, err := a.svc.RechnungErstellen(mitgliedID, rechnung, rechnungBeschriftungen(a.Sprache()))
 		if err == nil {
 			a.rechnungAnbieten(w, mitgliedID, rechnung.Nummer, pdf)
 			return
@@ -318,11 +344,12 @@ func (a *App) rechnungVerarbeiten(w http.ResponseWriter, r *http.Request, mitgli
 // weg, für ein Mitglied bleibt es zwar am Datensatz liegen, aber ohne einen
 // erneuten Export von hier aus nicht mehr zu erreichen.
 func (a *App) rechnungAnbieten(w http.ResponseWriter, mitgliedID *int64, nummer string, pdf []byte) {
-	vorschlag := "Rechnung " + strings.TrimSpace(nummer) + ".pdf"
+	sprache := a.Sprache()
+	vorschlag := i18n.Text(sprache, "rechnung.dateiname_praefix") + strings.TrimSpace(nummer) + ".pdf"
 
 	if a.speicherziel == nil {
 		a.rechnungNeuRendern(w, mitgliedID, meldung{
-			Text:    "Der Datei-Dialog steht nicht zur Verfügung — die Rechnung wurde erstellt, aber nicht angeboten.",
+			Text:    i18n.Text(sprache, "rechnung.dialog_nicht_verfuegbar"),
 			Warnung: true,
 		})
 
@@ -336,10 +363,9 @@ func (a *App) rechnungAnbieten(w http.ResponseWriter, mitgliedID *int64, nummer 
 	}
 
 	if ziel == "" {
-		text := "Ohne Speicherort ist das PDF weg — es gab niemanden, an dem es hätte abgelegt werden können."
+		text := i18n.Text(sprache, "rechnung.kein_speicherort_ohne_mitglied")
 		if mitgliedID != nil {
-			text = "Die Rechnung wurde nicht gespeichert. Sie ist am Mitglied abgelegt, " +
-				"lässt sich von hier aus aber nicht noch einmal exportieren."
+			text = i18n.Text(sprache, "rechnung.kein_speicherort_mit_mitglied")
 		}
 
 		a.rechnungNeuRendern(w, mitgliedID, meldung{Text: text, Warnung: true})
@@ -351,14 +377,14 @@ func (a *App) rechnungAnbieten(w http.ResponseWriter, mitgliedID *int64, nummer 
 	// niemanden sonst an — dieselbe Überlegung wie beim Vertrag.
 	if err := os.WriteFile(ziel, pdf, 0o600); err != nil {
 		a.rechnungNeuRendern(w, mitgliedID, meldung{
-			Text:    fmt.Sprintf("Die Rechnung ließ sich nicht speichern: %v", err),
+			Text:    i18n.Text(sprache, "rechnung.speichern_fehlgeschlagen", err),
 			Warnung: true,
 		})
 
 		return
 	}
 
-	a.rechnungNeuRendern(w, mitgliedID, meldung{Text: "Die Rechnung wurde nach " + ziel + " gespeichert."})
+	a.rechnungNeuRendern(w, mitgliedID, meldung{Text: i18n.Text(sprache, "rechnung.gespeichert_nach", ziel)})
 }
 
 // rechnungNeuRendern zeigt ein frisches Formular mit einer Rückmeldung — nach

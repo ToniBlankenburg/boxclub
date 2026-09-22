@@ -278,4 +278,84 @@ var englisch = map[string]string{
 	"import.fehler.keine_datei":     "Please choose a file.",
 	"import.fehler.falsche_endung": "%q is not a %s file. The import cannot read the old .xls format — " +
 		"save it once as .xlsx in Excel.",
+
+	"feld.empfaenger":           "Recipient",
+	"feld.rechnungsnummer":      "Invoice number",
+	"feld.steuersatz":           "Tax rate (%)",
+	"feld.rechnungsdatum":       "Invoice date",
+	"feld.zahlungsziel":         "Payment due date",
+	"feld.menge":                "Quantity",
+	"feld.einzelpreis_netto":    "Unit price (net)",
+	"feld.name_verein":          "Club name",
+	"feld.bic":                  "BIC",
+	"feld.kreditinstitut":       "Bank",
+	"feld.position_bezeichnung": "Description",
+
+	"rechnung.titel": "Invoice",
+	"rechnung.beschreibung": "For a service beside the membership fee — typically a single training " +
+		"session. The recipient can be freely overwritten: anyone can book a single session without ever " +
+		"joining, it just means the PDF isn't filed anywhere afterwards.",
+	"rechnung.abschnitt_empfaenger":     "Recipient",
+	"rechnung.abschnitt_rechnungsdaten": "Invoice details",
+	"rechnung.abschnitt_positionen":     "Line items",
+	"rechnung.positionen_hinweis": "Quantity and unit price (net), for example \"2\" and \"30.00\". Empty " +
+		"rows don't count.",
+	"rechnung.erstellen_knopf": "Create invoice",
+	"rechnung.wird_erstellt":   "Creating …",
+
+	"rechnung.pdf.telefon_praefix":         "Phone: ",
+	"rechnung.pdf.email_praefix":           "Email: ",
+	"rechnung.pdf.rechnungsnummer_praefix": "Invoice no.: ",
+	"rechnung.pdf.rechnungsdatum_praefix":  "Invoice date: ",
+	"rechnung.pdf.zahlungsziel_praefix":    "Payment due: ",
+	"rechnung.pdf.titel_praefix":           "Invoice ",
+	"rechnung.pdf.spalte_summe":            "Total (net)",
+	"rechnung.pdf.netto_praefix":           "Net: ",
+	"rechnung.pdf.steuer_vorlage":          "plus %s%% VAT: %s",
+	"rechnung.pdf.gesamtbetrag_praefix":    "Total amount: ",
+	"rechnung.pdf.iban_praefix":            "IBAN: ",
+	"rechnung.pdf.bic_praefix":             "BIC: ",
+
+	"rechnung.fehler_rechnungsdatum":   "Invoice date is not a valid date.",
+	"rechnung.fehler_zahlungsziel":     "Payment due date is not a valid date.",
+	"rechnung.fehler_position_menge":   "Item %d: the quantity is not a valid number.",
+	"rechnung.fehler_position_praefix": "Item %d: %s",
+	"rechnung.dateiname_praefix":       "Invoice ",
+	"rechnung.dialog_nicht_verfuegbar": "The file dialog is not available — the invoice was created, but " +
+		"not offered for saving.",
+	"rechnung.kein_speicherort_ohne_mitglied": "Without a save location the PDF is gone — there was no " +
+		"one it could have been filed under.",
+	"rechnung.kein_speicherort_mit_mitglied": "The invoice was not saved. It is filed at the member, but " +
+		"cannot be exported again from here.",
+	"rechnung.speichern_fehlgeschlagen": "The invoice could not be saved: %v",
+	"rechnung.gespeichert_nach":         "The invoice was saved to %s.",
+
+	"serienmail.vorbereitet":   "%d recipients ready for the mail merge.",
+	"serienmail.oeffnen_knopf": "Open mail program",
+	"serienmail.keine_adresse": "No email address among those selected.",
+
+	"verein.titel": "Club",
+	"verein.beschreibung": "Name, address, contact details and bank details of the club. They appear on " +
+		"every invoice the app writes. All fields are optional — what's missing here is missing there too.",
+	"verein.bereiche_aria":     "Club sections",
+	"verein.tab_anschrift":     "Address & contact",
+	"verein.tab_bank":          "Bank details",
+	"verein.tab_rechnungstext": "Invoice text",
+	"verein.logo_feld":         "Club logo",
+	"verein.logo_entfernen":    "Remove",
+	"verein.logo_alt":          "Current club logo",
+	"verein.logo_datei_aria":   "Choose club logo",
+	"verein.logo_hinweis": "PNG, JPEG or SVG, at most %s. Appears in the app and in the letterhead of " +
+		"every invoice created.",
+	"verein.moneymoney_feld": "MoneyMoney export: custom payment reference",
+	"verein.moneymoney_hinweis_vor": "Replaces the automatically generated text \"Club name Fee " +
+		"MM/YYYY\" in the MoneyMoney export. Leave empty for the automatic version. A text set here ",
+	"verein.moneymoney_hinweis_fett": "does not update itself",
+	"verein.moneymoney_hinweis_nach": " for month and year — clear it again here after exporting, or it " +
+		"will still say the same thing in next month's run.",
+	"verein.fusszeile_feld": "Invoice footer",
+	"verein.fusszeile_hinweis": "Multi-line. This is where whatever legally needs to be on the invoice " +
+		"goes — for example the reference to § 19 UStG. The app does not check any of it.",
+	"verein.gespeichert":       "The club data was saved.",
+	"verein.formular_zu_gross": "The form data could not be accepted — the logo is larger than %s.",
 }

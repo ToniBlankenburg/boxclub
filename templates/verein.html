@@ -23,11 +23,9 @@
 {{define "verein"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
-    <h2 class="mb-1 text-base font-semibold">Verein</h2>
+    <h2 class="mb-1 text-base font-semibold">{{t "verein.titel"}}</h2>
     <p class="mb-5 max-w-2xl text-sm text-neutral-600">
-        Name, Anschrift, Kontakt und Bankverbindung des Vereins. Sie stehen auf
-        jeder Rechnung, die die App schreibt. Alle Angaben sind freiwillig — was
-        hier fehlt, fehlt dort.
+        {{t "verein.beschreibung"}}
     </p>
 
     {{/* Der Sprachumschalter (ADR-0017) steht außerhalb des Formulars unten
@@ -63,35 +61,35 @@
           hx-encoding="multipart/form-data">
         <div class="flex items-stretch gap-6" data-registerkarten>
             <div class="flex w-44 flex-shrink-0 flex-col gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 p-1"
-                 role="tablist" aria-label="Verein-Bereiche">
+                 role="tablist" aria-label="{{t "verein.bereiche_aria"}}">
                 <button type="button" role="tab" data-rk-tab="anschrift" aria-selected="true"
                         class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
-                    Anschrift &amp; Kontakt
+                    {{t "verein.tab_anschrift"}}
                 </button>
                 <button type="button" role="tab" data-rk-tab="bank" aria-selected="false"
                         class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
-                    Bankverbindung
+                    {{t "verein.tab_bank"}}
                 </button>
                 <button type="button" role="tab" data-rk-tab="rechnungstext" aria-selected="false"
                         class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
-                    Rechnungstext
+                    {{t "verein.tab_rechnungstext"}}
                 </button>
             </div>
 
             <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="anschrift">
                 <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Anschrift &amp; Kontakt</p>
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_anschrift"}}</p>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        {{template "feld" feld "Name des Vereins" "name" "text" .Name false true}}
+                        {{template "feld" feld (t "feld.name_verein") "name" "text" .Name false true}}
                         {{/* Die Anschrift steht wie am Mitglied in drei Feldern
                              (CONTEXT.md → Anschrift): Straße samt Hausnummer über
                              die ganze Breite, Postleitzahl und Ort darunter
                              nebeneinander. */}}
-                        {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Anschrift.Adresse false true}}
-                        {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Anschrift.Postleitzahl false false}}
-                        {{template "feld" feld "Ort" "ort" "text" .Anschrift.Ort false false}}
-                        {{template "feld" feld "E-Mail" "email" "email" .Email false false}}
-                        {{template "feld" feld "Telefon" "telefon" "tel" .Telefon false false}}
+                        {{template "feld" feld (t "feld.adresse") "adresse" "text" .Anschrift.Adresse false true}}
+                        {{template "feld" feld (t "feld.postleitzahl") "postleitzahl" "text" .Anschrift.Postleitzahl false false}}
+                        {{template "feld" feld (t "feld.ort") "ort" "text" .Anschrift.Ort false false}}
+                        {{template "feld" feld (t "feld.email") "email" "email" .Email false false}}
+                        {{template "feld" feld (t "feld.telefon") "telefon" "tel" .Telefon false false}}
                     </div>
 
                     {{/* Das Vereinslogo (CONTEXT.md → Vereinslogo, ADR-0012)
@@ -101,24 +99,23 @@
                          "Speichern" des ganzen Formulars — keine Sonderregel
                          nur fürs Logo. */}}
                     <div class="mt-3 flex flex-col gap-1.5">
-                        <span class="text-sm text-neutral-600">Vereinslogo</span>
+                        <span class="text-sm text-neutral-600">{{t "verein.logo_feld"}}</span>
                         <div class="flex flex-wrap items-center gap-3">
                             {{if .Logo}}
-                                <img src="/api/verein/logo" alt="Aktuelles Vereinslogo"
+                                <img src="/api/verein/logo" alt="{{t "verein.logo_alt"}}"
                                      class="h-16 w-16 rounded-md border border-neutral-200 bg-white object-contain p-1">
                                 <label class="flex items-center gap-2 text-sm text-neutral-600">
                                     <input type="checkbox" name="logo_entfernen" value="1"
                                            class="rounded border-neutral-300">
-                                    Entfernen
+                                    {{t "verein.logo_entfernen"}}
                                 </label>
                             {{end}}
                             <input type="file" name="logo" accept="image/png,image/jpeg,.svg,image/svg+xml"
-                                   aria-label="Vereinslogo auswählen"
+                                   aria-label="{{t "verein.logo_datei_aria"}}"
                                    class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
                         </div>
                         <span class="text-sm text-neutral-500">
-                            PNG, JPEG oder SVG, höchstens {{logogrenze}}. Erscheint in der App und im
-                            Briefkopf jeder erzeugten Rechnung.
+                            {{t "verein.logo_hinweis" logogrenze}}
                         </span>
                     </div>
                 </div>
@@ -126,14 +123,14 @@
 
             <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="bank" hidden>
                 <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Bankverbindung</p>
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_bank"}}</p>
                     <div class="grid gap-3 sm:grid-cols-2">
                         {{/* Die IBAN wird wie am Mitglied als reiner Text
                              gespeichert: keine Prüfziffer, kein Format, kein
                              SEPA-Export (ADR-0006). */}}
-                        {{template "feld" feld "IBAN" "iban" "text" .IBAN false true}}
-                        {{template "feld" feld "BIC" "bic" "text" .BIC false false}}
-                        {{template "feld" feld "Kreditinstitut" "kreditinstitut" "text" .Kreditinstitut false true}}
+                        {{template "feld" feld (t "feld.iban") "iban" "text" .IBAN false true}}
+                        {{template "feld" feld (t "feld.bic") "bic" "text" .BIC false false}}
+                        {{template "feld" feld (t "feld.kreditinstitut") "kreditinstitut" "text" .Kreditinstitut false true}}
                     </div>
 
                     {{/* Eigener Verwendungszweck für den MoneyMoney-Export
@@ -143,17 +140,18 @@
                          erklärt die Falle: ein gesetzter Text pflegt sich
                          nicht selbst nach Monat und Jahr nach. Der zweite
                          Warnhinweis dazu steht am Export-Button selbst
-                         (templates/dashboard.html). */}}
+                         (templates/dashboard.html). Der Hinweis ist in drei
+                         Katalogschlüssel (_vor/_fett/_nach) zerlegt, damit
+                         das <strong> außerhalb des übersetzten Texts bleibt
+                         — sonst würde html/template es beim Einsetzen
+                         escapen (siehe Ticket 05, derselbe Kniff bei
+                         import.stundenplan_leer_*). */}}
                     <label class="mt-3 flex flex-col gap-1.5">
-                        <span class="text-sm text-neutral-600">MoneyMoney-Export: eigener Verwendungszweck</span>
+                        <span class="text-sm text-neutral-600">{{t "verein.moneymoney_feld"}}</span>
                         <input type="text" name="moneymoney_verwendungszweck" value="{{.MoneyMoneyVerwendungszweck}}"
                                class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
                         <span class="text-sm text-neutral-500">
-                            Ersetzt im MoneyMoney-Export den automatisch erzeugten Text
-                            "Vereinsname Beitrag MM/JJJJ". Leer lassen für den Automatismus.
-                            Ein gesetzter Text führt sich <strong>nicht von selbst</strong> nach
-                            Monat und Jahr fort — nach dem Export hier wieder leeren, sonst
-                            steht er auch im nächsten Monatslauf noch so da.
+                            {{t "verein.moneymoney_hinweis_vor"}}<strong>{{t "verein.moneymoney_hinweis_fett"}}</strong>{{t "verein.moneymoney_hinweis_nach"}}
                         </span>
                     </label>
                 </div>
@@ -161,19 +159,18 @@
 
             <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="rechnungstext" hidden>
                 <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Rechnungstext</p>
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_rechnungstext"}}</p>
                     {{/* Die Fußzeile ist mehrzeiliger Freitext und steht deshalb
                          als einziges Feld nicht im "feld"-Raster: dort steht, was
                          der Verein steuerlich schreiben muss. Die App kennt dazu
                          keine Regel und prüft nichts — der Hinweis unter dem Feld
                          nennt ein Beispiel und keine Vorschrift. */}}
                     <label class="flex flex-col gap-1.5">
-                        <span class="text-sm text-neutral-600">Fußzeile der Rechnung</span>
+                        <span class="text-sm text-neutral-600">{{t "verein.fusszeile_feld"}}</span>
                         <textarea name="fusszeile" rows="4"
                                   class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">{{.Fusszeile}}</textarea>
                         <span class="text-sm text-neutral-500">
-                            Mehrzeilig. Hier steht, was unter der Rechnung stehen muss —
-                            etwa der Hinweis auf §&nbsp;19&nbsp;UStG. Die App prüft daran nichts.
+                            {{t "verein.fusszeile_hinweis"}}
                         </span>
                     </label>
                 </div>
@@ -183,7 +180,7 @@
         <div class="mt-6">
             <button type="submit"
                     class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                Speichern
+                {{t "allgemein.speichern"}}
             </button>
         </div>
     </form>

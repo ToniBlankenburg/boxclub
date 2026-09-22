@@ -216,7 +216,13 @@ func SteuersatzAlsText(prozent float64) string {
 // wird es zugleich als Dokument der Art Rechnung an diesem Mitglied abgelegt;
 // ohne Mitglied — ein Externer, der nie eintritt — wird nur das PDF geliefert,
 // denn es gibt niemanden, an dem es hängen könnte (CONTEXT.md → Rechnung).
-func (s *MemberService) RechnungErstellen(mitgliedID *int64, eingabe RechnungEingabe) ([]byte, error) {
+//
+// beschriftungen sind die Textbausteine, die das PDF selbst trägt (Ticket 06)
+// — der Aufrufer (app/rechnung.go) löst sie über die zum Erstellzeitpunkt
+// aktive Anzeigesprache auf, damit service/ selbst keine Sprache kennt
+// (ADR-0002). Wer keine eigene Übersetzung hat, etwa die Tests dieses
+// Pakets, übergibt RechnungBeschriftungenDeutsch.
+func (s *MemberService) RechnungErstellen(mitgliedID *int64, eingabe RechnungEingabe, beschriftungen RechnungBeschriftungen) ([]byte, error) {
 	if err := eingabe.validieren(); err != nil {
 		return nil, err
 	}
@@ -235,7 +241,7 @@ func (s *MemberService) RechnungErstellen(mitgliedID *int64, eingabe RechnungEin
 		return nil, err
 	}
 
-	pdf, err := rechnungPDF(verein, eingabe)
+	pdf, err := rechnungPDF(verein, eingabe, beschriftungen)
 	if err != nil {
 		return nil, fmt.Errorf("rechnung als pdf erzeugen: %w", err)
 	}

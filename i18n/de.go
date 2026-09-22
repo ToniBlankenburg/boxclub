@@ -333,4 +333,116 @@ var deutsch = map[string]string{
 	"import.fehler.keine_datei":     "Bitte eine Datei auswählen.",
 	"import.fehler.falsche_endung": "%q ist keine %s-Datei. Das alte .xls-Format liest der Import nicht " +
 		"— in Excel einmal als .xlsx speichern.",
+
+	// feld.*-Ergänzungen für Rechnung und Verein (Ticket 06) — dieselbe
+	// Namensraum-Logik wie bei feld.wochentag & Co. (Ticket 04): Formulare,
+	// die dieselbe Angabe brauchen, teilen sich den Schlüssel.
+	"feld.empfaenger":        "Empfänger",
+	"feld.rechnungsnummer":   "Rechnungsnummer",
+	"feld.steuersatz":        "Steuersatz (%)",
+	"feld.rechnungsdatum":    "Rechnungsdatum",
+	"feld.zahlungsziel":      "Zahlungsziel",
+	"feld.menge":             "Menge",
+	"feld.einzelpreis_netto": "Einzelpreis (netto)",
+	"feld.name_verein":       "Name des Vereins",
+	"feld.bic":               "BIC",
+	"feld.kreditinstitut":    "Kreditinstitut",
+	// feld.position_bezeichnung ist eigens von feld.bezeichnung getrennt: das
+	// dort für den Trainingstermin passende "Label" (englischer Katalog)
+	// passt nicht auf eine Rechnungsposition — dort steht eine Beschreibung
+	// der Leistung, kein Etikett.
+	"feld.position_bezeichnung": "Bezeichnung",
+
+	// rechnung.* ist das Rechnungsformular selbst (Ticket 06,
+	// templates/rechnung.html, app/rechnung.go). rechnung.pdf.* sind die
+	// Textbausteine auf dem erzeugten PDF (service.RechnungBeschriftungen,
+	// service/rechnung_pdf.go) — service/ übersetzt sie nicht selbst
+	// (ADR-0002, kein i18n-Import dort); app/rechnung.go löst sie über
+	// rechnungBeschriftungen auf und reicht den fertigen Text durch. Damit
+	// trägt eine erzeugte Rechnung die zum Erstellzeitpunkt aktive Sprache.
+	"rechnung.titel": "Rechnung",
+	"rechnung.beschreibung": "Für eine Leistung neben dem Beitrag — typisch ein Einzeltraining. Der " +
+		"Empfänger ist frei überschreibbar: ein Einzeltraining nimmt auch, wer nie eintritt, nur bleibt " +
+		"das PDF dann nirgends abgelegt.",
+	"rechnung.abschnitt_empfaenger":     "Empfänger",
+	"rechnung.abschnitt_rechnungsdaten": "Rechnungsdaten",
+	"rechnung.abschnitt_positionen":     "Positionen",
+	"rechnung.positionen_hinweis": "Menge und Einzelpreis (netto), etwa \"2\" und \"30,00\". Leere " +
+		"Zeilen zählen nicht mit.",
+	"rechnung.erstellen_knopf": "Rechnung erstellen",
+	"rechnung.wird_erstellt":   "Wird erstellt …",
+
+	"rechnung.pdf.telefon_praefix":         "Telefon: ",
+	"rechnung.pdf.email_praefix":           "E-Mail: ",
+	"rechnung.pdf.rechnungsnummer_praefix": "Rechnungsnummer: ",
+	"rechnung.pdf.rechnungsdatum_praefix":  "Rechnungsdatum: ",
+	"rechnung.pdf.zahlungsziel_praefix":    "Zahlungsziel: ",
+	"rechnung.pdf.titel_praefix":           "Rechnung ",
+	"rechnung.pdf.spalte_summe":            "Summe (netto)",
+	"rechnung.pdf.netto_praefix":           "Netto: ",
+	"rechnung.pdf.steuer_vorlage":          "zzgl. %s %% USt: %s",
+	"rechnung.pdf.gesamtbetrag_praefix":    "Gesamtbetrag: ",
+	"rechnung.pdf.iban_praefix":            "IBAN: ",
+	"rechnung.pdf.bic_praefix":             "BIC: ",
+
+	// rechnung.fehler_*/dialog_*/kein_speicherort_*/gespeichert_nach/
+	// dateiname_praefix sind Text, den app/rechnung.go selbst zusammenbaut
+	// (Formularprüfung, der Datei-Dialog beim Anbieten) — anders als die
+	// Meldungen aus service.ValidierungsFehler (Ticket 07) entstehen sie
+	// nicht im Service.
+	"rechnung.fehler_rechnungsdatum":   "Rechnungsdatum ist kein gültiges Datum.",
+	"rechnung.fehler_zahlungsziel":     "Zahlungsziel ist kein gültiges Datum.",
+	"rechnung.fehler_position_menge":   "Position %d: die Menge ist keine gültige Zahl.",
+	"rechnung.fehler_position_praefix": "Position %d: %s",
+	"rechnung.dateiname_praefix":       "Rechnung ",
+	"rechnung.dialog_nicht_verfuegbar": "Der Datei-Dialog steht nicht zur Verfügung — die Rechnung wurde " +
+		"erstellt, aber nicht angeboten.",
+	"rechnung.kein_speicherort_ohne_mitglied": "Ohne Speicherort ist das PDF weg — es gab niemanden, an " +
+		"dem es hätte abgelegt werden können.",
+	"rechnung.kein_speicherort_mit_mitglied": "Die Rechnung wurde nicht gespeichert. Sie ist am Mitglied " +
+		"abgelegt, lässt sich von hier aus aber nicht noch einmal exportieren.",
+	"rechnung.speichern_fehlgeschlagen": "Die Rechnung ließ sich nicht speichern: %v",
+	"rechnung.gespeichert_nach":         "Die Rechnung wurde nach %s gespeichert.",
+
+	// serienmail.* ist die Rückmeldung nach dem Vorbereiten einer Serienmail
+	// (Ticket 06, templates/serienmail.html) — die Knöpfe, die dorthin
+	// führen, sind schon unter mitglieder.serienmail_knopf/
+	// trainingstermine.serienmail_knopf übersetzt (Ticket 02/04).
+	"serienmail.vorbereitet":   "%d Empfänger für die Serienmail vorbereitet.",
+	"serienmail.oeffnen_knopf": "Mail-Programm öffnen",
+	"serienmail.keine_adresse": "Keine E-Mail-Adresse unter den Ausgewählten.",
+
+	// verein.* ist die Vereinsseite (Ticket 06, templates/verein.html,
+	// app/verein.go) — der Sprachumschalter selbst (sprache.*) ist schon aus
+	// Ticket 01.
+	"verein.titel": "Verein",
+	"verein.beschreibung": "Name, Anschrift, Kontakt und Bankverbindung des Vereins. Sie stehen auf " +
+		"jeder Rechnung, die die App schreibt. Alle Angaben sind freiwillig — was hier fehlt, fehlt dort.",
+	"verein.bereiche_aria":     "Verein-Bereiche",
+	"verein.tab_anschrift":     "Anschrift & Kontakt",
+	"verein.tab_bank":          "Bankverbindung",
+	"verein.tab_rechnungstext": "Rechnungstext",
+	"verein.logo_feld":         "Vereinslogo",
+	"verein.logo_entfernen":    "Entfernen",
+	"verein.logo_alt":          "Aktuelles Vereinslogo",
+	"verein.logo_datei_aria":   "Vereinslogo auswählen",
+	"verein.logo_hinweis": "PNG, JPEG oder SVG, höchstens %s. Erscheint in der App und im Briefkopf " +
+		"jeder erzeugten Rechnung.",
+	"verein.moneymoney_feld": "MoneyMoney-Export: eigener Verwendungszweck",
+	"verein.moneymoney_hinweis_vor": "Ersetzt im MoneyMoney-Export den automatisch erzeugten Text " +
+		"\"Vereinsname Beitrag MM/JJJJ\". Leer lassen für den Automatismus. Ein gesetzter Text führt sich ",
+	"verein.moneymoney_hinweis_fett": "nicht von selbst",
+	"verein.moneymoney_hinweis_nach": " nach Monat und Jahr fort — nach dem Export hier wieder leeren, " +
+		"sonst steht er auch im nächsten Monatslauf noch so da.",
+	"verein.fusszeile_feld": "Fußzeile der Rechnung",
+	// Das nicht-brechende Leerzeichen um "19" steht als  -Escape, nicht
+	// als HTML-Entity: html/template escapt den Text aus i18n.Text beim
+	// Einsetzen, und ein escaptes "&nbsp;" würde als sichtbares "&amp;nbsp;"
+	// erscheinen statt als Leerzeichen (dieselbe Falle wie beim
+	// Import-Spaltennamen, Ticket 05).
+	"verein.fusszeile_hinweis": "Mehrzeilig. Hier steht, was unter der Rechnung stehen muss — etwa der " +
+		"Hinweis auf § 19 UStG. Die App prüft daran nichts.",
+	"verein.gespeichert": "Die Vereinsdaten wurden gespeichert.",
+	"verein.formular_zu_gross": "Die Formulardaten ließen sich nicht entgegennehmen — das Logo ist " +
+		"größer als %s.",
 }

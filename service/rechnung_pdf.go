@@ -48,12 +48,60 @@ const (
 	inhaltsbreite = seitenbreite - 2*rand
 )
 
+// RechnungBeschriftungen sind alle Textbausteine, die rechnungPDF auf dem PDF
+// selbst setzt — Präfixe wie "Rechnungsnummer: " und die Spaltenköpfe der
+// Positionstabelle. Eine erzeugte Rechnung trägt die zum Erstellzeitpunkt
+// aktive Anzeigesprache (Ticket 06): service/ übersetzt dafür nicht selbst
+// (ADR-0002/ADR-0017 — kein i18n-Import hier), sondern bekommt den fertigen
+// Text von app/rechnung.go hereingereicht.
+type RechnungBeschriftungen struct {
+	TelefonPraefix         string
+	EMailPraefix           string
+	RechnungsnummerPraefix string
+	RechnungsdatumPraefix  string
+	ZahlungszielPraefix    string
+	TitelPraefix           string
+	SpalteBezeichnung      string
+	SpalteMenge            string
+	SpalteEinzelpreis      string
+	SpalteSumme            string
+	NettoPraefix           string
+	// SteuerVorlage ist ein fmt.Sprintf-Format mit zwei Platzhaltern
+	// (Steuersatz als Text, Steuerbetrag) — siehe zeichner.summen.
+	SteuerVorlage       string
+	GesamtbetragPraefix string
+	IBANPraefix         string
+	BICPraefix          string
+}
+
+// RechnungBeschriftungenDeutsch ist der deutsche Vorgabetext: Standard für
+// jeden Aufrufer, der keine eigene Übersetzung mitgibt — allen voran die
+// Tests dieses Pakets, die service/ bewusst ohne i18n-Import halten
+// (ADR-0002).
+var RechnungBeschriftungenDeutsch = RechnungBeschriftungen{
+	TelefonPraefix:         "Telefon: ",
+	EMailPraefix:           "E-Mail: ",
+	RechnungsnummerPraefix: "Rechnungsnummer: ",
+	RechnungsdatumPraefix:  "Rechnungsdatum: ",
+	ZahlungszielPraefix:    "Zahlungsziel: ",
+	TitelPraefix:           "Rechnung ",
+	SpalteBezeichnung:      "Bezeichnung",
+	SpalteMenge:            "Menge",
+	SpalteEinzelpreis:      "Einzelpreis (netto)",
+	SpalteSumme:            "Summe (netto)",
+	NettoPraefix:           "Netto: ",
+	SteuerVorlage:          "zzgl. %s %% USt: %s",
+	GesamtbetragPraefix:    "Gesamtbetrag: ",
+	IBANPraefix:            "IBAN: ",
+	BICPraefix:             "BIC: ",
+}
+
 // rechnungPDF setzt eine Rechnung aus den Vereinsdaten (Briefkopf,
 // Bankverbindung, Fußzeile) und der Eingabe (Empfänger, Positionen, Beträge) in
 // ein PDF um. Das Layout ist bewusst schlicht — Ticket 25 verzichtet ausdrücklich
 // auf einen Unit-Test dafür und verlangt stattdessen einen Blick von Hand auf ein
 // erzeugtes Exemplar.
-func rechnungPDF(verein Vereinsdaten, eingabe RechnungEingabe) ([]byte, error) {
+func rechnungPDF(verein Vereinsdaten, eingabe RechnungEingabe, beschriftungen RechnungBeschriftungen) ([]byte, error) {
 	betraege := eingabe.Betraege()
 
 	pdf := &gopdf.GoPdf{}
@@ -67,7 +115,7 @@ func rechnungPDF(verein Vereinsdaten, eingabe RechnungEingabe) ([]byte, error) {
 		return nil, fmt.Errorf("schrift laden: %w", err)
 	}
 
-	z := &zeichner{pdf: pdf}
+	z := &zeichner{pdf: pdf, beschriftungen: beschriftungen}
 
 	z.briefkopf(verein)
 	z.empfaengerUndKopf(eingabe)
@@ -89,8 +137,9 @@ func rechnungPDF(verein Vereinsdaten, eingabe RechnungEingabe) ([]byte, error) {
 // anbietet, weil eine Rechnung aus einer langen Kette kleiner Schreibaufrufe
 // besteht und jeder einzelne dieselbe, uninteressante Fehlerbehandlung bräuchte.
 type zeichner struct {
-	pdf *gopdf.GoPdf
-	err error
+	pdf            *gopdf.GoPdf
+	err            error
+	beschriftungen RechnungBeschriftungen
 }
 
 // schreiben schreibt eine einzeilige Angabe linksbündig ab (x, y).
@@ -151,7 +200,7 @@ func (z *zeichner) briefkopf(verein Vereinsdaten) {
 	z.schreiben(schriftFett, 14, x, 18, verein.Name)
 
 	y := 25.0
-	for _, zeile := range vereinKontaktzeilen(verein) {
+	for _, zeile := range vereinKontaktzeilen(verein, z.beschriftungen) {
 		z.schreiben(schriftRegulaer, 9, x, y, zeile)
 		y += 4.5
 	}
@@ -207,7 +256,7 @@ func logoMasseMM(inhalt []byte) (breite, hoehe float64, err error) {
 // vereinKontaktzeilen sind Anschrift, Telefon und E-Mail des Vereins als
 // einzelne Zeilen unter dem Vereinsnamen — jede Angabe ist freiwillig (Ticket
 // 23) und fehlt einfach, wenn sie nicht gepflegt ist.
-func vereinKontaktzeilen(verein Vereinsdaten) []string {
+func vereinKontaktzeilen(verein Vereinsdaten, b RechnungBeschriftungen) []string {
 	var zeilen []string
 
 	if !verein.Anschrift.Leer() {
@@ -219,10 +268,10 @@ func vereinKontaktzeilen(verein Vereinsdaten) []string {
 		}
 	}
 	if verein.Telefon != "" {
-		zeilen = append(zeilen, "Telefon: "+verein.Telefon)
+		zeilen = append(zeilen, b.TelefonPraefix+verein.Telefon)
 	}
 	if verein.Email != "" {
-		zeilen = append(zeilen, "E-Mail: "+verein.Email)
+		zeilen = append(zeilen, b.EMailPraefix+verein.Email)
 	}
 
 	return zeilen
@@ -250,9 +299,9 @@ func (z *zeichner) empfaengerUndKopf(eingabe RechnungEingabe) {
 	xRechts := rand + inhaltsbreite
 
 	kopfzeilen := []string{
-		"Rechnungsnummer: " + eingabe.Nummer,
-		"Rechnungsdatum: " + eingabe.Rechnungsdatum.Format(deutschesDatum),
-		"Zahlungsziel: " + eingabe.Zahlungsziel.Format(deutschesDatum),
+		z.beschriftungen.RechnungsnummerPraefix + eingabe.Nummer,
+		z.beschriftungen.RechnungsdatumPraefix + eingabe.Rechnungsdatum.Format(deutschesDatum),
+		z.beschriftungen.ZahlungszielPraefix + eingabe.Zahlungsziel.Format(deutschesDatum),
 	}
 	y = startY
 	for _, zeile := range kopfzeilen {
@@ -263,7 +312,7 @@ func (z *zeichner) empfaengerUndKopf(eingabe RechnungEingabe) {
 
 // titel setzt die Überschrift über der Positionstabelle.
 func (z *zeichner) titel(eingabe RechnungEingabe) {
-	z.schreiben(schriftFett, 13, rand, 78, "Rechnung "+eingabe.Nummer)
+	z.schreiben(schriftFett, 13, rand, 78, z.beschriftungen.TitelPraefix+eingabe.Nummer)
 }
 
 // positionsTabelleStartY und -zeilenhoehe legen fest, wo die Tabelle beginnt
@@ -288,10 +337,10 @@ func (z *zeichner) positionstabelle(positionen []Rechnungsposition) float64 {
 	}
 
 	tabelle := z.pdf.NewTableLayout(rand, positionsTabelleStartY, positionsZeilenhoehe, len(positionen))
-	tabelle.AddColumn("Bezeichnung", inhaltsbreite*0.46, "left")
-	tabelle.AddColumn("Menge", inhaltsbreite*0.14, "right")
-	tabelle.AddColumn("Einzelpreis (netto)", inhaltsbreite*0.2, "right")
-	tabelle.AddColumn("Summe (netto)", inhaltsbreite*0.2, "right")
+	tabelle.AddColumn(z.beschriftungen.SpalteBezeichnung, inhaltsbreite*0.46, "left")
+	tabelle.AddColumn(z.beschriftungen.SpalteMenge, inhaltsbreite*0.14, "right")
+	tabelle.AddColumn(z.beschriftungen.SpalteEinzelpreis, inhaltsbreite*0.2, "right")
+	tabelle.AddColumn(z.beschriftungen.SpalteSumme, inhaltsbreite*0.2, "right")
 
 	tabelle.SetHeaderStyle(gopdf.CellStyle{
 		BorderStyle: rahmen, FillColor: gopdf.RGBColor{R: 235, G: 235, B: 235},
@@ -323,16 +372,16 @@ func (z *zeichner) summen(betraege Rechnungsbetraege, steuersatzProzent, y float
 	xRechts := rand + inhaltsbreite
 
 	y += 4
-	z.schreibenRechts(schriftRegulaer, 10, xRechts, y, breite, "Netto: "+euroAnzeige(betraege.NettoCents))
+	z.schreibenRechts(schriftRegulaer, 10, xRechts, y, breite, z.beschriftungen.NettoPraefix+euroAnzeige(betraege.NettoCents))
 	y += 5
 
 	if steuersatzProzent > 0 {
-		beschriftung := fmt.Sprintf("zzgl. %s %% USt: %s", SteuersatzAlsText(steuersatzProzent), euroAnzeige(betraege.SteuerCents))
+		beschriftung := fmt.Sprintf(z.beschriftungen.SteuerVorlage, SteuersatzAlsText(steuersatzProzent), euroAnzeige(betraege.SteuerCents))
 		z.schreibenRechts(schriftRegulaer, 10, xRechts, y, breite, beschriftung)
 		y += 5
 	}
 
-	z.schreibenRechts(schriftFett, 11, xRechts, y, breite, "Gesamtbetrag: "+euroAnzeige(betraege.BruttoCents))
+	z.schreibenRechts(schriftFett, 11, xRechts, y, breite, z.beschriftungen.GesamtbetragPraefix+euroAnzeige(betraege.BruttoCents))
 }
 
 // fusszeile setzt Bankverbindung und die frei getippte Fußzeile unten auf die
@@ -342,7 +391,7 @@ func (z *zeichner) fusszeile(verein Vereinsdaten) {
 	const startY = 255.0
 
 	y := startY
-	for _, zeile := range bankverbindungKontaktzeilen(verein) {
+	for _, zeile := range bankverbindungKontaktzeilen(verein, z.beschriftungen) {
 		z.schreiben(schriftRegulaer, 8, rand, y, zeile)
 		y += 4
 	}
@@ -360,14 +409,14 @@ func (z *zeichner) fusszeile(verein Vereinsdaten) {
 
 // bankverbindungKontaktzeilen sind IBAN, BIC und Kreditinstitut als einzelne
 // Zeilen — dieselben drei Angaben, die Ticket 23 am Verein pflegt.
-func bankverbindungKontaktzeilen(verein Vereinsdaten) []string {
+func bankverbindungKontaktzeilen(verein Vereinsdaten, b RechnungBeschriftungen) []string {
 	var zeilen []string
 
 	if verein.IBAN != "" {
-		zeilen = append(zeilen, "IBAN: "+verein.IBAN)
+		zeilen = append(zeilen, b.IBANPraefix+verein.IBAN)
 	}
 	if verein.BIC != "" {
-		zeilen = append(zeilen, "BIC: "+verein.BIC)
+		zeilen = append(zeilen, b.BICPraefix+verein.BIC)
 	}
 	if verein.Kreditinstitut != "" {
 		zeilen = append(zeilen, verein.Kreditinstitut)

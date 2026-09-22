@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -78,8 +79,7 @@ func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
 
 	if err := r.ParseMultipartForm(maxVereinUpload); err != nil {
 		a.vereinRendern(w, meldung{}, []string{
-			"Die Formulardaten ließen sich nicht entgegennehmen — das Logo ist größer als " +
-				service.Logogrenze() + "."})
+			i18n.Text(a.Sprache(), "verein.formular_zu_gross", service.Logogrenze())})
 
 		return
 	}
@@ -130,7 +130,7 @@ func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.vereinRendern(w, meldung{Text: "Die Vereinsdaten wurden gespeichert."}, nil)
+	a.vereinRendern(w, meldung{Text: i18n.Text(a.Sprache(), "verein.gespeichert")}, nil)
 }
 
 // vereinLogo liefert das hinterlegte Vereinslogo aus — der einzige Weg, auf

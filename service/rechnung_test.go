@@ -113,7 +113,7 @@ func TestRechnungErstellen_LegtSieAmMitgliedAb(t *testing.T) {
 
 	mitgliedID := mitgliedAnlegen(t, svc, "Anna", "Berger")
 
-	pdf, err := svc.RechnungErstellen(&mitgliedID, rechnungEingabeImTest())
+	pdf, err := svc.RechnungErstellen(&mitgliedID, rechnungEingabeImTest(), service.RechnungBeschriftungenDeutsch)
 	if err != nil {
 		t.Fatalf("RechnungErstellen: %v", err)
 	}
@@ -156,13 +156,13 @@ func TestRechnungErstellen_LegtMehrereNebeneinanderAb(t *testing.T) {
 
 	erste := rechnungEingabeImTest()
 	erste.Nummer = "2026-001"
-	if _, err := svc.RechnungErstellen(&mitgliedID, erste); err != nil {
+	if _, err := svc.RechnungErstellen(&mitgliedID, erste, service.RechnungBeschriftungenDeutsch); err != nil {
 		t.Fatalf("erstes RechnungErstellen: %v", err)
 	}
 
 	zweite := rechnungEingabeImTest()
 	zweite.Nummer = "2026-002"
-	if _, err := svc.RechnungErstellen(&mitgliedID, zweite); err != nil {
+	if _, err := svc.RechnungErstellen(&mitgliedID, zweite, service.RechnungBeschriftungenDeutsch); err != nil {
 		t.Fatalf("zweites RechnungErstellen: %v", err)
 	}
 
@@ -191,7 +191,7 @@ func TestRechnungErstellen_OhneMitgliedWirdNichtsAbgelegt(t *testing.T) {
 	eingabe := rechnungEingabeImTest()
 	eingabe.Empfaenger.Name = "Läuft mal vorbei"
 
-	pdf, err := svc.RechnungErstellen(nil, eingabe)
+	pdf, err := svc.RechnungErstellen(nil, eingabe, service.RechnungBeschriftungenDeutsch)
 	if err != nil {
 		t.Fatalf("RechnungErstellen: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestRechnungErstellen_MeldetUnbekanntesMitglied(t *testing.T) {
 	}
 
 	unbekannt := int64(4711)
-	if _, err := svc.RechnungErstellen(&unbekannt, rechnungEingabeImTest()); !errors.Is(err, service.ErrNichtGefunden) {
+	if _, err := svc.RechnungErstellen(&unbekannt, rechnungEingabeImTest(), service.RechnungBeschriftungenDeutsch); !errors.Is(err, service.ErrNichtGefunden) {
 		t.Errorf("RechnungErstellen = %v, erwartet ErrNichtGefunden", err)
 	}
 }
@@ -226,7 +226,7 @@ func TestRechnungErstellen_MeldetAlleFehlerAufEinmal(t *testing.T) {
 
 	eingabe := service.RechnungEingabe{SteuersatzProzent: -1}
 
-	_, err := svc.RechnungErstellen(nil, eingabe)
+	_, err := svc.RechnungErstellen(nil, eingabe, service.RechnungBeschriftungenDeutsch)
 
 	var validierung *service.ValidierungsFehler
 	if !errors.As(err, &validierung) {
@@ -247,7 +247,7 @@ func TestRechnungErstellen_MeldetFehlerhaftePosition(t *testing.T) {
 		{Bezeichnung: "", Menge: 0, EinzelpreisCents: -100},
 	}
 
-	_, err := svc.RechnungErstellen(nil, eingabe)
+	_, err := svc.RechnungErstellen(nil, eingabe, service.RechnungBeschriftungenDeutsch)
 
 	var validierung *service.ValidierungsFehler
 	if !errors.As(err, &validierung) {
