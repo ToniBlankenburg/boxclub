@@ -30,6 +30,23 @@
         hier fehlt, fehlt dort.
     </p>
 
+    {{/* Der Sprachumschalter (ADR-0017) steht außerhalb des Formulars unten
+         und hat sein eigenes <select>: die Sprache ist keine Angabe aus
+         vereinsdaten (der DB-Zeile), sondern eine programmweite Einstellung
+         in einer eigenen Datei — ein zweiter Persistenz-Weg, der nicht mit
+         "Speichern" unten vermischt werden soll. Ändert sich der Wert, schickt
+         das Auswahlfeld sich selbst ab, kein eigener Knopf nötig. */}}
+    <div class="mb-5 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+        <label for="sprache" class="text-sm font-medium text-neutral-700">{{t "sprache.hinweis"}}</label>
+        <select id="sprache" name="sprache"
+                hx-post="/api/einstellungen/sprache" hx-trigger="change"
+                hx-target="#inhalt" hx-swap="innerHTML"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+            <option value="de" {{if eq aktuelleSprache "de"}}selected{{end}}>{{t "sprache.name.de"}}</option>
+            <option value="en" {{if eq aktuelleSprache "en"}}selected{{end}}>{{t "sprache.name.en"}}</option>
+        </select>
+    </div>
+
     {{template "meldung" .Meldung}}
 
     {{if .Fehler}}

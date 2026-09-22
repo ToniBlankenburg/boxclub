@@ -9,11 +9,9 @@ import (
 
 // spracheAendern schaltet die Anzeigesprache der gesamten Oberfläche um und
 // schreibt sie in die Einstellungsdatei, damit sie den nächsten Start
-// übersteht (ADR-0017). Die Sprache ist eine Einstellung fürs ganze
-// Programm, nicht für einen einzelnen Bereich — die Rückkehr-Ansicht ist
-// deshalb dieselbe wie nach jeder anderen Aktion: die Mitgliederliste
-// (App.listeRendern). Welcher Bereich vor dem Umschalten offen war, hält die
-// App nicht serverseitig fest.
+// übersteht (ADR-0017). Das Auswahlfeld dafür steht auf der Verein-Seite
+// (templates/verein.html) — die Rückkehr-Ansicht ist deshalb dieselbe Seite,
+// jetzt in der neuen Sprache, und nicht die Mitgliederliste.
 func (a *App) spracheAendern(w http.ResponseWriter, r *http.Request) {
 	sprache := i18n.Sprache(r.FormValue("sprache"))
 	if !sprache.Gueltig() {
@@ -26,5 +24,5 @@ func (a *App) spracheAendern(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.listeRendern(w, meldung{})
+	a.vereinRendern(w, meldung{}, nil)
 }

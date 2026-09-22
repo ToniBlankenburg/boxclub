@@ -1707,26 +1707,12 @@ func (a *App) templateFunktionen() template.FuncMap {
 			return i18n.Text(a.Sprache(), schluessel, args...)
 		},
 		// aktuelleSprache reicht die aktive Anzeigesprache an den
-		// Sprachumschalter in navigation.html durch — die einzige Stelle, die
-		// wissen muss, welcher der beiden Knöpfe gerade aktiv ist.
+		// Sprachumschalter in verein.html durch, damit die richtige <option>
+		// als ausgewählt markiert ist.
 		"aktuelleSprache": func() string {
 			return string(a.Sprache())
 		},
-		// sprachknopf bündelt die Argumente für das Teil-Template
-		// "sprache-knopf" — dasselbe Muster wie "feld".
-		"sprachknopf": func(wert, aktiv string) sprachknopfDaten {
-			return sprachknopfDaten{Wert: wert, Aktiv: aktiv}
-		},
 	}
-}
-
-// sprachknopfDaten beschreibt einen Knopf des Sprachumschalters für das
-// Teil-Template "sprache-knopf". Aktiv ist die gerade aktive Sprache, nicht
-// ein bool — der Knopf vergleicht selbst, ob er es ist, dieselbe Bauart wie
-// filteroption.
-type sprachknopfDaten struct {
-	Wert  string
-	Aktiv string
 }
 
 // vorschlagsfeldDaten beschreibt ein Freitextfeld mit Eintipphilfe für das

@@ -20,10 +20,10 @@ Tickets aufbauen: Katalog-Package, persistierte Einstellung, Sprache im
       Template-`FuncMap`, `navigation()` wird Methode und übersetzt
       `Beschriftung` je Bereich (`nav.<schluessel>`)
 - [x] Route `POST /api/einstellungen/sprache`: setzt Sprache, schreibt die
-      Einstellungsdatei, rendert die Mitgliederliste (dieselbe
-      Rückkehr-Ansicht wie nach jeder anderen Aktion, `App.listeRendern`)
-- [x] Umschalter sitzt in der Navigation selbst (`navigation.html`) — sichtbar
-      und erreichbar von jedem Bereich aus, nicht nur von den Vereinsdaten
+      Einstellungsdatei, rendert die Verein-Seite neu (`App.vereinRendern`)
+- [x] Umschalter ist ein `<select>` auf der Verein-Seite (`verein.html`),
+      kein eigener Knopf/keine eigene Navigation-Erweiterung (Rücksprache mit
+      Nutzer nach dem ersten Entwurf mit zwei Knöpfen in der Kopfzeile)
 - [x] Test am Seam: `i18n.Text` für beide Sprachen, fehlender Schlüssel,
       fehlende Sprache
 - [x] Test am Seam: `Einstellungen.Laden`/`Speichern` mit `t.TempDir()`,
@@ -43,12 +43,15 @@ Tickets aufbauen: Katalog-Package, persistierte Einstellung, Sprache im
   (7 Aufrufstellen angepasst) — sie braucht die aktuelle Sprache, die am
   `App` hängt. Die `Beschriftung`-Literale in `var bereiche` sind entfallen:
   sie wurden ohnehin bei jedem Aufruf überschrieben.
-- Der Umschalter kehrt immer zur Mitgliederliste zurück, nicht zur zuvor
-  offenen Ansicht — es gibt keinen serverseitigen Zustand, welcher Bereich
-  gerade offen ist (jede Route rendert sich selbst, ohne Session), und ein
-  Dispatch über alle Bereiche wäre für diesen Schnitt zu viel Maschinerie.
-  Dieselbe Rückkehr-Ansicht wie nach Anlegen/Bearbeiten eines Mitglieds
-  (`App.listeRendern`).
+- Erster Entwurf hatte den Umschalter als zwei Pillen-Knöpfe (DE/EN) in der
+  Kopfzeilen-Navigation, analog zu den Bereichs-Knöpfen, mit Rückkehr zur
+  Mitgliederliste nach dem Umschalten. Der Nutzer wollte das nicht: keine
+  eigenen Knöpfe für eine Einstellung, die man selten ändert. Jetzt steht sie
+  als `<select>` auf der Verein-Seite (eigenes `<div>`, außerhalb des
+  Vereinsdaten-Formulars — die Sprache ist keine `vereinsdaten`-Angabe,
+  sondern die eigene Einstellungsdatei, siehe ADR-0017) und schickt sich bei
+  `change` selbst ab. Die Rückkehr-Ansicht ist deshalb die Verein-Seite
+  selbst (`App.vereinRendern`), nicht mehr die Mitgliederliste.
 - Bewusst **nicht** übersetzt in diesem Ticket: alles außerhalb der
   Navigation (Listenansicht, Formulare, Dashboard, Rechnung, Import,
   Trainingstermine, Fehlermeldungen aus `service/`) — das sind die Tickets
