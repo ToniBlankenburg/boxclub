@@ -114,7 +114,7 @@ func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
 
 	var validierung *service.ValidierungsFehler
 	if errors.As(err, &validierung) {
-		a.vereinRendern(w, meldung{}, validierung.Meldungen)
+		a.vereinRendern(w, meldung{}, a.uebersetzeMeldungen(validierung.Meldungen))
 		return
 	}
 	if err != nil {

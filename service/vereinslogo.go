@@ -42,18 +42,16 @@ var (
 // keinLogoformat sagt, warum eine Datei nicht als Logo angenommen wurde, und
 // nennt sie beim Namen — hochgeladen wird aus einem Dateidialog heraus, und
 // welche der ausgewählten Dateien gemeint ist, soll niemand raten müssen.
-func keinLogoformat(name string) string {
-	return fmt.Sprintf(
-		"»%s« ist kein PNG, JPEG oder SVG. Hochgeladen werden nur diese Bildformate.", name)
+func keinLogoformat(name string) Meldung {
+	return meldung("validierung.logo.kein_format", name)
 }
 
 // logoZuGross ist die eigene Meldung für die Größengrenze des Logos, aus
 // demselben Grund wie zuGross bei Dokumenten: beide Zahlen stehen da, sonst
 // bleibt unklar, ob die Datei knapp darüber liegt oder ob die falsche
 // ausgewählt wurde.
-func logoZuGross(name string, groesse int) string {
-	return fmt.Sprintf("»%s« ist %s groß. Hochgeladen werden Logos bis %s.",
-		name, megabyte(groesse), Logogrenze())
+func logoZuGross(name string, groesse int) Meldung {
+	return meldung("validierung.logo.zu_gross", name, megabyte(groesse), Logogrenze())
 }
 
 // Logogrenze schreibt die Obergrenze so, wie sie dem Verein gezeigt wird —
@@ -70,7 +68,7 @@ func Logogrenze() string {
 // zu große Datei im falschen Format auswählt, soll beide Gründe auf einmal
 // erfahren.
 func LogoAusUpload(dateiname string, inhalt []byte) ([]byte, string, error) {
-	var meldungen []string
+	var meldungen []Meldung
 
 	zuGross := len(inhalt) > MaxLogoBytes
 	if zuGross {

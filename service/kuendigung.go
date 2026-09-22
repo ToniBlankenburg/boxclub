@@ -66,7 +66,7 @@ func RegulaererAustritt(kuendigungsdatum time.Time) time.Time {
 // Sie abzuweisen schützt eine bereits erfasste Kündigung vor einem versehentlich
 // leer abgeschickten Formular; eine Kündigung zurückzunehmen ist ein eigener
 // Vorgang und in v1 nicht vorgesehen.
-const fehlendesDatum = "Bitte ein Kündigungsdatum oder ein Austrittsdatum angeben."
+var fehlendesDatum = meldung("validierung.kuendigung.fehlendes_datum")
 
 // pruefen sammelt die Regelverstöße der Eingabe gegen den Eintritt des
 // Zeitraums, den sie beendet — als Texte und nicht als Fehler, damit der
@@ -79,24 +79,24 @@ const fehlendesDatum = "Bitte ein Kündigungsdatum oder ein Austrittsdatum angeb
 // Gegen den Eintritt geprüft wird nur der Austritt: ein Kündigungsdatum vor dem
 // Eintritt ist kein Tippfehler, sondern der Fall, in dem jemand zurücktritt,
 // bevor seine Mitgliedschaft überhaupt beginnt.
-func (k Kuendigung) pruefen(eintritt string) []string {
+func (k Kuendigung) pruefen(eintritt string) []Meldung {
 	if k.Datum == nil && k.Austritt == nil {
-		return []string{fehlendesDatum}
+		return []Meldung{fehlendesDatum}
 	}
 
-	var fehler []string
+	var fehler []Meldung
 
 	if k.Austritt != nil {
 		austritt := k.Austritt.Format(isoDatum)
 
 		if austritt < eintritt {
-			fehler = append(fehler, "Das Austrittsdatum darf nicht vor dem Eintrittsdatum liegen.")
+			fehler = append(fehler, meldung("validierung.kuendigung.austritt_vor_eintritt"))
 		}
 
 		// Der Austrittstag selbst ist erlaubt: eine Kündigungsfrist von null
 		// Tagen gibt es (Aufhebungsvertrag), eine negative nicht.
 		if k.Datum != nil && k.Datum.Format(isoDatum) > austritt {
-			fehler = append(fehler, "Das Kündigungsdatum darf nicht nach dem Austrittsdatum liegen.")
+			fehler = append(fehler, meldung("validierung.kuendigung.kuendigung_nach_austritt"))
 		}
 	}
 

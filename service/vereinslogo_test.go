@@ -92,8 +92,12 @@ func TestLogoAusUpload_WeistZuGrosseDateiAb(t *testing.T) {
 	if !errors.As(err, &validierung) {
 		t.Fatalf("LogoAusUpload = %v, erwartet einen ValidierungsFehler", err)
 	}
-	if len(validierung.Meldungen) != 1 || !strings.Contains(validierung.Meldungen[0], "logo.png") {
-		t.Errorf("Meldungen = %q, erwartet eine, die die Datei beim Namen nennt", validierung.Meldungen)
+	if len(validierung.Meldungen) != 1 {
+		t.Fatalf("Meldungen = %+v, erwartet genau eine", validierung.Meldungen)
+	}
+	m := validierung.Meldungen[0]
+	if m.Schluessel != "validierung.logo.zu_gross" || len(m.Args) == 0 || m.Args[0] != "logo.png" {
+		t.Errorf("Meldung = %+v, erwartet eine, die die Datei beim Namen nennt", m)
 	}
 
 	// Genau an der Grenze geht es durch: die Grenze schließt ihren Wert ein.
@@ -112,8 +116,12 @@ func TestLogoAusUpload_WeistUnbekanntesFormatAb(t *testing.T) {
 	if !errors.As(err, &validierung) {
 		t.Fatalf("LogoAusUpload = %v, erwartet einen ValidierungsFehler", err)
 	}
-	if len(validierung.Meldungen) != 1 || !strings.Contains(validierung.Meldungen[0], "vertrag.pdf") {
-		t.Errorf("Meldungen = %q, erwartet eine, die die Datei beim Namen nennt", validierung.Meldungen)
+	if len(validierung.Meldungen) != 1 {
+		t.Fatalf("Meldungen = %+v, erwartet genau eine", validierung.Meldungen)
+	}
+	m := validierung.Meldungen[0]
+	if m.Schluessel != "validierung.logo.kein_format" || len(m.Args) == 0 || m.Args[0] != "vertrag.pdf" {
+		t.Errorf("Meldung = %+v, erwartet eine, die die Datei beim Namen nennt", m)
 	}
 }
 

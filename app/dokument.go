@@ -115,7 +115,7 @@ func (a *App) vertragAblegen(w http.ResponseWriter, r *http.Request) {
 
 	var validierung *service.ValidierungsFehler
 	if errors.As(err, &validierung) {
-		a.vertragRendern(w, id, meldung{}, validierung.Meldungen)
+		a.vertragRendern(w, id, meldung{}, a.uebersetzeMeldungen(validierung.Meldungen))
 		return
 	}
 	if err != nil {

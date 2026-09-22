@@ -445,4 +445,62 @@ var deutsch = map[string]string{
 	"verein.gespeichert": "Die Vereinsdaten wurden gespeichert.",
 	"verein.formular_zu_gross": "Die Formulardaten ließen sich nicht entgegennehmen — das Logo ist " +
 		"größer als %s.",
+
+	// validierung.* sind die Meldungen aus service/, dort als
+	// *service.ValidierungsFehler mit Schlüssel statt fertigem Text gebaut
+	// (ADR-0018, Ticket 07) — service/ selbst kennt keine Sprache.
+	"validierung.mitglied.vorname_leer":    "Vorname darf nicht leer sein.",
+	"validierung.mitglied.nachname_leer":   "Nachname darf nicht leer sein.",
+	"validierung.mitglied.eintritt_leer":   "Eintrittsdatum darf nicht leer sein.",
+	"validierung.mitglied.beitrag_negativ": "Der Beitrag darf nicht negativ sein.",
+	"validierung.mitglied.gebuehr_negativ": "Die Anmeldegebühr darf nicht negativ sein.",
+
+	"validierung.termin.zu_viele":   "Es sind höchstens %d Trainingstermine möglich.",
+	"validierung.termin.unbekannt":  "Einen ausgewählten Trainingstermin gibt es nicht.",
+	"validierung.termin.archiviert": "»%s« ist archiviert und kann nicht neu vergeben werden.",
+
+	"validierung.kuendigung.fehlendes_datum":       "Bitte ein Kündigungsdatum oder ein Austrittsdatum angeben.",
+	"validierung.kuendigung.austritt_vor_eintritt": "Das Austrittsdatum darf nicht vor dem Eintrittsdatum liegen.",
+	"validierung.kuendigung.kuendigung_nach_austritt": "Das Kündigungsdatum darf nicht nach dem " +
+		"Austrittsdatum liegen.",
+
+	"validierung.wiedereintritt.vor_letztem_austritt": "Das Eintrittsdatum darf nicht vor dem letzten " +
+		"Austritt liegen.",
+
+	"validierung.dokument.kein_pdf": "»%s« ist keine PDF-Datei. Abgelegt werden nur PDFs.",
+	"validierung.dokument.zu_gross": "»%s« ist %s groß. Abgelegt werden Dateien bis %s.",
+
+	"validierung.logo.kein_format": "»%s« ist kein PNG, JPEG oder SVG. Hochgeladen werden nur diese " +
+		"Bildformate.",
+	"validierung.logo.zu_gross": "»%s« ist %s groß. Hochgeladen werden Logos bis %s.",
+
+	"validierung.rechnung.empfaenger_leer":              "Der Empfänger darf nicht leer sein.",
+	"validierung.rechnung.nummer_leer":                  "Die Rechnungsnummer darf nicht leer sein.",
+	"validierung.rechnung.rechnungsdatum_leer":          "Das Rechnungsdatum darf nicht leer sein.",
+	"validierung.rechnung.zahlungsziel_leer":            "Das Zahlungsziel darf nicht leer sein.",
+	"validierung.rechnung.steuersatz_negativ":           "Der Steuersatz darf nicht negativ sein.",
+	"validierung.rechnung.keine_position":               "Die Rechnung braucht mindestens eine Position.",
+	"validierung.rechnung.position_bezeichnung_leer":    "Position %d: die Bezeichnung darf nicht leer sein.",
+	"validierung.rechnung.position_menge_ungueltig":     "Position %d: die Menge muss größer als 0 sein.",
+	"validierung.rechnung.position_einzelpreis_negativ": "Position %d: der Einzelpreis darf nicht negativ sein.",
+	"validierung.rechnung.einzelpreis_leer":             "Bitte einen Einzelpreis angeben (0 für kostenlos).",
+	"validierung.rechnung.einzelpreis_ungueltig":        "Der Einzelpreis ist kein gültiger Betrag. Beispiel: 60 oder 60,50.",
+	"validierung.rechnung.steuersatz_leer":              "Bitte einen Steuersatz angeben (0 für steuerfrei).",
+	"validierung.rechnung.steuersatz_ungueltig":         "Der Steuersatz ist keine gültige Zahl. Beispiel: 19 oder 7.",
+
+	"validierung.beitrag.leer":              "Bitte einen Beitrag angeben (0 für beitragsfrei).",
+	"validierung.beitrag.ungueltig":         "Der Beitrag ist kein gültiger Betrag. Beispiel: 60 oder 60,50.",
+	"validierung.beitrag.gebuehr_ungueltig": "Die Anmeldegebühr ist kein gültiger Betrag. Beispiel: 60 oder 60,50.",
+
+	"validierung.trainingstermin.wochentag_fehlt": "Bitte einen Wochentag auswählen.",
+	"validierung.trainingstermin.beginn_fehlt":    "Der Beginn ist eine Pflichtangabe.",
+	"validierung.trainingstermin.beginn_unlesbar": "Der Beginn ist keine gültige Uhrzeit.",
+	"validierung.trainingstermin.ende_unlesbar":   "Das Ende ist keine gültige Uhrzeit.",
+	"validierung.trainingstermin.ende_vor_beginn": "Das Ende darf nicht vor dem Beginn liegen.",
+
+	"validierung.uebernahme.id_ungueltig": "Die Mitglieds-ID muss eine positive Zahl sein.",
+	"validierung.uebernahme.id_gehoert_anderem": "Die Mitglieds-ID %d gehört in der App bereits zu %s %s. " +
+		"Entweder die Nummer in der Excel oder den Namen in der App korrigieren.",
+	"validierung.uebernahme.eintritt_passt_nicht": "%s %s hat in der App mehrere Mitgliedschaften, und das " +
+		"Eintrittsdatum %s passt zu keiner davon. Bitte in der App korrigieren.",
 }

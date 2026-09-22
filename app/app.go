@@ -842,7 +842,7 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 			fehlerAntwort(w, err)
 			return
 		}
-		fehler = validierung.Meldungen
+		fehler = a.uebersetzeMeldungen(validierung.Meldungen)
 	}
 
 	// Fehlerhafte Eingabe: Formular mit Werten und Meldungen zurückgeben. Bewusst
@@ -888,7 +888,7 @@ func (a *App) mitgliedAktualisieren(w http.ResponseWriter, r *http.Request) {
 			a.nichtGefundenOderFehler(w, err)
 			return
 		}
-		fehler = validierung.Meldungen
+		fehler = a.uebersetzeMeldungen(validierung.Meldungen)
 	}
 
 	a.bearbeitenFormularRendern(w, id, &eingabe, fehler)
@@ -1161,7 +1161,7 @@ func (a *App) kuendigungEintragen(w http.ResponseWriter, r *http.Request) {
 	if err := a.svc.SetKuendigung(id, k); err != nil {
 		var validierung *service.ValidierungsFehler
 		if errors.As(err, &validierung) {
-			a.kuendigungFormularMitFehler(w, id, validierung.Meldungen)
+			a.kuendigungFormularMitFehler(w, id, a.uebersetzeMeldungen(validierung.Meldungen))
 			return
 		}
 
@@ -1308,7 +1308,7 @@ func (a *App) wiedereintrittEintragen(w http.ResponseWriter, r *http.Request) {
 	if err := a.svc.Rejoin(id, d); err != nil {
 		var validierung *service.ValidierungsFehler
 		if errors.As(err, &validierung) {
-			a.wiedereintrittFormularMitFehler(w, id, validierung.Meldungen)
+			a.wiedereintrittFormularMitFehler(w, id, a.uebersetzeMeldungen(validierung.Meldungen))
 			return
 		}
 
@@ -1604,6 +1604,18 @@ func (a *App) rendern(w http.ResponseWriter, name string, daten any) {
 
 func fehlerAntwort(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+// uebersetzeMeldungen löst die Schlüssel eines *service.ValidierungsFehler in
+// Text auf. service/ liefert nur Schlüssel und Argumente (ADR-0018) — hier,
+// am Rand zur Oberfläche, entsteht daraus der Satz, den ein Formular zeigt.
+func (a *App) uebersetzeMeldungen(meldungen []service.Meldung) []string {
+	fehler := make([]string, len(meldungen))
+	for i, m := range meldungen {
+		fehler[i] = i18n.Text(a.Sprache(), m.Schluessel, m.Args...)
+	}
+
+	return fehler
 }
 
 // nichtGefundenOderFehler beantwortet einen Service-Fehler. Eine ID, zu der es

@@ -92,10 +92,10 @@ func (s *MemberService) Uebernehmen(satz Importsatz) (Importwirkung, error) {
 
 // validieren prüft den Satz nach denselben Regeln wie eine Eingabe von Hand.
 func (satz Importsatz) validieren() error {
-	var fehler []string
+	var fehler []Meldung
 
 	if satz.ID <= 0 {
-		fehler = append(fehler, "Die Mitglieds-ID muss eine positive Zahl sein.")
+		fehler = append(fehler, meldung("validierung.uebernahme.id_ungueltig"))
 	}
 
 	var vf *ValidierungsFehler
@@ -145,10 +145,9 @@ func (satz Importsatz) zielMitglied(q abfrager) (int64, bool, error) {
 		// wildfremde Excel-Zeile — und würde stillschweigend von ihr überschrieben.
 		// Der Name entscheidet deshalb mit, ob wirklich dieselbe Person gemeint ist.
 		if !gleicherName(vorname, satz.Vorname) || !gleicherName(nachname, satz.Nachname) {
-			return 0, false, &ValidierungsFehler{Meldungen: []string{fmt.Sprintf(
-				"Die Mitglieds-ID %d gehört in der App bereits zu %s %s. "+
-					"Entweder die Nummer in der Excel oder den Namen in der App korrigieren.",
-				satz.ID, vorname, nachname)}}
+			return 0, false, &ValidierungsFehler{Meldungen: []Meldung{
+				meldung("validierung.uebernahme.id_gehoert_anderem", satz.ID, vorname, nachname),
+			}}
 		}
 
 		return satz.ID, true, nil
@@ -314,10 +313,10 @@ func (satz Importsatz) zielMitgliedschaft(q abfrager, mitgliedID int64) (int64, 
 	}
 
 	if anzahl != 1 {
-		return 0, &ValidierungsFehler{Meldungen: []string{fmt.Sprintf(
-			"%s %s hat in der App mehrere Mitgliedschaften, und das Eintrittsdatum %s "+
-				"passt zu keiner davon. Bitte in der App korrigieren.",
-			satz.Vorname, satz.Nachname, satz.Eintritt.Format(isoDatum))}}
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{
+			meldung("validierung.uebernahme.eintritt_passt_nicht",
+				satz.Vorname, satz.Nachname, satz.Eintritt.Format(isoDatum)),
+		}}
 	}
 
 	return id, nil

@@ -22,22 +22,21 @@ import (
 // es nicht gibt, und wird deshalb abgewiesen statt abgeschnitten.
 const MaxTrainingstermine = 3
 
-// Die Meldungen zu den drei Regeln, die eine Zuordnung kennt — fertige Sätze
-// für das Formular, wie überall im Service.
+// Die Meldungen zu den drei Regeln, die eine Zuordnung kennt.
 var (
-	zuVieleTermine = fmt.Sprintf("Es sind höchstens %d Trainingstermine möglich.", MaxTrainingstermine)
+	zuVieleTermine = meldung("validierung.termin.zu_viele", MaxTrainingstermine)
 
 	// Ein Termin, den es nicht gibt, kann nur aus einer veralteten Ansicht oder
 	// einem selbstgebauten Request stammen. Benennen lässt er sich nicht — es
 	// steht ja nichts mehr da, was einen Namen hätte.
-	unbekannterTermin = "Einen ausgewählten Trainingstermin gibt es nicht."
+	unbekannterTermin = meldung("validierung.termin.unbekannt")
 )
 
 // archivierterTermin sagt, warum ein archivierter Termin nicht neu vergeben
 // werden kann. Er wird beim Namen genannt: in der Auswahl stehen drei bis zehn
 // Zeilen, und welche davon gemeint ist, soll niemand raten müssen.
-func archivierterTermin(t Trainingstermin) string {
-	return fmt.Sprintf("»%s« ist archiviert und kann nicht neu vergeben werden.", t.Anzeige())
+func archivierterTermin(t Trainingstermin) Meldung {
+	return meldung("validierung.termin.archiviert", t.Anzeige())
 }
 
 // Trainingsfrequenz ist, wie oft pro Woche ein Mitglied trainiert. Sie wird
@@ -126,9 +125,9 @@ func trainingsterminIDsNormalisieren(ids []int64) []int64 {
 //
 // Ob es die Termine gibt und ob sie noch zu haben sind, steht hier nicht: das
 // weiß nur die Datenbank und prüft deshalb trainingstermineSchreiben.
-func trainingsterminIDsPruefen(ids []int64) []string {
+func trainingsterminIDsPruefen(ids []int64) []Meldung {
 	if len(trainingsterminIDsNormalisieren(ids)) > MaxTrainingstermine {
-		return []string{zuVieleTermine}
+		return []Meldung{zuVieleTermine}
 	}
 
 	return nil
@@ -185,7 +184,7 @@ func trainingstermineSchreiben(tx *sql.Tx, mitgliedschaftID int64, ids []int64) 
 // bisher sind die Termine, für die die Mitgliedschaft schon angemeldet ist. Nur
 // sie dürfen archiviert sein.
 func terminzuordnungPruefen(tx *sql.Tx, ids []int64, bisher []int64) error {
-	var meldungen []string
+	var meldungen []Meldung
 
 	for _, id := range ids {
 		termin, err := trainingsterminLesen(tx.QueryRow(

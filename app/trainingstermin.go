@@ -308,7 +308,7 @@ func (a *App) trainingsterminAnlegen(w http.ResponseWriter, r *http.Request) {
 		Sprache:         a.Sprache(),
 		Eingabe:         eingabe,
 		AuchArchivierte: auchArchivierte,
-		Fehler:          validierung.Meldungen,
+		Fehler:          a.uebersetzeMeldungen(validierung.Meldungen),
 	})
 }
 
@@ -372,7 +372,7 @@ func (a *App) trainingsterminAktualisieren(w http.ResponseWriter, r *http.Reques
 		TerminID:        id,
 		Eingabe:         eingabe,
 		AuchArchivierte: auchArchivierte,
-		Fehler:          validierung.Meldungen,
+		Fehler:          a.uebersetzeMeldungen(validierung.Meldungen),
 	})
 }
 

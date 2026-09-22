@@ -3,7 +3,6 @@ package service_test
 import (
 	"errors"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -316,8 +315,13 @@ func TestUebernehmen_WeistEineFremdeMitgliedsIDAb(t *testing.T) {
 	if _, err := svc.Uebernehmen(importsatz(t, id, "Erika", "Musterfrau")); !errors.As(err, &vf) {
 		t.Fatalf("Uebernehmen = %v, erwartet ValidierungsFehler statt stiller Überschreibung", err)
 	}
-	if !strings.Contains(vf.Error(), "Anna Berger") {
-		t.Errorf("Meldung = %q, erwartet den Namen des betroffenen Mitglieds", vf.Error())
+	if len(vf.Meldungen) != 1 {
+		t.Fatalf("Meldungen = %+v, erwartet genau eine", vf.Meldungen)
+	}
+	meldung := vf.Meldungen[0]
+	if meldung.Schluessel != "validierung.uebernahme.id_gehoert_anderem" || len(meldung.Args) < 3 ||
+		meldung.Args[1] != "Anna" || meldung.Args[2] != "Berger" {
+		t.Errorf("Meldung = %+v, erwartet den Namen des betroffenen Mitglieds", meldung)
 	}
 
 	m, err := svc.Get(id)
@@ -369,8 +373,8 @@ func TestUebernehmen_RuehrtMehrereMitgliedschaftenNichtAn(t *testing.T) {
 	if _, err := svc.Uebernehmen(satz); !errors.As(err, &vf) {
 		t.Fatalf("Uebernehmen = %v, erwartet ValidierungsFehler statt stillen Überschreibens", err)
 	}
-	if !strings.Contains(vf.Error(), "mehrere Mitgliedschaften") {
-		t.Errorf("Meldung = %q, erwartet einen Hinweis auf die mehreren Zeiträume", vf.Error())
+	if len(vf.Meldungen) != 1 || vf.Meldungen[0].Schluessel != "validierung.uebernahme.eintritt_passt_nicht" {
+		t.Errorf("Meldungen = %+v, erwartet einen Hinweis auf die mehreren Zeiträume", vf.Meldungen)
 	}
 
 	m, err := svc.Get(47)

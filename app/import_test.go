@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/importer"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
@@ -42,7 +43,7 @@ func TestUebernehmen_ZaehltNeuAktualisiertUndGescheitert(t *testing.T) {
 		Fehler: []importer.Zeilenmeldung{{Zeile: 5, Meldungen: []string{"unbekannter Status \"Halbtot\""}}},
 	}
 
-	erster, err := uebernehmen(svc, gelesen)
+	erster, err := uebernehmen(svc, gelesen, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("erster Lauf: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestUebernehmen_ZaehltNeuAktualisiertUndGescheitert(t *testing.T) {
 		t.Error("Erfolgreich = true, erwartet false bei einer gescheiterten Zeile")
 	}
 
-	zweiter, err := uebernehmen(svc, gelesen)
+	zweiter, err := uebernehmen(svc, gelesen, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("zweiter Lauf: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestUebernehmen_MeldetEineAbgewieseneZeileMitIhrerZeilennummer(t *testing.T
 			{Zeile: 2, Satz: ohneNachname},
 			{Zeile: 3, Satz: importsatz(2, "Hans")},
 		},
-	})
+	}, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("uebernehmen: %v", err)
 	}
@@ -111,7 +112,7 @@ func TestUebernehmen_HaeltDenLaufBeiEinerAbgewiesenenZeileNichtAn(t *testing.T) 
 			{Zeile: 2, Satz: importsatz(1, "Erika")},
 			{Zeile: 3, Satz: importsatz(2, "Hans")},
 		},
-	})
+	}, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("uebernehmen: %v", err)
 	}
@@ -142,7 +143,7 @@ func TestUebernehmen_ZaehltHinweiseNichtAlsGescheitert(t *testing.T) {
 		Hinweise: []importer.Zeilenmeldung{
 			{Zeile: 2, Meldungen: []string{"in der Spalte „Training - 1“ steht „Sa 10:30“ nicht im Stundenplan"}},
 		},
-	})
+	}, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("uebernehmen: %v", err)
 	}
@@ -176,7 +177,7 @@ func TestUebernehmen_NimmtDieHinweiseEinerGescheitertenZeileMit(t *testing.T) {
 	bericht, err := uebernehmen(svc, importer.Ergebnis{
 		Saetze:   []importer.Zeilensatz{{Zeile: 2, Satz: ohneNachname}},
 		Hinweise: []importer.Zeilenmeldung{{Zeile: 2, Meldungen: []string{"„Sa 10:30“ steht nicht im Stundenplan"}}},
-	})
+	}, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("uebernehmen: %v", err)
 	}

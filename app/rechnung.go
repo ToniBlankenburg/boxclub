@@ -126,7 +126,7 @@ func (e rechnungEingabe) alsRechnungEingabe(sprache i18n.Sprache) (service.Rechn
 	}
 
 	steuersatz, err := service.SteuersatzAusText(e.Steuersatz)
-	fehler = append(fehler, validierungsMeldungen(err)...)
+	fehler = append(fehler, validierungsMeldungen(sprache, err)...)
 	rechnung.SteuersatzProzent = steuersatz
 
 	for i, p := range e.Positionen {
@@ -159,7 +159,7 @@ func (p rechnungPositionEingabe) alsRechnungsposition(nr int, sprache i18n.Sprac
 	}
 
 	cents, err := service.EinzelpreisAusEuro(p.Einzelpreis)
-	for _, meldung := range validierungsMeldungen(err) {
+	for _, meldung := range validierungsMeldungen(sprache, err) {
 		fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_position_praefix", nr, meldung))
 	}
 	position.EinzelpreisCents = cents
@@ -174,15 +174,21 @@ func (p rechnungPositionEingabe) alsRechnungsposition(nr int, sprache i18n.Sprac
 // validierungsMeldungen liest die Meldungen aus einem Service-Fehler, sofern es
 // einer ist — der Rückweg zu strconv.ParseInt & Co., die App-Handler sonst nie
 // mit *service.ValidierungsFehler sehen, weil sie ihn nur weiterreichen. Ein
-// nil-Fehler liefert nichts.
-func validierungsMeldungen(err error) []string {
+// nil-Fehler liefert nichts. Die Schlüssel des Service werden hier übersetzt —
+// der einzige Weg, auf dem sie in diese Datei gelangen.
+func validierungsMeldungen(sprache i18n.Sprache, err error) []string {
 	if err == nil {
 		return nil
 	}
 
 	var validierung *service.ValidierungsFehler
 	if errors.As(err, &validierung) {
-		return validierung.Meldungen
+		fehler := make([]string, len(validierung.Meldungen))
+		for i, m := range validierung.Meldungen {
+			fehler[i] = i18n.Text(sprache, m.Schluessel, m.Args...)
+		}
+
+		return fehler
 	}
 
 	return []string{err.Error()}
@@ -321,7 +327,7 @@ func (a *App) rechnungVerarbeiten(w http.ResponseWriter, r *http.Request, mitgli
 		var validierung *service.ValidierungsFehler
 		switch {
 		case errors.As(err, &validierung):
-			fehler = validierung.Meldungen
+			fehler = a.uebersetzeMeldungen(validierung.Meldungen)
 		case mitgliedID != nil:
 			a.nichtGefundenOderFehler(w, err)
 			return

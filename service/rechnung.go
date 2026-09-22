@@ -116,36 +116,36 @@ func (e RechnungEingabe) Betraege() Rechnungsbetraege {
 // validieren sammelt alle Regelverstöße einer Rechnung auf einmal ein, wie
 // NeuesMitglied.validieren es für die Stammdaten tut.
 func (e RechnungEingabe) validieren() error {
-	var fehler []string
+	var fehler []Meldung
 
 	if strings.TrimSpace(e.Empfaenger.Name) == "" {
-		fehler = append(fehler, "Der Empfänger darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.rechnung.empfaenger_leer"))
 	}
 	if strings.TrimSpace(e.Nummer) == "" {
-		fehler = append(fehler, "Die Rechnungsnummer darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.rechnung.nummer_leer"))
 	}
 	if e.Rechnungsdatum.IsZero() {
-		fehler = append(fehler, "Das Rechnungsdatum darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.rechnung.rechnungsdatum_leer"))
 	}
 	if e.Zahlungsziel.IsZero() {
-		fehler = append(fehler, "Das Zahlungsziel darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.rechnung.zahlungsziel_leer"))
 	}
 	if e.SteuersatzProzent < 0 {
-		fehler = append(fehler, "Der Steuersatz darf nicht negativ sein.")
+		fehler = append(fehler, meldung("validierung.rechnung.steuersatz_negativ"))
 	}
 	if len(e.Positionen) == 0 {
-		fehler = append(fehler, "Die Rechnung braucht mindestens eine Position.")
+		fehler = append(fehler, meldung("validierung.rechnung.keine_position"))
 	}
 	for i, p := range e.Positionen {
 		nr := i + 1
 		if strings.TrimSpace(p.Bezeichnung) == "" {
-			fehler = append(fehler, fmt.Sprintf("Position %d: die Bezeichnung darf nicht leer sein.", nr))
+			fehler = append(fehler, meldung("validierung.rechnung.position_bezeichnung_leer", nr))
 		}
 		if p.Menge <= 0 {
-			fehler = append(fehler, fmt.Sprintf("Position %d: die Menge muss größer als 0 sein.", nr))
+			fehler = append(fehler, meldung("validierung.rechnung.position_menge_ungueltig", nr))
 		}
 		if p.EinzelpreisCents < 0 {
-			fehler = append(fehler, fmt.Sprintf("Position %d: der Einzelpreis darf nicht negativ sein.", nr))
+			fehler = append(fehler, meldung("validierung.rechnung.position_einzelpreis_negativ", nr))
 		}
 	}
 
@@ -164,13 +164,13 @@ func (e RechnungEingabe) validieren() error {
 func EinzelpreisAusEuro(eingabe string) (int64, error) {
 	text := euroText(eingabe)
 	if text == "" {
-		return 0, &ValidierungsFehler{Meldungen: []string{"Bitte einen Einzelpreis angeben (0 für kostenlos)."}}
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{meldung("validierung.rechnung.einzelpreis_leer")}}
 	}
 
 	cents, ok := centsAusEuroText(text)
 	if !ok {
-		return 0, &ValidierungsFehler{Meldungen: []string{
-			"Der Einzelpreis ist kein gültiger Betrag. Beispiel: 60 oder 60,50.",
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{
+			meldung("validierung.rechnung.einzelpreis_ungueltig"),
 		}}
 	}
 
@@ -188,13 +188,13 @@ func SteuersatzAusText(eingabe string) (float64, error) {
 	text = strings.ReplaceAll(text, ",", ".")
 
 	if text == "" {
-		return 0, &ValidierungsFehler{Meldungen: []string{"Bitte einen Steuersatz angeben (0 für steuerfrei)."}}
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{meldung("validierung.rechnung.steuersatz_leer")}}
 	}
 
 	wert, err := strconv.ParseFloat(text, 64)
 	if err != nil || wert < 0 {
-		return 0, &ValidierungsFehler{Meldungen: []string{
-			"Der Steuersatz ist keine gültige Zahl. Beispiel: 19 oder 7.",
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{
+			meldung("validierung.rechnung.steuersatz_ungueltig"),
 		}}
 	}
 

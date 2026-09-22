@@ -35,7 +35,7 @@ func BeitragAusEuro(eingabe string) (int64, error) {
 	text := euroText(eingabe)
 
 	if text == "" {
-		return 0, &ValidierungsFehler{Meldungen: []string{"Bitte einen Beitrag angeben (0 für beitragsfrei)."}}
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{meldung("validierung.beitrag.leer")}}
 	}
 
 	cents, ok := centsAusEuroText(text)
@@ -69,8 +69,8 @@ func AnmeldegebuehrAusEuro(eingabe string) (int64, error) {
 
 	cents, ok := centsAusEuroText(text)
 	if !ok {
-		return 0, &ValidierungsFehler{Meldungen: []string{
-			"Die Anmeldegebühr ist kein gültiger Betrag. Beispiel: 60 oder 60,50.",
+		return 0, &ValidierungsFehler{Meldungen: []Meldung{
+			meldung("validierung.beitrag.gebuehr_ungueltig"),
 		}}
 	}
 
@@ -138,8 +138,8 @@ func nurZiffern(text string) (int64, error) {
 }
 
 func beitragUnlesbar() error {
-	return &ValidierungsFehler{Meldungen: []string{
-		"Der Beitrag ist kein gültiger Betrag. Beispiel: 60 oder 60,50.",
+	return &ValidierungsFehler{Meldungen: []Meldung{
+		meldung("validierung.beitrag.ungueltig"),
 	}}
 }
 

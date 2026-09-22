@@ -35,6 +35,19 @@ func neuerService(t *testing.T) *service.MemberService {
 // selbst nichts zur Sache tut — 65,00 €.
 const beitragImTest = 6500
 
+// schluessel liest aus einem ValidierungsFehler die Schlüssel seiner
+// Meldungen — service/ liefert seit ADR-0018 keinen fertigen Text mehr, und
+// die Tests hier prüfen den stabilen Vertrag, nicht die (erst in app/
+// entstehende) Übersetzung.
+func schluessel(meldungen []service.Meldung) []string {
+	ergebnis := make([]string, len(meldungen))
+	for i, m := range meldungen {
+		ergebnis[i] = m.Schluessel
+	}
+
+	return ergebnis
+}
+
 // mitgliedschaftText verdichtet eine Mitgliedschaft auf ihre Textform, um zwei
 // von ihnen zu vergleichen. Seit sie die Trainingstermine trägt, ist sie kein
 // vergleichbarer Wert mehr — und die Textform zeigt ohnehin den Datumswert
@@ -218,16 +231,17 @@ func TestCreate_MeldetAlleFehlendenPflichtangabenAufEinmal(t *testing.T) {
 	}
 
 	erwartet := []string{
-		"Vorname darf nicht leer sein.",
-		"Nachname darf nicht leer sein.",
-		"Eintrittsdatum darf nicht leer sein.",
+		"validierung.mitglied.vorname_leer",
+		"validierung.mitglied.nachname_leer",
+		"validierung.mitglied.eintritt_leer",
 	}
-	if len(validierung.Meldungen) != len(erwartet) {
-		t.Fatalf("Meldungen = %q, erwartet %d Stück", validierung.Meldungen, len(erwartet))
+	gefunden := schluessel(validierung.Meldungen)
+	if len(gefunden) != len(erwartet) {
+		t.Fatalf("Meldungen = %q, erwartet %d Stück", gefunden, len(erwartet))
 	}
-	for i, meldung := range erwartet {
-		if validierung.Meldungen[i] != meldung {
-			t.Errorf("Meldung %d = %q, erwartet %q", i, validierung.Meldungen[i], meldung)
+	for i, s := range erwartet {
+		if gefunden[i] != s {
+			t.Errorf("Meldung %d = %q, erwartet %q", i, gefunden[i], s)
 		}
 	}
 }
@@ -511,15 +525,16 @@ func TestUpdate_MeldetLeeregemachtePflichtfelderAufEinmal(t *testing.T) {
 	}
 
 	erwartet := []string{
-		"Vorname darf nicht leer sein.",
-		"Nachname darf nicht leer sein.",
+		"validierung.mitglied.vorname_leer",
+		"validierung.mitglied.nachname_leer",
 	}
-	if len(validierung.Meldungen) != len(erwartet) {
-		t.Fatalf("Meldungen = %q, erwartet %d Stück", validierung.Meldungen, len(erwartet))
+	gefunden := schluessel(validierung.Meldungen)
+	if len(gefunden) != len(erwartet) {
+		t.Fatalf("Meldungen = %q, erwartet %d Stück", gefunden, len(erwartet))
 	}
-	for i, meldung := range erwartet {
-		if validierung.Meldungen[i] != meldung {
-			t.Errorf("Meldung %d = %q, erwartet %q", i, validierung.Meldungen[i], meldung)
+	for i, s := range erwartet {
+		if gefunden[i] != s {
+			t.Errorf("Meldung %d = %q, erwartet %q", i, gefunden[i], s)
 		}
 	}
 

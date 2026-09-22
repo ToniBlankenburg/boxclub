@@ -258,11 +258,11 @@ type NeuesMitglied struct {
 
 // negativerBeitrag ist die Meldung zum einzigen Beitrag, den es nicht geben
 // kann. 0 € ist ausdrücklich erlaubt.
-const negativerBeitrag = "Der Beitrag darf nicht negativ sein."
+var negativerBeitrag = meldung("validierung.mitglied.beitrag_negativ")
 
 // negativeGebuehr ist das Gegenstück für die Anmeldegebühr. 0 € heißt hier
 // "keine erhoben" und ist der Normalfall, nicht die Ausnahme.
-const negativeGebuehr = "Die Anmeldegebühr darf nicht negativ sein."
+var negativeGebuehr = meldung("validierung.mitglied.gebuehr_negativ")
 
 // ErrNichtGefunden meldet, dass zu einer ID kein Datensatz existiert.
 var ErrNichtGefunden = errors.New("nicht gefunden")
@@ -274,18 +274,6 @@ var ErrNichtAktiv = errors.New("keine laufende mitgliedschaft")
 // ErrBereitsAktiv meldet, dass das Mitglied bereits eine laufende Mitgliedschaft
 // hat — ein Wiedereintritt setzt einen Austritt voraus.
 var ErrBereitsAktiv = errors.New("bereits aktives mitglied")
-
-// ValidierungsFehler bündelt alle Regelverstöße einer Eingabe. Bewusst als
-// Liste: das Formular soll alle fehlenden Pflichtangaben auf einmal anzeigen
-// können, statt den Nutzer eine nach der anderen abarbeiten zu lassen. Die
-// Meldungen sind fertige, dem Nutzer zeigbare Sätze.
-type ValidierungsFehler struct {
-	Meldungen []string
-}
-
-func (f *ValidierungsFehler) Error() string {
-	return strings.Join(f.Meldungen, " ")
-}
 
 // MemberService kapselt alle Operationen auf Mitgliedern und ihren
 // Mitgliedschaften.
@@ -537,16 +525,16 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 // Pflichtfeld-Regeln als einzige Quelle — die Adapter-Schicht prüft sie nicht
 // noch einmal, sondern zeigt die Meldungen nur an.
 func (n NeuesMitglied) validieren() error {
-	var fehler []string
+	var fehler []Meldung
 
 	if n.Vorname == "" {
-		fehler = append(fehler, "Vorname darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.mitglied.vorname_leer"))
 	}
 	if n.Nachname == "" {
-		fehler = append(fehler, "Nachname darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.mitglied.nachname_leer"))
 	}
 	if n.Eintritt.IsZero() {
-		fehler = append(fehler, "Eintrittsdatum darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.mitglied.eintritt_leer"))
 	}
 	if n.BeitragCents < 0 {
 		fehler = append(fehler, negativerBeitrag)
@@ -729,13 +717,13 @@ func massgeblicheMitgliedschaftLesen(q abfrager, mitgliedID int64) (int64, error
 // gemacht werden. Nicht gesetzte Felder sind keine Aussage und damit auch kein
 // Regelverstoß.
 func (p MitgliedPatch) validieren() error {
-	var fehler []string
+	var fehler []Meldung
 
 	if p.Vorname != nil && *p.Vorname == "" {
-		fehler = append(fehler, "Vorname darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.mitglied.vorname_leer"))
 	}
 	if p.Nachname != nil && *p.Nachname == "" {
-		fehler = append(fehler, "Nachname darf nicht leer sein.")
+		fehler = append(fehler, meldung("validierung.mitglied.nachname_leer"))
 	}
 	if p.BeitragCents != nil && *p.BeitragCents < 0 {
 		fehler = append(fehler, negativerBeitrag)
@@ -1122,7 +1110,7 @@ func (s *MemberService) SetRuhend(id int64, ruhend bool) error {
 // Zeiträume bleiben dabei unberührt.
 func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	if eintritt.IsZero() {
-		return &ValidierungsFehler{Meldungen: []string{"Eintrittsdatum darf nicht leer sein."}}
+		return &ValidierungsFehler{Meldungen: []Meldung{meldung("validierung.mitglied.eintritt_leer")}}
 	}
 
 	// Prüfen und Einfügen gehören zusammen: sonst könnten zwischen beiden zwei
@@ -1150,8 +1138,8 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 		return err
 	}
 	if eintrittsText < letzterAustritt {
-		return &ValidierungsFehler{Meldungen: []string{
-			"Das Eintrittsdatum darf nicht vor dem letzten Austritt liegen.",
+		return &ValidierungsFehler{Meldungen: []Meldung{
+			meldung("validierung.wiedereintritt.vor_letztem_austritt"),
 		}}
 	}
 

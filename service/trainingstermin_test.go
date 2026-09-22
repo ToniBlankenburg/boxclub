@@ -3,7 +3,6 @@ package service_test
 import (
 	"errors"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/ToniBlankenburg/boxclub/service"
@@ -230,8 +229,8 @@ func TestCreateTrainingstermin_EndeVorBeginnIstEinFehler(t *testing.T) {
 	_, err := svc.CreateTrainingstermin(terminangabe(service.Samstag, "12:00", "10:30", ""))
 
 	meldung := einzigeMeldung(t, err)
-	if !strings.Contains(meldung, "Ende") {
-		t.Errorf("Meldung = %q, erwartet einen Hinweis auf das Ende", meldung)
+	if meldung.Schluessel != "validierung.trainingstermin.ende_vor_beginn" {
+		t.Errorf("Schlüssel = %q, erwartet einen Hinweis auf das Ende", meldung.Schluessel)
 	}
 }
 
@@ -336,7 +335,7 @@ func TestWochentage_StehenInWochenreihenfolge(t *testing.T) {
 
 // einzigeMeldung besteht darauf, dass der Fehler ein ValidierungsFehler mit
 // genau einer Meldung ist, und liefert sie.
-func einzigeMeldung(t *testing.T, err error) string {
+func einzigeMeldung(t *testing.T, err error) service.Meldung {
 	t.Helper()
 
 	var validierung *service.ValidierungsFehler

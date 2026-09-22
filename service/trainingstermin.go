@@ -168,14 +168,13 @@ type Trainingsterminangabe struct {
 	Bezeichnung string
 }
 
-// Die Meldungen zu den Regeln, die ein Termin kennt — fertige Sätze für das
-// Formular, wie überall im Service.
-const (
-	fehlenderWochentag = "Bitte einen Wochentag auswählen."
-	fehlenderBeginn    = "Der Beginn ist eine Pflichtangabe."
-	unlesbarerBeginn   = "Der Beginn ist keine gültige Uhrzeit."
-	unlesbaresEnde     = "Das Ende ist keine gültige Uhrzeit."
-	endeVorBeginn      = "Das Ende darf nicht vor dem Beginn liegen."
+// Die Meldungen zu den Regeln, die ein Termin kennt.
+var (
+	fehlenderWochentag = meldung("validierung.trainingstermin.wochentag_fehlt")
+	fehlenderBeginn    = meldung("validierung.trainingstermin.beginn_fehlt")
+	unlesbarerBeginn   = meldung("validierung.trainingstermin.beginn_unlesbar")
+	unlesbaresEnde     = meldung("validierung.trainingstermin.ende_unlesbar")
+	endeVorBeginn      = meldung("validierung.trainingstermin.ende_vor_beginn")
 )
 
 // pruefen macht aus den Rohwerten einen Termin oder sammelt alle Verstöße auf
@@ -194,7 +193,7 @@ func (a Trainingsterminangabe) pruefen() (Trainingstermin, error) {
 		Bezeichnung: strings.TrimSpace(a.Bezeichnung),
 	}
 
-	var meldungen []string
+	var meldungen []Meldung
 
 	if !a.Wochentag.gueltig() {
 		meldungen = append(meldungen, fehlenderWochentag)

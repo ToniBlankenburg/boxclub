@@ -232,8 +232,12 @@ func TestVertragAblegen_WeistAlleAbAusserPDF(t *testing.T) {
 	if !errors.As(err, &validierung) {
 		t.Fatalf("VertragAblegen = %v, erwartet einen ValidierungsFehler", err)
 	}
-	if len(validierung.Meldungen) != 1 || !strings.Contains(validierung.Meldungen[0], "vertrag.pdf") {
-		t.Errorf("Meldungen = %q, erwartet eine, die die Datei beim Namen nennt", validierung.Meldungen)
+	if len(validierung.Meldungen) != 1 {
+		t.Fatalf("Meldungen = %+v, erwartet genau eine", validierung.Meldungen)
+	}
+	m := validierung.Meldungen[0]
+	if m.Schluessel != "validierung.dokument.kein_pdf" || len(m.Args) == 0 || m.Args[0] != "vertrag.pdf" {
+		t.Errorf("Meldung = %+v, erwartet eine, die die Datei beim Namen nennt", m)
 	}
 
 	if _, err := svc.VertragInhalt(mitgliedschaftID); !errors.Is(err, service.ErrNichtGefunden) {
@@ -256,8 +260,8 @@ func TestVertragAblegen_WeistZuGrosseDateiAb(t *testing.T) {
 	if !errors.As(err, &validierung) {
 		t.Fatalf("VertragAblegen = %v, erwartet einen ValidierungsFehler", err)
 	}
-	if len(validierung.Meldungen) != 1 || !strings.Contains(validierung.Meldungen[0], "MB") {
-		t.Errorf("Meldungen = %q, erwartet eine eigene Meldung zur Größe", validierung.Meldungen)
+	if len(validierung.Meldungen) != 1 || validierung.Meldungen[0].Schluessel != "validierung.dokument.zu_gross" {
+		t.Errorf("Meldungen = %+v, erwartet eine eigene Meldung zur Größe", validierung.Meldungen)
 	}
 
 	// Genau an der Grenze geht es durch: die Grenze schließt ihren Wert ein.

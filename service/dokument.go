@@ -96,16 +96,15 @@ var pdfKennung = []byte("%PDF-")
 // keinPDF sagt, warum eine Datei nicht angenommen wurde, und nennt sie beim
 // Namen — hochgeladen wird aus einem Dateidialog heraus, und welche der
 // ausgewählten Dateien gemeint ist, soll niemand raten müssen.
-func keinPDF(name string) string {
-	return fmt.Sprintf("»%s« ist keine PDF-Datei. Abgelegt werden nur PDFs.", name)
+func keinPDF(name string) Meldung {
+	return meldung("validierung.dokument.kein_pdf", name)
 }
 
 // zuGross ist die eigene Meldung für die Größengrenze. Sie nennt beide Zahlen:
 // ohne die tatsächliche Größe bleibt unklar, ob die Datei knapp darüber liegt
 // oder ob die falsche ausgewählt wurde.
-func zuGross(name string, groesse int) string {
-	return fmt.Sprintf("»%s« ist %s groß. Abgelegt werden Dateien bis %s.",
-		name, megabyte(groesse), Dokumentgrenze())
+func zuGross(name string, groesse int) Meldung {
+	return meldung("validierung.dokument.zu_gross", name, megabyte(groesse), Dokumentgrenze())
 }
 
 // Dokumentgrenze schreibt die Obergrenze so, wie sie dem Verein gezeigt wird.
@@ -155,7 +154,7 @@ func (n NeuesDokument) bereinigt() NeuesDokument {
 // Video auswählt, soll nicht erst erfahren, dass es zu groß ist, und nach dem
 // Verkleinern, dass es kein PDF war.
 func (n NeuesDokument) pruefen() error {
-	var meldungen []string
+	var meldungen []Meldung
 
 	if len(n.Inhalt) > MaxDokumentBytes {
 		meldungen = append(meldungen, zuGross(n.Name, len(n.Inhalt)))

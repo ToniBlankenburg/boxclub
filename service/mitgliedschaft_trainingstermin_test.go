@@ -158,8 +158,10 @@ func TestTrainingstermine_WeisenDenViertenAb(t *testing.T) {
 
 	// Die Meldung nennt die Obergrenze: „vier geht nicht" allein sagte dem
 	// Nutzer nicht, wie viele denn gehen.
-	if erwartet := "Es sind höchstens 3 Trainingstermine möglich."; einzigeMeldung(t, err) != erwartet {
-		t.Errorf("Meldung = %q, erwartet %q", einzigeMeldung(t, err), erwartet)
+	meldung := einzigeMeldung(t, err)
+	if meldung.Schluessel != "validierung.termin.zu_viele" || len(meldung.Args) == 0 ||
+		meldung.Args[0] != service.MaxTrainingstermine {
+		t.Errorf("Meldung = %+v, erwartet einen Hinweis auf die Obergrenze %d", meldung, service.MaxTrainingstermine)
 	}
 
 	// Der abgewiesene Versuch darf den Bestand nicht angerührt haben.
@@ -242,8 +244,9 @@ func TestTrainingstermine_ArchivierterLaesstSichNichtNeuVergeben(t *testing.T) {
 
 	// Die Meldung nennt den Termin beim Namen — in einer Auswahl von zehn
 	// Zeilen soll niemand raten müssen, welche gemeint ist.
-	if meldung := einzigeMeldung(t, err); !strings.Contains(meldung, mittwoch.Anzeige()) {
-		t.Errorf("Meldung = %q, erwartet den Termin %q darin", meldung, mittwoch.Anzeige())
+	if meldung := einzigeMeldung(t, err); meldung.Schluessel != "validierung.termin.archiviert" ||
+		len(meldung.Args) == 0 || meldung.Args[0] != mittwoch.Anzeige() {
+		t.Errorf("Meldung = %+v, erwartet den Termin %q darin", meldung, mittwoch.Anzeige())
 	}
 
 	if gefunden := ids(laufendeTermine(t, svc, id)...); !slices.Equal(gefunden, ids(montag)) {

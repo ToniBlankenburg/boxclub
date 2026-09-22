@@ -358,4 +358,59 @@ var englisch = map[string]string{
 		"goes — for example the reference to § 19 UStG. The app does not check any of it.",
 	"verein.gespeichert":       "The club data was saved.",
 	"verein.formular_zu_gross": "The form data could not be accepted — the logo is larger than %s.",
+
+	// validierung.* — see the German catalog's comment (Ticket 07, ADR-0018).
+	"validierung.mitglied.vorname_leer":    "First name must not be empty.",
+	"validierung.mitglied.nachname_leer":   "Last name must not be empty.",
+	"validierung.mitglied.eintritt_leer":   "Join date must not be empty.",
+	"validierung.mitglied.beitrag_negativ": "The fee must not be negative.",
+	"validierung.mitglied.gebuehr_negativ": "The registration fee must not be negative.",
+
+	"validierung.termin.zu_viele":   "At most %d training sessions are possible.",
+	"validierung.termin.unbekannt":  "One of the selected training sessions does not exist.",
+	"validierung.termin.archiviert": "\"%s\" is archived and cannot be assigned again.",
+
+	"validierung.kuendigung.fehlendes_datum":       "Please enter a cancellation date or an exit date.",
+	"validierung.kuendigung.austritt_vor_eintritt": "The exit date must not be before the join date.",
+	"validierung.kuendigung.kuendigung_nach_austritt": "The cancellation date must not be after the exit " +
+		"date.",
+
+	"validierung.wiedereintritt.vor_letztem_austritt": "The join date must not be before the last exit.",
+
+	"validierung.dokument.kein_pdf": "\"%s\" is not a PDF file. Only PDFs are filed.",
+	"validierung.dokument.zu_gross": "\"%s\" is %s in size. Files up to %s are filed.",
+
+	"validierung.logo.kein_format": "\"%s\" is not a PNG, JPEG or SVG. Only these image formats are " +
+		"uploaded.",
+	"validierung.logo.zu_gross": "\"%s\" is %s in size. Logos up to %s are uploaded.",
+
+	"validierung.rechnung.empfaenger_leer":              "The recipient must not be empty.",
+	"validierung.rechnung.nummer_leer":                  "The invoice number must not be empty.",
+	"validierung.rechnung.rechnungsdatum_leer":          "The invoice date must not be empty.",
+	"validierung.rechnung.zahlungsziel_leer":            "The payment due date must not be empty.",
+	"validierung.rechnung.steuersatz_negativ":           "The tax rate must not be negative.",
+	"validierung.rechnung.keine_position":               "The invoice needs at least one item.",
+	"validierung.rechnung.position_bezeichnung_leer":    "Item %d: the description must not be empty.",
+	"validierung.rechnung.position_menge_ungueltig":     "Item %d: the quantity must be greater than 0.",
+	"validierung.rechnung.position_einzelpreis_negativ": "Item %d: the unit price must not be negative.",
+	"validierung.rechnung.einzelpreis_leer":             "Please enter a unit price (0 for free).",
+	"validierung.rechnung.einzelpreis_ungueltig":        "The unit price is not a valid amount. Example: 60 or 60.50.",
+	"validierung.rechnung.steuersatz_leer":              "Please enter a tax rate (0 for tax-free).",
+	"validierung.rechnung.steuersatz_ungueltig":         "The tax rate is not a valid number. Example: 19 or 7.",
+
+	"validierung.beitrag.leer":              "Please enter a fee (0 for no fee).",
+	"validierung.beitrag.ungueltig":         "The fee is not a valid amount. Example: 60 or 60.50.",
+	"validierung.beitrag.gebuehr_ungueltig": "The registration fee is not a valid amount. Example: 60 or 60.50.",
+
+	"validierung.trainingstermin.wochentag_fehlt": "Please select a weekday.",
+	"validierung.trainingstermin.beginn_fehlt":    "The start time is required.",
+	"validierung.trainingstermin.beginn_unlesbar": "The start time is not a valid time.",
+	"validierung.trainingstermin.ende_unlesbar":   "The end time is not a valid time.",
+	"validierung.trainingstermin.ende_vor_beginn": "The end time must not be before the start time.",
+
+	"validierung.uebernahme.id_ungueltig": "The member ID must be a positive number.",
+	"validierung.uebernahme.id_gehoert_anderem": "Member ID %d already belongs to %s %s in the app. " +
+		"Correct either the number in the Excel file or the name in the app.",
+	"validierung.uebernahme.eintritt_passt_nicht": "%s %s has multiple memberships in the app, and the " +
+		"join date %s does not match any of them. Please correct it in the app.",
 }

@@ -81,7 +81,7 @@ func (b importbericht) Erfolgreich() bool {
 // Bericht statt den Lauf abzubrechen: die Datei ist ein Altbestand, und eine
 // einzelne kaputte Zeile darf die übrigen nicht aufhalten. Ein echter
 // Datenbankfehler ist etwas anderes — der beendet den Lauf.
-func uebernehmen(svc *service.MemberService, ergebnis importer.Ergebnis) (importbericht, error) {
+func uebernehmen(svc *service.MemberService, ergebnis importer.Ergebnis, sprache i18n.Sprache) (importbericht, error) {
 	bericht := importbericht{
 		Fehler:      ergebnis.Fehler,
 		Gescheitert: len(ergebnis.Fehler),
@@ -101,9 +101,14 @@ func uebernehmen(svc *service.MemberService, ergebnis importer.Ergebnis) (import
 
 		var vf *service.ValidierungsFehler
 		if errors.As(err, &vf) {
+			uebersetzt := make([]string, len(vf.Meldungen))
+			for i, m := range vf.Meldungen {
+				uebersetzt[i] = i18n.Text(sprache, m.Schluessel, m.Args...)
+			}
+
 			bericht.Fehler = append(bericht.Fehler, importer.Zeilenmeldung{
 				Zeile:     zeilensatz.Zeile,
-				Meldungen: append(slices.Clone(vf.Meldungen), offeneHinweise[zeilensatz.Zeile]...),
+				Meldungen: append(uebersetzt, offeneHinweise[zeilensatz.Zeile]...),
 			})
 			delete(offeneHinweise, zeilensatz.Zeile)
 			bericht.Gescheitert++
@@ -200,7 +205,7 @@ func (a *App) importAusfuehren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bericht, err := uebernehmen(a.svc, ergebnis)
+	bericht, err := uebernehmen(a.svc, ergebnis, a.Sprache())
 	if err != nil {
 		fehlerAntwort(w, err)
 		return
