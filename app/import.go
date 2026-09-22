@@ -2,12 +2,12 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/importer"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
@@ -176,26 +176,25 @@ func (a *App) importAusfuehren(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
 
 	if err := r.ParseMultipartForm(maxUpload); err != nil {
-		a.importFormularZeigen(w, plan, fmt.Sprintf(
-			"Die Datei ließ sich nicht entgegennehmen. Ist sie größer als %d MB?", maxUpload>>20))
+		a.importFormularZeigen(w, plan,
+			i18n.Text(a.Sprache(), "import.fehler.upload_zu_gross", maxUpload>>20))
 		return
 	}
 
 	datei, kopf, err := r.FormFile("datei")
 	if err != nil {
-		a.importFormularZeigen(w, plan, "Bitte eine Datei auswählen.")
+		a.importFormularZeigen(w, plan, i18n.Text(a.Sprache(), "import.fehler.keine_datei"))
 		return
 	}
 	defer datei.Close()
 
 	if !strings.EqualFold(filepath.Ext(kopf.Filename), dateiendung) {
-		a.importFormularZeigen(w, plan, fmt.Sprintf(
-			"%q ist keine %s-Datei. Das alte .xls-Format liest der Import nicht — "+
-				"in Excel einmal als .xlsx speichern.", kopf.Filename, dateiendung))
+		a.importFormularZeigen(w, plan,
+			i18n.Text(a.Sprache(), "import.fehler.falsche_endung", kopf.Filename, dateiendung))
 		return
 	}
 
-	ergebnis, err := importer.ExcelImporter{}.Lesen(datei, plan)
+	ergebnis, err := importer.ExcelImporter{}.Lesen(datei, plan, a.Sprache())
 	if err != nil {
 		a.importFormularZeigen(w, plan, err.Error())
 		return

@@ -206,4 +206,76 @@ var englisch = map[string]string{
 	"wochentag.5": "Friday",
 	"wochentag.6": "Saturday",
 	"wochentag.7": "Sunday",
+
+	"import.titel":            "Excel Import",
+	"import.beschreibung_vor": "Reads the \"Verwaltung\" sheet of an ",
+	"import.beschreibung_nach": " file. The import can be repeated as often as needed: existing " +
+		"members are updated, not duplicated. Anything that cannot be matched is then listed row by row " +
+		"in the report.",
+	"import.datei_aria":        "Choose Excel file",
+	"import.importieren_knopf": "Import",
+	"import.wird_gelesen":      "Reading …",
+
+	"import.bericht_titel":        "Import Report",
+	"import.nochmal_knopf":        "Import again",
+	"import.zu_mitgliedern_knopf": "Go to members",
+	"import.stat_uebernommen":     "Imported",
+	"import.stat_neu":             "Newly added",
+	"import.stat_aktualisiert":    "Updated",
+	"import.stat_gescheitert":     "Failed",
+	"import.datei_praefix":        "File:",
+
+	"import.gescheiterte_zeilen_titel": "Failed rows",
+	"import.gescheiterte_zeilen_hinweis": "These rows were not imported. Fix them in Excel and import " +
+		"again — rows already imported will only be updated.",
+	"import.spalte_zeile": "Row",
+	"import.spalte_grund": "Reason",
+
+	"import.nachzutragen_titel": "Imported, but needs follow-up",
+	"import.nachzutragen_hinweis": "These rows were imported. Their training sessions could not be " +
+		"found in the schedule — add them there and import again, or assign the sessions to the member " +
+		"by hand.",
+	"import.spalte_hinweis": "Note",
+
+	"import.stundenplan_leer_vor": "The schedule is empty. The import only matches the columns " +
+		"\"Training - 1/2/3\" against ",
+	"import.stundenplan_leer_fett": "existing",
+	"import.stundenplan_leer_nach": " training sessions and does not create any itself — until then, " +
+		"every member comes in without a training time.",
+	"import.stundenplan_leer_knopf": "Manage schedule",
+
+	"import.fehler.datei_nicht_lesbar": "the file could not be opened as .xlsx",
+	"import.fehler.blatt_fehlt":        "the sheet \"%s\" is missing from the file",
+	"import.fehler.blatt_nicht_lesbar": "the sheet \"%s\" could not be read",
+	"import.fehler.keine_kopfzeile":    "the sheet \"%s\" has no header row",
+	"import.fehler.spalte_fehlt": "the sheet \"%s\" is missing the column \"%s\" — the file does not " +
+		"match the expected table",
+	"import.fehler.id_doppelt":                "Member ID %d is duplicated — it already appears in row %d",
+	"import.fehler.eintrittsdatum_fehlt":      "the column \"%s\" is missing the join date",
+	"import.fehler.angabe_fehlt":              "the column \"%s\" is missing the value",
+	"import.fehler.mitglieds_id_fehlt":        "the column \"%s\" is missing the member ID",
+	"import.fehler.mitglieds_id_ungueltig":    "the member ID \"%s\" is not a positive number",
+	"import.fehler.datum_unlesbar":            "in the column \"%s\", \"%s\" is not a readable date",
+	"import.fehler.nur_jahreszahl":            "in the column \"%s\", \"%s\" is only a year and not a full date",
+	"import.fehler.datum_ausserhalb":          "in the column \"%s\", \"%s\" does not yield a date that can appear in this table",
+	"import.fehler.spalte_mit_grund":          "in the column \"%s\": %s",
+	"import.fehler.bewertung_unbekannt":       "in the column \"%s\", \"%s\" is not a known value",
+	"import.fehler.frequenz_unlesbar":         "in the column \"%s\", \"%s\" is not a readable frequency",
+	"import.fehler.status_fehlt":              "the column \"%s\" is missing the status",
+	"import.fehler.status_unerwartetes_datum": "Status \"%s\", but the column \"%s\" has a date",
+	"import.fehler.status_datum_fehlt":        "Status \"%s\", but the column \"%s\" is missing the date",
+	"import.fehler.status_unbekannt":          "unknown status \"%s\"",
+
+	"import.hinweis.frequenz_widerspruch": "Frequency %d× contradicts %d matched training sessions",
+	"import.hinweis.termin_unbekannt": "in the column \"%s\", \"%s\" is not in the schedule — add the " +
+		"session there first, then import again",
+	"import.hinweis.termin_archiviert": "in the column \"%s\", \"%s\" is an archived session and is no " +
+		"longer assigned — update the schedule first, then import again",
+	"import.hinweis.termin_mehrdeutig": "in the column \"%s\", \"%s\" matches several training sessions " +
+		"— enter the full wording of the intended one in the Excel file",
+
+	"import.fehler.upload_zu_gross": "The file could not be accepted. Is it larger than %d MB?",
+	"import.fehler.keine_datei":     "Please choose a file.",
+	"import.fehler.falsche_endung": "%q is not a %s file. The import cannot read the old .xls format — " +
+		"save it once as .xlsx in Excel.",
 }

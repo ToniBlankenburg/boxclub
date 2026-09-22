@@ -10,6 +10,7 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/importer"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
@@ -142,7 +143,7 @@ func lesen(t *testing.T, inhalt []byte) importer.Ergebnis {
 func lesenMit(t *testing.T, inhalt []byte, plan importer.Stundenplan) importer.Ergebnis {
 	t.Helper()
 
-	ergebnis, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(inhalt), plan)
+	ergebnis, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(inhalt), plan, i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("Lesen: %v", err)
 	}
@@ -353,6 +354,60 @@ func TestLesen_DoppelteMitgliedsIDMachtDieZweiteZeileZumFehlerfall(t *testing.T)
 	}
 	if !strings.Contains(gruende(ergebnis), "47 doppelt") {
 		t.Errorf("Bericht = %q, erwartet einen Hinweis auf die doppelte Nummer", gruende(ergebnis))
+	}
+}
+
+// Lesen kennt selbst keine Anzeigesprache — sie kommt vom Aufrufer (Ticket
+// 05) und muss dort ankommen, wo Meldungen entstehen: im Zeilenbericht
+// (zeilenleser.melden), im Bericht zu einer durchgehenden Zeile
+// (Stundenplan.zuordnen über zeilenleser.hinweisenText) und im Fehler, der die
+// ganze Datei verwirft (kopfLesen).
+func TestLesen_ZeilenfehlerFolgenDerUebergebenenSprache(t *testing.T) {
+	ergebnis, err := importer.ExcelImporter{}.Lesen(
+		bytes.NewReader(mappe(t, spalten, mitZeile(map[string]any{"Nachname": ""}))),
+		stundenplan(), i18n.Englisch)
+	if err != nil {
+		t.Fatalf("Lesen: %v", err)
+	}
+
+	bericht := gruende(ergebnis)
+	if strings.Contains(bericht, "fehlt") {
+		t.Errorf("Bericht auf Englisch enthält deutschen Text:\n%s", bericht)
+	}
+	if !strings.Contains(bericht, "missing the value") {
+		t.Errorf("Bericht = %q, erwartet englischen Text", bericht)
+	}
+}
+
+func TestLesen_HinweiseZumStundenplanFolgenDerUebergebenenSprache(t *testing.T) {
+	ergebnis, err := importer.ExcelImporter{}.Lesen(
+		bytes.NewReader(mappe(t, spalten, musterzeile())),
+		importer.StundenplanAus(nil), i18n.Englisch)
+	if err != nil {
+		t.Fatalf("Lesen: %v", err)
+	}
+
+	bericht := hinweise(ergebnis)
+	if !strings.Contains(bericht, "is not in the schedule") {
+		t.Errorf("Hinweis = %q, erwartet englischen Text", bericht)
+	}
+}
+
+func TestLesen_DateifehlerFolgtDerUebergebenenSprache(t *testing.T) {
+	f := excelize.NewFile()
+	defer f.Close()
+
+	var puffer bytes.Buffer
+	if err := f.Write(&puffer); err != nil {
+		t.Fatalf("Mappe schreiben: %v", err)
+	}
+
+	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan(), i18n.Englisch)
+	if err == nil {
+		t.Fatal("Lesen ohne Blatt „Verwaltung“ lief durch, erwartet Abbruch")
+	}
+	if !strings.Contains(err.Error(), "missing from the file") {
+		t.Errorf("Meldung = %q, erwartet englischen Text", err)
 	}
 }
 
@@ -734,9 +789,18 @@ func TestLesen_ErkenntUeberschriftUnabhaengigVonUnicodeNormalform(t *testing.T) 
 	}
 
 	_, err := importer.ExcelImporter{}.Lesen(
-		bytes.NewReader(mappe(t, zerlegteSpalten, musterzeile())), stundenplan())
+		bytes.NewReader(mappe(t, zerlegteSpalten, musterzeile())), stundenplan(), i18n.Deutsch)
 	if err != nil {
 		t.Fatalf("Lesen mit zerlegt geschriebener Überschrift: %v", err)
+	}
+}
+
+func TestLesen_FehlenderStatusMachtDieZeileZumFehlerfall(t *testing.T) {
+	bericht := nurFehler(t, lesen(t, mappe(t, spalten,
+		mitZeile(map[string]any{"Status": ""}))))
+
+	if !strings.Contains(bericht, "fehlt der Status") {
+		t.Errorf("Bericht sagt nicht, dass der Status fehlt:\n%s", bericht)
 	}
 }
 
@@ -763,7 +827,7 @@ func TestLesen_BrichtBeiFehlenderSpalteAb(t *testing.T) {
 		func(s string) bool { return s == "Nachname" })
 
 	_, err := importer.ExcelImporter{}.Lesen(
-		bytes.NewReader(mappe(t, ohneNachname, musterzeile())), stundenplan())
+		bytes.NewReader(mappe(t, ohneNachname, musterzeile())), stundenplan(), i18n.Deutsch)
 	if err == nil {
 		t.Fatal("Lesen ohne Spalte „Nachname“ lief durch, erwartet Abbruch")
 	}
@@ -781,7 +845,7 @@ func TestLesen_BrichtOhneBlattVerwaltungAb(t *testing.T) {
 		t.Fatalf("Mappe schreiben: %v", err)
 	}
 
-	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan())
+	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan(), i18n.Deutsch)
 	if err == nil {
 		t.Fatal("Lesen ohne Blatt „Verwaltung“ lief durch, erwartet Abbruch")
 	}

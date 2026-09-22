@@ -1,9 +1,9 @@
 package importer
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -97,18 +97,12 @@ func vereinheitlicht(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
 }
 
-// Die Auskünfte über einen Freitext, der keinen Termin ergibt. Jede sagt, was
-// zu tun ist: der Bericht ist das Werkzeug, mit dem der Verein seinen
-// Stundenplan und seine Tabelle zusammenbringt, und dafür muss aus ihm der
-// nächste Handgriff hervorgehen.
-const (
-	unbekannterFreitext = "in der Spalte „%s“ steht „%s“ nicht im Stundenplan — " +
-		"erst den Termin dort anlegen, dann erneut importieren"
-	archivierterFreitext = "in der Spalte „%s“ ist „%s“ ein archivierter Termin und wird nicht " +
-		"mehr vergeben — erst den Stundenplan pflegen, dann erneut importieren"
-	mehrdeutigerFreitext = "in der Spalte „%s“ passt „%s“ auf mehrere Trainingstermine — " +
-		"in der Excel die vollständige Schreibweise des gemeinten eintragen"
-)
+// Die Auskünfte über einen Freitext, der keinen Termin ergibt, stehen im
+// Katalog unter import.hinweis.termin_* (i18n/de.go) — jede sagt, was zu tun
+// ist: der Bericht ist das Werkzeug, mit dem der Verein seinen Stundenplan
+// und seine Tabelle zusammenbringt, und dafür muss aus ihm der nächste
+// Handgriff hervorgehen. Die Sprache kommt vom Aufrufer (Ticket 05):
+// importer/ kennt selbst keine.
 
 // zuordnen schlägt einen Freitext im Stundenplan nach: entweder die ID des
 // Termins und eine leere Meldung, oder 0 und die Auskunft, warum es keinen gibt.
@@ -116,7 +110,7 @@ const (
 // Ein archivierter Termin wird nicht vergeben: ein Import darf keine Zeiten
 // austeilen, die es nicht mehr gibt. Bestehende Anmeldungen bleiben davon
 // unberührt — die stehen in der Datenbank und nicht in dieser Tabelle.
-func (p Stundenplan) zuordnen(spalte, text string) (int64, string) {
+func (p Stundenplan) zuordnen(spalte, text string, sprache i18n.Sprache) (int64, string) {
 	treffer := p.nachSchreibweise[vereinheitlicht(text)]
 
 	offen := make([]service.Trainingstermin, 0, len(treffer))
@@ -130,10 +124,10 @@ func (p Stundenplan) zuordnen(spalte, text string) (int64, string) {
 	case len(offen) == 1:
 		return offen[0].ID, ""
 	case len(offen) > 1:
-		return 0, fmt.Sprintf(mehrdeutigerFreitext, spalte, text)
+		return 0, i18n.Text(sprache, "import.hinweis.termin_mehrdeutig", spalte, text)
 	case len(treffer) > 0:
-		return 0, fmt.Sprintf(archivierterFreitext, spalte, text)
+		return 0, i18n.Text(sprache, "import.hinweis.termin_archiviert", spalte, text)
 	default:
-		return 0, fmt.Sprintf(unbekannterFreitext, spalte, text)
+		return 0, i18n.Text(sprache, "import.hinweis.termin_unbekannt", spalte, text)
 	}
 }

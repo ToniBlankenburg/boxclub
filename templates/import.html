@@ -7,12 +7,9 @@
 {{define "import-formular"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
-    <h2 class="mb-1 text-base font-semibold">Excel-Import</h2>
+    <h2 class="mb-1 text-base font-semibold">{{t "import.titel"}}</h2>
     <p class="mb-5 max-w-2xl text-sm text-neutral-600">
-        Liest das Blatt „Verwaltung“ einer <code>.xlsx</code>-Datei. Der Import
-        lässt sich beliebig oft wiederholen: bestehende Mitglieder werden
-        aktualisiert, nicht doppelt angelegt. Was sich nicht zuordnen lässt,
-        steht danach zeilenweise im Bericht.
+        {{t "import.beschreibung_vor"}}<code>.xlsx</code>{{t "import.beschreibung_nach"}}
     </p>
 
     {{with .Meldung}}
@@ -27,15 +24,15 @@
           hx-encoding="multipart/form-data"
           hx-indicator="#import-laeuft">
         <input type="file" name="datei" accept=".xlsx" required
-               aria-label="Excel-Datei auswählen"
+               aria-label="{{t "import.datei_aria"}}"
                class="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-sm file:font-medium">
 
         <button type="submit"
                 class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-            Importieren
+            {{t "import.importieren_knopf"}}
         </button>
 
-        <span id="import-laeuft" class="htmx-indicator text-sm text-neutral-500">Wird gelesen …</span>
+        <span id="import-laeuft" class="htmx-indicator text-sm text-neutral-500">{{t "import.wird_gelesen"}}</span>
     </form>
 </div>
 {{end}}
@@ -61,55 +58,52 @@
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
     <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
-        <h2 class="text-base font-semibold">Import-Bericht</h2>
+        <h2 class="text-base font-semibold">{{t "import.bericht_titel"}}</h2>
         <div class="flex gap-2">
             <button type="button"
                     class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-50 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-get="/api/import" hx-target="#inhalt" hx-swap="innerHTML">
-                Nochmal importieren
+                {{t "import.nochmal_knopf"}}
             </button>
             <button type="button"
                     class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
-                Zu den Mitgliedern
+                {{t "import.zu_mitgliedern_knopf"}}
             </button>
         </div>
     </div>
 
     <div class="mb-5 flex flex-wrap divide-x divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 bg-white">
         <div class="min-w-32 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">Übernommen</p>
+            <p class="text-xs text-neutral-500">{{t "import.stat_uebernommen"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Uebernommen}}</p>
         </div>
         <div class="min-w-32 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">Neu angelegt</p>
+            <p class="text-xs text-neutral-500">{{t "import.stat_neu"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Neu}}</p>
         </div>
         <div class="min-w-32 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">Aktualisiert</p>
+            <p class="text-xs text-neutral-500">{{t "import.stat_aktualisiert"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Aktualisiert}}</p>
         </div>
         <div class="min-w-32 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">Gescheitert</p>
+            <p class="text-xs text-neutral-500">{{t "import.stat_gescheitert"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums{{if .Gescheitert}} text-red-800{{end}}">{{.Gescheitert}}</p>
         </div>
     </div>
-    {{with .Dateiname}}<p class="mb-5 text-sm text-neutral-500">Datei: <span class="font-medium text-neutral-700">{{.}}</span></p>{{end}}
+    {{with .Dateiname}}<p class="mb-5 text-sm text-neutral-500">{{t "import.datei_praefix"}} <span class="font-medium text-neutral-700">{{.}}</span></p>{{end}}
 
     {{if .StundenplanLeer}}{{template "stundenplan-leer"}}{{end}}
 
     {{if .Fehler}}
-        <h3 class="mb-2 text-sm font-semibold">Gescheiterte Zeilen</h3>
-        <p class="mb-3 text-sm text-neutral-600">
-            Diese Zeilen wurden nicht übernommen. In Excel korrigieren und erneut
-            importieren — bereits übernommene Zeilen werden dabei nur aktualisiert.
-        </p>
+        <h3 class="mb-2 text-sm font-semibold">{{t "import.gescheiterte_zeilen_titel"}}</h3>
+        <p class="mb-3 text-sm text-neutral-600">{{t "import.gescheiterte_zeilen_hinweis"}}</p>
         <div class="overflow-hidden rounded-md border border-neutral-200 bg-white">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-neutral-200 bg-neutral-50 text-neutral-600">
                 <tr>
-                    <th scope="col" class="w-24 px-3 py-2 font-medium">Zeile</th>
-                    <th scope="col" class="px-3 py-2 font-medium">Grund</th>
+                    <th scope="col" class="w-24 px-3 py-2 font-medium">{{t "import.spalte_zeile"}}</th>
+                    <th scope="col" class="px-3 py-2 font-medium">{{t "import.spalte_grund"}}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -139,18 +133,14 @@
              Trainingsspalten, die im Stundenplan nicht zu finden waren. Das
              Mitglied ist da, seine Trainingszeit nicht — deshalb ein eigener
              Abschnitt und nicht die Liste darüber. */}}
-        <h3 class="mt-8 mb-2 text-sm font-semibold">Übernommen, aber nachzutragen</h3>
-        <p class="mb-3 text-sm text-neutral-600">
-            Diese Zeilen sind übernommen. Ihre Trainingstermine ließen sich im
-            Stundenplan nicht finden — erst dort pflegen und erneut importieren
-            oder die Termine am Mitglied von Hand zuordnen.
-        </p>
+        <h3 class="mt-8 mb-2 text-sm font-semibold">{{t "import.nachzutragen_titel"}}</h3>
+        <p class="mb-3 text-sm text-neutral-600">{{t "import.nachzutragen_hinweis"}}</p>
         <div class="overflow-hidden rounded-md border border-neutral-200 bg-white">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-neutral-200 bg-neutral-50 text-neutral-600">
                 <tr>
-                    <th scope="col" class="w-24 px-3 py-2 font-medium">Zeile</th>
-                    <th scope="col" class="px-3 py-2 font-medium">Hinweis</th>
+                    <th scope="col" class="w-24 px-3 py-2 font-medium">{{t "import.spalte_zeile"}}</th>
+                    <th scope="col" class="px-3 py-2 font-medium">{{t "import.spalte_hinweis"}}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -185,15 +175,12 @@
 <div class="mb-5 rounded-md border border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800"
      role="status">
     <p>
-        Der Stundenplan ist leer. Der Import ordnet die Spalten
-        „Training&nbsp;-&nbsp;1/2/3“ nur <strong>vorhandenen</strong>
-        Trainingsterminen zu und legt selbst keine an — bis dahin kommt jedes
-        Mitglied ohne Trainingszeit herein.
+        {{t "import.stundenplan_leer_vor"}}<strong>{{t "import.stundenplan_leer_fett"}}</strong>{{t "import.stundenplan_leer_nach"}}
     </p>
     <button type="button"
             class="mt-2 rounded-md border border-amber-600 bg-white px-3 py-1.5 font-semibold text-amber-900 hover:bg-amber-100 focus:ring-2 focus:ring-amber-600/40 focus:outline-none"
             hx-get="/api/trainingstermine" hx-target="#inhalt" hx-swap="innerHTML">
-        Stundenplan pflegen
+        {{t "import.stundenplan_leer_knopf"}}
     </button>
 </div>
 {{end}}

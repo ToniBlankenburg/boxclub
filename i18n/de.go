@@ -251,4 +251,86 @@ var deutsch = map[string]string{
 	"wochentag.5": "Freitag",
 	"wochentag.6": "Samstag",
 	"wochentag.7": "Sonntag",
+
+	// import.* ist der Excel-Import (Ticket 05, templates/import.html,
+	// app/import.go). „Verwaltung“ und „Training - 1/2/3“ bleiben in beiden
+	// Sprachen unverändert stehen: das sind die tatsächlichen Namen aus der
+	// Vorlage des Vereins (importer.blatt, importer.spalteTraining1 usw.) und
+	// keine Beschriftung, die zur Anzeigesprache gehört.
+	"import.titel":            "Excel-Import",
+	"import.beschreibung_vor": "Liest das Blatt „Verwaltung“ einer ",
+	"import.beschreibung_nach": "-Datei. Der Import lässt sich beliebig oft wiederholen: bestehende " +
+		"Mitglieder werden aktualisiert, nicht doppelt angelegt. Was sich nicht zuordnen lässt, steht " +
+		"danach zeilenweise im Bericht.",
+	"import.datei_aria":        "Excel-Datei auswählen",
+	"import.importieren_knopf": "Importieren",
+	"import.wird_gelesen":      "Wird gelesen …",
+
+	"import.bericht_titel":        "Import-Bericht",
+	"import.nochmal_knopf":        "Nochmal importieren",
+	"import.zu_mitgliedern_knopf": "Zu den Mitgliedern",
+	"import.stat_uebernommen":     "Übernommen",
+	"import.stat_neu":             "Neu angelegt",
+	"import.stat_aktualisiert":    "Aktualisiert",
+	"import.stat_gescheitert":     "Gescheitert",
+	"import.datei_praefix":        "Datei:",
+
+	"import.gescheiterte_zeilen_titel": "Gescheiterte Zeilen",
+	"import.gescheiterte_zeilen_hinweis": "Diese Zeilen wurden nicht übernommen. In Excel korrigieren und " +
+		"erneut importieren — bereits übernommene Zeilen werden dabei nur aktualisiert.",
+	"import.spalte_zeile": "Zeile",
+	"import.spalte_grund": "Grund",
+
+	"import.nachzutragen_titel": "Übernommen, aber nachzutragen",
+	"import.nachzutragen_hinweis": "Diese Zeilen sind übernommen. Ihre Trainingstermine ließen sich im " +
+		"Stundenplan nicht finden — erst dort pflegen und erneut importieren oder die Termine am Mitglied " +
+		"von Hand zuordnen.",
+	"import.spalte_hinweis": "Hinweis",
+
+	"import.stundenplan_leer_vor": "Der Stundenplan ist leer. Der Import ordnet die Spalten " +
+		"„Training - 1/2/3“ nur ",
+	"import.stundenplan_leer_fett": "vorhandenen",
+	"import.stundenplan_leer_nach": " Trainingsterminen zu und legt selbst keine an — bis dahin kommt " +
+		"jedes Mitglied ohne Trainingszeit herein.",
+	"import.stundenplan_leer_knopf": "Stundenplan pflegen",
+
+	// import.fehler.* sind Gründe, an denen eine Zeile oder die ganze Datei
+	// scheitert (importer.ExcelImporter) — import.hinweis.* sind Meldungen zu
+	// Zeilen, die trotzdem durchgehen (siehe Ergebnis.Hinweise). Beide
+	// brauchen die Sprache vom Aufrufer, weil importer/ selbst keine kennt
+	// (Ticket 05).
+	"import.fehler.datei_nicht_lesbar": "die Datei ließ sich nicht als .xlsx öffnen",
+	"import.fehler.blatt_fehlt":        "das Blatt „%s“ fehlt in der Datei",
+	"import.fehler.blatt_nicht_lesbar": "das Blatt „%s“ ließ sich nicht lesen",
+	"import.fehler.keine_kopfzeile":    "das Blatt „%s“ hat keine Kopfzeile",
+	"import.fehler.spalte_fehlt": "im Blatt „%s“ fehlt die Spalte „%s“ — die Datei passt nicht zur " +
+		"erwarteten Tabelle",
+	"import.fehler.id_doppelt":                "Mitglieds-ID %d doppelt — sie steht schon in Zeile %d",
+	"import.fehler.eintrittsdatum_fehlt":      "in der Spalte „%s“ fehlt das Eintrittsdatum",
+	"import.fehler.angabe_fehlt":              "in der Spalte „%s“ fehlt die Angabe",
+	"import.fehler.mitglieds_id_fehlt":        "in der Spalte „%s“ fehlt die Mitglieds-ID",
+	"import.fehler.mitglieds_id_ungueltig":    "die Mitglieds-ID „%s“ ist keine positive Zahl",
+	"import.fehler.datum_unlesbar":            "in der Spalte „%s“ ist „%s“ kein lesbares Datum",
+	"import.fehler.nur_jahreszahl":            "in der Spalte „%s“ ist „%s“ nur eine Jahreszahl und kein vollständiges Datum",
+	"import.fehler.datum_ausserhalb":          "in der Spalte „%s“ ergibt „%s“ kein Datum, das in dieser Tabelle stehen kann",
+	"import.fehler.spalte_mit_grund":          "in der Spalte „%s“: %s",
+	"import.fehler.bewertung_unbekannt":       "in der Spalte „%s“ ist „%s“ kein bekannter Wert",
+	"import.fehler.frequenz_unlesbar":         "in der Spalte „%s“ ist „%s“ keine lesbare Frequenz",
+	"import.fehler.status_fehlt":              "in der Spalte „%s“ fehlt der Status",
+	"import.fehler.status_unerwartetes_datum": "Status „%s“, aber in der Spalte „%s“ steht ein Datum",
+	"import.fehler.status_datum_fehlt":        "Status „%s“, aber in der Spalte „%s“ fehlt das Datum",
+	"import.fehler.status_unbekannt":          "unbekannter Status „%s“",
+
+	"import.hinweis.frequenz_widerspruch": "Frequenz %d× widerspricht %d zugeordneten Trainingsterminen",
+	"import.hinweis.termin_unbekannt": "in der Spalte „%s“ steht „%s“ nicht im Stundenplan — erst den " +
+		"Termin dort anlegen, dann erneut importieren",
+	"import.hinweis.termin_archiviert": "in der Spalte „%s“ ist „%s“ ein archivierter Termin und wird " +
+		"nicht mehr vergeben — erst den Stundenplan pflegen, dann erneut importieren",
+	"import.hinweis.termin_mehrdeutig": "in der Spalte „%s“ passt „%s“ auf mehrere Trainingstermine — in " +
+		"der Excel die vollständige Schreibweise des gemeinten eintragen",
+
+	"import.fehler.upload_zu_gross": "Die Datei ließ sich nicht entgegennehmen. Ist sie größer als %d MB?",
+	"import.fehler.keine_datei":     "Bitte eine Datei auswählen.",
+	"import.fehler.falsche_endung": "%q ist keine %s-Datei. Das alte .xls-Format liest der Import nicht " +
+		"— in Excel einmal als .xlsx speichern.",
 }

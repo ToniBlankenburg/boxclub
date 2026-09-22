@@ -21,6 +21,7 @@
 package importer
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -32,6 +33,7 @@ import (
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -98,10 +100,14 @@ type ExcelImporter struct{}
 // dass die Datei als Ganzes nicht zu gebrauchen ist (kein .xlsx, kein Blatt
 // „Verwaltung", fehlende Spalte). Dann wird gar nichts übernommen, statt halbe
 // Zeilen zu schreiben.
-func (ExcelImporter) Lesen(r io.Reader, plan Stundenplan) (Ergebnis, error) {
+//
+// sprache übersetzt jede Meldung, die dabei entsteht — im Fehlerbericht wie im
+// zurückgegebenen Fehler. importer/ kennt selbst keine Anzeigesprache; sie
+// kommt vom Aufrufer (Ticket 05).
+func (ExcelImporter) Lesen(r io.Reader, plan Stundenplan, sprache i18n.Sprache) (Ergebnis, error) {
 	f, err := excelize.OpenReader(r)
 	if err != nil {
-		return Ergebnis{}, fmt.Errorf("die Datei ließ sich nicht als .xlsx öffnen: %w", err)
+		return Ergebnis{}, fmt.Errorf("%s: %w", i18n.Text(sprache, "import.fehler.datei_nicht_lesbar"), err)
 	}
 	defer f.Close()
 
@@ -113,23 +119,23 @@ func (ExcelImporter) Lesen(r io.Reader, plan Stundenplan) (Ergebnis, error) {
 	// etwas ganz anderes klemmt.
 	index, err := f.GetSheetIndex(blatt)
 	if err != nil || index == -1 {
-		return Ergebnis{}, fmt.Errorf("das Blatt „%s“ fehlt in der Datei", blatt)
+		return Ergebnis{}, errors.New(i18n.Text(sprache, "import.fehler.blatt_fehlt", blatt))
 	}
 
 	zeilen, err := f.GetRows(blatt, excelize.Options{RawCellValue: true})
 	if err != nil {
-		return Ergebnis{}, fmt.Errorf("das Blatt „%s“ ließ sich nicht lesen: %w", blatt, err)
+		return Ergebnis{}, fmt.Errorf("%s: %w", i18n.Text(sprache, "import.fehler.blatt_nicht_lesbar", blatt), err)
 	}
 	if len(zeilen) < kopfzeile {
-		return Ergebnis{}, fmt.Errorf("das Blatt „%s“ hat keine Kopfzeile", blatt)
+		return Ergebnis{}, errors.New(i18n.Text(sprache, "import.fehler.keine_kopfzeile", blatt))
 	}
 
-	kopf, err := kopfLesen(zeilen[kopfzeile-1])
+	kopf, err := kopfLesen(zeilen[kopfzeile-1], sprache)
 	if err != nil {
 		return Ergebnis{}, err
 	}
 
-	return kopf.zeilenLesen(zeilen[kopfzeile:], plan), nil
+	return kopf.zeilenLesen(zeilen[kopfzeile:], plan, sprache), nil
 }
 
 // kopf ordnet jeder erwarteten Überschrift ihre Spaltennummer zu. Zugeordnet
@@ -185,7 +191,7 @@ var trainingsspalten = []string{spalteTraining1, spalteTraining2, spalteTraining
 // fehlt. Abgebrochen wird dabei sofort: eine fehlende Spalte hieße, jede Zeile
 // halb zu übernehmen, und ein Bericht mit 200 gleichlautenden Einträgen hilft
 // niemandem.
-func kopfLesen(zeile []string) (kopf, error) {
+func kopfLesen(zeile []string, sprache i18n.Sprache) (kopf, error) {
 	k := make(kopf, len(zeile))
 	for i, ueberschrift := range zeile {
 		k[norm.NFC.String(strings.TrimSpace(ueberschrift))] = i
@@ -193,9 +199,7 @@ func kopfLesen(zeile []string) (kopf, error) {
 
 	for _, pflicht := range pflichtspalten {
 		if _, ok := k[pflicht]; !ok {
-			return nil, fmt.Errorf(
-				"im Blatt „%s“ fehlt die Spalte „%s“ — die Datei passt nicht zur erwarteten Tabelle",
-				blatt, pflicht)
+			return nil, errors.New(i18n.Text(sprache, "import.fehler.spalte_fehlt", blatt, pflicht))
 		}
 	}
 
@@ -203,7 +207,7 @@ func kopfLesen(zeile []string) (kopf, error) {
 }
 
 // zeilenLesen geht die Datenzeilen durch und sammelt Sätze und Fehler ein.
-func (k kopf) zeilenLesen(zeilen [][]string, plan Stundenplan) Ergebnis {
+func (k kopf) zeilenLesen(zeilen [][]string, plan Stundenplan, sprache i18n.Sprache) Ergebnis {
 	var ergebnis Ergebnis
 
 	// vergeben merkt sich, welche Mitglieds-Nummer in dieser Datei schon
@@ -219,11 +223,11 @@ func (k kopf) zeilenLesen(zeilen [][]string, plan Stundenplan) Ergebnis {
 			continue
 		}
 
-		satz, gruende, hinweise := k.zeileLesen(zeile, plan)
+		satz, gruende, hinweise := k.zeileLesen(zeile, plan, sprache)
 		if len(gruende) == 0 {
 			if vorher, doppelt := vergeben[satz.ID]; doppelt {
-				gruende = append(gruende, fmt.Sprintf(
-					"Mitglieds-ID %d doppelt — sie steht schon in Zeile %d", satz.ID, vorher))
+				gruende = append(gruende,
+					i18n.Text(sprache, "import.fehler.id_doppelt", satz.ID, vorher))
 			} else {
 				vergeben[satz.ID] = nummer
 			}
@@ -270,8 +274,8 @@ func leer(zeile []string) bool {
 //
 // Zurück kommen zwei Listen: die Gründe, an denen die Zeile scheitert, und die
 // Hinweise, mit denen sie trotzdem durchgeht.
-func (k kopf) zeileLesen(zeile []string, plan Stundenplan) (service.Importsatz, []string, []string) {
-	z := zeilenleser{kopf: k, zeile: zeile, plan: plan}
+func (k kopf) zeileLesen(zeile []string, plan Stundenplan, sprache i18n.Sprache) (service.Importsatz, []string, []string) {
+	z := zeilenleser{kopf: k, zeile: zeile, plan: plan, sprache: sprache}
 
 	satz := service.Importsatz{
 		ID: z.nummer(),
@@ -296,7 +300,7 @@ func (k kopf) zeileLesen(zeile []string, plan Stundenplan) (service.Importsatz, 
 	if eintritt := z.datum(spalteEintritt); eintritt != nil {
 		satz.Eintritt = *eintritt
 	} else if z.text(spalteEintritt) == "" {
-		z.melden("in der Spalte „%s“ fehlt das Eintrittsdatum", spalteEintritt)
+		z.melden("import.fehler.eintrittsdatum_fehlt", spalteEintritt)
 	}
 
 	z.lebenszyklus(&satz)
@@ -314,19 +318,29 @@ type zeilenleser struct {
 	kopf     kopf
 	zeile    []string
 	plan     Stundenplan
+	sprache  i18n.Sprache
 	fehler   []string
 	hinweise []string
 }
 
 // melden legt einen Grund zum Bericht dieser Zeile. Die Zeile ist damit
-// gescheitert.
-func (z *zeilenleser) melden(format string, args ...any) {
-	z.fehler = append(z.fehler, fmt.Sprintf(format, args...))
+// gescheitert. schluessel ist ein Katalogschlüssel (i18n/de.go, import.fehler.*),
+// keine Fließtext-Vorlage — die Übersetzung übernimmt i18n.Text.
+func (z *zeilenleser) melden(schluessel string, args ...any) {
+	z.fehler = append(z.fehler, i18n.Text(z.sprache, schluessel, args...))
 }
 
-// hinweisen legt eine Meldung zum Bericht, die die Zeile nicht aufhält.
-func (z *zeilenleser) hinweisen(format string, args ...any) {
-	z.hinweise = append(z.hinweise, fmt.Sprintf(format, args...))
+// hinweisen legt eine Meldung zum Bericht, die die Zeile nicht aufhält —
+// ebenfalls über einen Katalogschlüssel (import.hinweis.*).
+func (z *zeilenleser) hinweisen(schluessel string, args ...any) {
+	z.hinweise = append(z.hinweise, i18n.Text(z.sprache, schluessel, args...))
+}
+
+// hinweisenText legt eine bereits übersetzte Meldung zum Bericht — für die
+// Auskünfte aus Stundenplan.zuordnen, die ihre Übersetzung schon hinter sich
+// haben und sonst ein zweites Mal (und falsch) durch i18n.Text liefen.
+func (z *zeilenleser) hinweisenText(text string) {
+	z.hinweise = append(z.hinweise, text)
 }
 
 // text liest eine Zelle als Freitext. Fehlt die Spalte in dieser Zeile — Excel
@@ -351,7 +365,7 @@ func (z *zeilenleser) text(spalte string) string {
 func (z *zeilenleser) pflichttext(spalte string) string {
 	wert := z.text(spalte)
 	if wert == "" {
-		z.melden("in der Spalte „%s“ fehlt die Angabe", spalte)
+		z.melden("import.fehler.angabe_fehlt", spalte)
 	}
 
 	return wert
@@ -371,14 +385,14 @@ func (z *zeilenleser) anschrift() service.Anschrift {
 func (z *zeilenleser) nummer() int64 {
 	wert := z.text(spalteNummer)
 	if wert == "" {
-		z.melden("in der Spalte „%s“ fehlt die Mitglieds-ID", spalteNummer)
+		z.melden("import.fehler.mitglieds_id_fehlt", spalteNummer)
 
 		return 0
 	}
 
 	nummer, err := strconv.ParseInt(wert, 10, 64)
 	if err != nil || nummer <= 0 {
-		z.melden("die Mitglieds-ID „%s“ ist keine positive Zahl", wert)
+		z.melden("import.fehler.mitglieds_id_ungueltig", wert)
 
 		return 0
 	}
@@ -413,7 +427,7 @@ func (z *zeilenleser) datum(spalte string) *time.Time {
 		}
 	}
 
-	z.melden("in der Spalte „%s“ ist „%s“ kein lesbares Datum", spalte, wert)
+	z.melden("import.fehler.datum_unlesbar", spalte, wert)
 
 	return nil
 }
@@ -437,16 +451,14 @@ const (
 // schwer zu bemerken, weil am Ende ein plausibel aussehendes Datum steht.
 func (z *zeilenleser) seriennummer(spalte, wert string, serie float64) *time.Time {
 	if jahreszahl(wert) {
-		z.melden("in der Spalte „%s“ ist „%s“ nur eine Jahreszahl und kein vollständiges Datum",
-			spalte, wert)
+		z.melden("import.fehler.nur_jahreszahl", spalte, wert)
 
 		return nil
 	}
 
 	d, err := excelize.ExcelDateToTime(serie, false)
 	if err != nil || d.Year() < fruehestesJahr || d.Year() > spaetestesJahr {
-		z.melden("in der Spalte „%s“ ergibt „%s“ kein Datum, das in dieser Tabelle stehen kann",
-			spalte, wert)
+		z.melden("import.fehler.datum_ausserhalb", spalte, wert)
 
 		return nil
 	}
@@ -478,7 +490,7 @@ func jahreszahl(wert string) bool {
 func (z *zeilenleser) beitrag() int64 {
 	cents, err := service.BeitragAusEuro(z.text(spalteBeitrag))
 	if err != nil {
-		z.melden("in der Spalte „%s“: %s", spalteBeitrag, err)
+		z.melden("import.fehler.spalte_mit_grund", spalteBeitrag, err)
 
 		return 0
 	}
@@ -494,7 +506,7 @@ func (z *zeilenleser) anmeldegebuehr() int64 {
 
 	cents, err := service.AnmeldegebuehrAusEuro(wert)
 	if err != nil {
-		z.melden("in der Spalte „%s“: %s", spalteAnmeldegebuehr, err)
+		z.melden("import.fehler.spalte_mit_grund", spalteAnmeldegebuehr, err)
 
 		return 0
 	}
@@ -526,7 +538,7 @@ func (z *zeilenleser) bewertung() service.GoogleBewertung {
 
 	bewertet, bekannt := bewertungswerte[wert]
 	if !bekannt {
-		z.melden("in der Spalte „%s“ ist „%s“ kein bekannter Wert", spalteBewertung, wert)
+		z.melden("import.fehler.bewertung_unbekannt", spalteBewertung, wert)
 
 		return false
 	}
@@ -602,9 +614,9 @@ func (z *zeilenleser) trainingstermine() []int64 {
 		}
 
 		for _, schreibweise := range schreibweisen {
-			id, meldung := z.plan.zuordnen(spalte, schreibweise)
+			id, meldung := z.plan.zuordnen(spalte, schreibweise, z.sprache)
 			if meldung != "" {
-				z.hinweisen("%s", meldung)
+				z.hinweisenText(meldung)
 
 				continue
 			}
@@ -640,14 +652,13 @@ func (z *zeilenleser) frequenzPruefen(zugeordnet int) {
 
 	angegeben, err := strconv.Atoi(strings.TrimSpace(strings.Split(wert, "x")[0]))
 	if err != nil {
-		z.melden("in der Spalte „%s“ ist „%s“ keine lesbare Frequenz", spalteFrequenz, wert)
+		z.melden("import.fehler.frequenz_unlesbar", spalteFrequenz, wert)
 
 		return
 	}
 
 	if angegeben != zugeordnet {
-		z.hinweisen("Frequenz %d× widerspricht %d zugeordneten Trainingsterminen",
-			angegeben, zugeordnet)
+		z.hinweisen("import.hinweis.frequenz_widerspruch", angegeben, zugeordnet)
 	}
 }
 
@@ -674,7 +685,7 @@ const (
 func (z *zeilenleser) lebenszyklus(satz *service.Importsatz) {
 	roh := z.text(spalteStatus)
 	if roh == "" {
-		z.melden("in der Spalte „%s“ fehlt der Status", spalteStatus)
+		z.melden("import.fehler.status_fehlt", spalteStatus)
 
 		return
 	}
@@ -691,17 +702,17 @@ func (z *zeilenleser) lebenszyklus(satz *service.Importsatz) {
 		// Ohne Wirkung: diese Zustände liest der Status ohnehin aus Eintritt
 		// und Austritt ab. Ein Datum daneben wäre aber widersprüchlich.
 		if gekuendigt != nil {
-			z.melden("Status „%s“, aber in der Spalte „%s“ steht ein Datum", roh, spalteGekuendigt)
+			z.melden("import.fehler.status_unerwartetes_datum", roh, spalteGekuendigt)
 		}
 	case statusStillgelegt, statusInaktivTippfehler, statusInaktiv:
 		satz.Ruhend = true
 		if gekuendigt != nil {
-			z.melden("Status „%s“, aber in der Spalte „%s“ steht ein Datum", roh, spalteGekuendigt)
+			z.melden("import.fehler.status_unerwartetes_datum", roh, spalteGekuendigt)
 		}
 	case statusGekuendigt:
 		if gekuendigt == nil {
 			if !unlesbar {
-				z.melden("Status „%s“, aber in der Spalte „%s“ fehlt das Datum", roh, spalteGekuendigt)
+				z.melden("import.fehler.status_datum_fehlt", roh, spalteGekuendigt)
 			}
 
 			return
@@ -710,13 +721,13 @@ func (z *zeilenleser) lebenszyklus(satz *service.Importsatz) {
 	case statusKuendigungsfrist:
 		if gekuendigt == nil {
 			if !unlesbar {
-				z.melden("Status „%s“, aber in der Spalte „%s“ fehlt das Datum", roh, spalteGekuendigt)
+				z.melden("import.fehler.status_datum_fehlt", roh, spalteGekuendigt)
 			}
 
 			return
 		}
 		satz.Kuendigung.Datum = gekuendigt
 	default:
-		z.melden("unbekannter Status „%s“", roh)
+		z.melden("import.fehler.status_unbekannt", roh)
 	}
 }
