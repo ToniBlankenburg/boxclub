@@ -14,18 +14,18 @@
 {{if .Bearbeiten}}
 <div class="flex items-stretch gap-6" data-registerkarten>
     <div class="flex w-44 flex-shrink-0 flex-col gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 p-1"
-         role="tablist" aria-label="Mitglied-Bereiche">
+         role="tablist" aria-label="{{t "mitglied.bereiche_aria"}}">
         <button type="button" role="tab" data-rk-tab="stammdaten" aria-selected="true"
                 class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
-            Stammdaten
+            {{t "mitglied.tab_stammdaten"}}
         </button>
         <button type="button" role="tab" data-rk-tab="vertraege" aria-selected="false"
                 class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
-            Verträge
+            {{t "mitglied.tab_vertraege"}}
         </button>
         <button type="button" role="tab" data-rk-tab="rechnung" aria-selected="false"
                 class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
-            Rechnung
+            {{t "mitglied.tab_rechnung"}}
         </button>
     </div>
 
@@ -49,7 +49,7 @@
       hx-post="{{if .Bearbeiten}}/api/mitglied/{{.MitgliedID}}{{else}}/api/mitglied{{end}}"
       hx-target="#inhalt" hx-swap="innerHTML">
     <h2 class="mb-4 flex flex-wrap items-baseline gap-2 text-base font-semibold">
-        {{if .Bearbeiten}}Mitglied bearbeiten{{else}}Neues Mitglied anlegen{{end}}
+        {{if .Bearbeiten}}{{t "mitglied.bearbeiten_titel"}}{{else}}{{t "mitglied.anlegen_titel"}}{{end}}
         {{/* Die Mitglieds-ID steht in der Überschrift und nicht als Feld im
              Raster: sie ist keine Angabe, die man pflegt, sondern die, unter der
              das Mitglied im Verein geführt wird (CONTEXT.md → Mitglieds-ID). Ein
@@ -59,7 +59,7 @@
              deshalb gibt es sie beim Anlegen noch gar nicht. */}}
         {{if .Bearbeiten}}
             <span class="font-normal text-neutral-500 tabular-nums"
-                  title="Mitglieds-ID — einmal vergeben und nie neu verwendet">Nr.&nbsp;{{.MitgliedID}}</span>
+                  title="{{t "mitglied.mitglieds_id_titel"}}">{{t "mitglied.nr_praefix"}}&nbsp;{{.MitgliedID}}</span>
         {{end}}
     </h2>
 
@@ -74,83 +74,83 @@
 
     <div class="grid gap-3 sm:grid-cols-2">
         <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Person</p>
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "mitglied.abschnitt_person"}}</p>
             <div class="grid gap-3 sm:grid-cols-2">
-                {{template "feld" feld "Vorname" "vorname" "text" .Eingabe.Vorname true false}}
-                {{template "feld" feld "Nachname" "nachname" "text" .Eingabe.Nachname true false}}
+                {{template "feld" feld (t "feld.vorname") "vorname" "text" .Eingabe.Vorname true false}}
+                {{template "feld" feld (t "feld.nachname") "nachname" "text" .Eingabe.Nachname true false}}
                 {{/* Das Geburtsdatum ist nach der Anlage bewusst nicht mehr
                      änderbar (Tippfehler-Schutz) und wird beim Bearbeiten nur
                      angezeigt — ebenso das Eintrittsdatum weiter unten. */}}
                 {{if .Bearbeiten}}
-                    {{template "feld-nur-lesen" anzeigefeld "Geburtsdatum" .GeburtsdatumAnzeige}}
+                    {{template "feld-nur-lesen" anzeigefeld (t "feld.geburtsdatum") .GeburtsdatumAnzeige}}
                 {{else}}
-                    {{template "feld" feld "Geburtsdatum" "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
+                    {{template "feld" feld (t "feld.geburtsdatum") "geburtsdatum" "date" .Eingabe.Geburtsdatum false false}}
                 {{end}}
                 {{/* Das Geschlecht ist Freitext; die Liste darunter ist eine
                      Eintipphilfe und keine Einschränkung (Spec → keine
                      Wertelisten-Prüfung). */}}
-                {{template "feld-mit-vorschlaegen" vorschlagsfeld "Geschlecht" "geschlecht" .Eingabe.Geschlecht geschlechtVorschlaege}}
+                {{template "feld-mit-vorschlaegen" vorschlagsfeld (t "feld.geschlecht") "geschlecht" .Eingabe.Geschlecht geschlechtVorschlaege}}
             </div>
         </div>
 
         <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Kontakt &amp; Anschrift</p>
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "mitglied.abschnitt_kontakt"}}</p>
             <div class="grid gap-3 sm:grid-cols-2">
                 {{/* Die Anschrift steht in drei Feldern (CONTEXT.md →
                      Anschrift): Straße samt Hausnummer über die ganze Breite,
                      Postleitzahl und Ort darunter nebeneinander. Alle drei
                      sind freiwillig. */}}
-                {{template "feld" feld "Adresse (Straße und Hausnummer)" "adresse" "text" .Eingabe.Adresse false true}}
-                {{template "feld" feld "Postleitzahl" "postleitzahl" "text" .Eingabe.Postleitzahl false false}}
-                {{template "feld" feld "Ort" "ort" "text" .Eingabe.Ort false false}}
-                {{template "feld" feld "E-Mail" "email" "email" .Eingabe.Email false false}}
-                {{template "feld" feld "Telefon" "telefon" "tel" .Eingabe.Telefon false false}}
+                {{template "feld" feld (t "feld.adresse") "adresse" "text" .Eingabe.Adresse false true}}
+                {{template "feld" feld (t "feld.postleitzahl") "postleitzahl" "text" .Eingabe.Postleitzahl false false}}
+                {{template "feld" feld (t "feld.ort") "ort" "text" .Eingabe.Ort false false}}
+                {{template "feld" feld (t "feld.email") "email" "email" .Eingabe.Email false false}}
+                {{template "feld" feld (t "feld.telefon") "telefon" "tel" .Eingabe.Telefon false false}}
             </div>
         </div>
 
         <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
-            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Mitgliedschaft</p>
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "mitglied.abschnitt_mitgliedschaft"}}</p>
             <div class="grid gap-3 sm:grid-cols-3">
                 {{/* Die IBAN wird als reiner Text gespeichert: keine
                      Prüfziffer, kein Format, kein SEPA-Export (ADR-0006). Eine
                      halb abgetippte IBAN soll sich festhalten lassen — die
                      Excel kann das heute auch. */}}
-                {{template "feld" feld "IBAN" "iban" "text" .Eingabe.IBAN false true}}
+                {{template "feld" feld (t "feld.iban") "iban" "text" .Eingabe.IBAN false true}}
                 {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der
                      Regel davor (CONTEXT.md → Anmeldedatum). Anders als
                      Geburtsdatum und Eintritt bleibt es auch beim Bearbeiten
                      änderbar: es begrenzt keinen Zeitraum, sondern hält einen
                      Vorgang fest. */}}
-                {{template "feld" feld "Anmeldedatum" "anmeldedatum" "date" .Eingabe.Anmeldedatum false false}}
+                {{template "feld" feld (t "feld.anmeldedatum") "anmeldedatum" "date" .Eingabe.Anmeldedatum false false}}
                 {{/* Der Eintritt dagegen begrenzt den Zeitraum, gegen den
                      Aus- und Wiedereintritt prüfen, und liegt nach der Anlage
                      fest. */}}
                 {{if .Bearbeiten}}
-                    {{template "feld-nur-lesen" anzeigefeld "Eintrittsdatum" .EintrittAnzeige}}
+                    {{template "feld-nur-lesen" anzeigefeld (t "feld.eintrittsdatum") .EintrittAnzeige}}
                 {{else}}
-                    {{template "feld" feld "Eintrittsdatum" "eintritt" "date" .Eingabe.Eintritt true false}}
+                    {{template "feld" feld (t "feld.eintrittsdatum") "eintritt" "date" .Eingabe.Eintritt true false}}
                 {{end}}
                 {{/* Die Anmeldegebühr ist ein historischer Wert — was beim
                      Eintritt tatsächlich gezahlt wurde. Leer heißt "keine
                      erhoben"; deshalb ist sie, anders als der Beitrag, kein
                      Pflichtfeld. */}}
-                {{template "feld" feld "Anmeldegebühr in € (einmalig)" "anmeldegebuehr" "text" .Eingabe.Anmeldegebuehr false false}}
+                {{template "feld" feld (t "feld.anmeldegebuehr") "anmeldegebuehr" "text" .Eingabe.Anmeldegebuehr false false}}
                 {{/* Der Beitrag ist frei vereinbart, keine Auswahl aus Stufen
                      (ADR-0005). 0 ist ein gültiger Betrag — Trainer zahlen
                      nichts —, deshalb ist das Feld Pflicht: die Null gehört
                      hingeschrieben. */}}
-                {{template "feld" feld "Beitrag in € pro Monat" "beitrag" "text" .Eingabe.Beitrag true false}}
+                {{template "feld" feld (t "feld.beitrag") "beitrag" "text" .Eingabe.Beitrag true false}}
                 {{template "trainingsterminauswahl" .}}
             </div>
         </div>
 
         <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
-            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Sonstiges</p>
+            <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "mitglied.abschnitt_sonstiges"}}</p>
             <div class="grid gap-3 sm:grid-cols-2">
                 {{/* Zweiwertig: hat bewertet oder nicht (CONTEXT.md →
                      Google-Bewertung). Die Beschriftung des Hakens kommt aus
                      dem Service. */}}
-                {{template "feld-kontrollkaestchen" kontrollkaestchen "Google-Bewertung" "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
+                {{template "feld-kontrollkaestchen" kontrollkaestchen (t "feld.google_bewertung") "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
             </div>
         </div>
     </div>
@@ -158,12 +158,12 @@
     <div class="mt-5 flex items-center gap-3">
         <button type="submit"
                 class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-            Speichern
+            {{t "allgemein.speichern"}}
         </button>
         <button type="button" data-shortcut="abbrechen"
                 class="rounded-md px-4 py-2 font-semibold text-neutral-600 hover:bg-neutral-100 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
                 hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
-            Abbrechen
+            {{t "allgemein.abbrechen"}}
         </button>
     </div>
 </form>
@@ -175,7 +175,7 @@
 <div class="flex flex-col gap-1.5">
     <span class="text-sm text-neutral-600">{{.Beschriftung}}</span>
     <p class="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2 text-neutral-500 tabular-nums"
-       title="Nach der Anlage nicht mehr änderbar">{{.Wert}}</p>
+       title="{{t "feld.nicht_aenderbar_titel"}}">{{.Wert}}</p>
 </div>
 {{end}}
 
@@ -200,14 +200,14 @@
      abwählen kann man ihn, neu vergeben nicht. Die Daten sind formularDaten. */}}
 {{define "trainingsterminauswahl"}}
 <div class="flex flex-col gap-1.5 sm:col-span-2">
-    <span class="text-sm text-neutral-600">Training</span>
+    <span class="text-sm text-neutral-600">{{t "feld.training"}}</span>
     {{if .Termine}}
         <div class="grid gap-x-4 gap-y-2 sm:grid-cols-2">
             {{range .Termine}}
                 <label class="flex items-center gap-2">
                     <input name="trainingstermin" type="checkbox" value="{{.ID}}" {{if .Gewaehlt}}checked{{end}}
                            class="size-4 rounded border-neutral-300 text-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                    <span>{{.Anzeige}}{{if .Archiviert}} <span class="text-neutral-400">(archiviert)</span>{{end}}</span>
+                    <span>{{.Anzeige}}{{if .Archiviert}} <span class="text-neutral-400">{{t "mitglieder.archiviert_suffix"}}</span>{{end}}</span>
                 </label>
             {{end}}
         </div>
@@ -215,17 +215,19 @@
              angekreuzten Termine und wird nirgends gespeichert
              (CONTEXT.md → Trainingsfrequenz). */}}
         <span class="text-sm text-neutral-500">
-            Höchstens drei Termine. Die Trainingsfrequenz ergibt sich aus der Anzahl
-            der Kreuze; kein Kreuz heißt „keine Frequenz“ und nicht „1×“.
+            {{t "mitglied.training_hinweis"}}
         </span>
     {{else}}
         {{/* Vor dem ersten Import muss der Stundenplan stehen (ADR-0008) — hier
              fällt das auf. Bewusst nur als Hinweis und nicht als Verweis: ein
              Klick dorthin tauschte #inhalt aus und nähme das halb ausgefüllte
-             Formular mit. */}}
+             Formular mit.
+
+             Der Bereichsname selbst kommt aus nav.trainingstermine statt aus
+             einem eigenen Schlüssel — derselbe Name soll hier wie in der
+             Navigation stehen, nicht zweimal übersetzt werden. */}}
         <p class="text-sm text-neutral-500">
-            Der Stundenplan ist noch leer — Trainingszeiten lassen sich erst zuordnen,
-            wenn im Bereich <em>Trainingstermine</em> welche angelegt sind.
+            {{t "mitglied.stundenplan_leer_vor"}}<em>{{t "nav.trainingstermine"}}</em>{{t "mitglied.stundenplan_leer_nach"}}
         </p>
     {{end}}
 </div>

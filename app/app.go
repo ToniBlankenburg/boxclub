@@ -349,25 +349,25 @@ const (
 )
 
 // spalte ist eine Spalte der Mitgliederliste: ihr Schlüssel ist zugleich der
-// Wert des "sort"-Parameters in der Adresszeile und, wo sie sich ausblenden
-// lässt, der Wert des data-col-Attributs im Markup (siehe main.js) — beides
-// muss übereinstimmen, damit ein Klick und das Spaltenmenü dieselbe Spalte
-// meinen.
+// Wert des "sort"-Parameters in der Adresszeile, der Wert des
+// data-col-Attributs im Markup (siehe main.js), wo sie sich ausblenden lässt,
+// und der i18n-Schlüssel ihrer Beschriftung ("spalte.<schluessel>") — alle
+// drei müssen übereinstimmen, damit ein Klick, das Spaltenmenü und die
+// Übersetzung dieselbe Spalte meinen.
 type spalte struct {
-	Schluessel   string
-	Beschriftung string
+	Schluessel string
 }
 
 // Die acht Spalten der Liste, in der Reihenfolge ihrer Kopfzeile.
 var (
-	spalteNr         = spalte{Schluessel: "nr", Beschriftung: "Nr."}
-	spalteName       = spalte{Schluessel: "name", Beschriftung: "Name"}
-	spalteStatus     = spalte{Schluessel: "status", Beschriftung: "Status"}
-	spalteAnschrift  = spalte{Schluessel: "anschrift", Beschriftung: "Anschrift"}
-	spalteTraining   = spalte{Schluessel: "training", Beschriftung: "Training"}
-	spalteBeitrag    = spalte{Schluessel: "beitrag", Beschriftung: "Beitrag"}
-	spalteRueckstand = spalte{Schluessel: "rueckstand", Beschriftung: "Rückstand"}
-	spalteEintritt   = spalte{Schluessel: "eintritt", Beschriftung: "Eintritt"}
+	spalteNr         = spalte{Schluessel: "nr"}
+	spalteName       = spalte{Schluessel: "name"}
+	spalteStatus     = spalte{Schluessel: "status"}
+	spalteAnschrift  = spalte{Schluessel: "anschrift"}
+	spalteTraining   = spalte{Schluessel: "training"}
+	spalteBeitrag    = spalte{Schluessel: "beitrag"}
+	spalteRueckstand = spalte{Schluessel: "rueckstand"}
+	spalteEintritt   = spalte{Schluessel: "eintritt"}
 )
 
 // spaltenAusblendbar sind die Spalten, die sich über das Menü ein- und
@@ -483,23 +483,24 @@ type filteroption struct {
 //
 // "Im Rückstand" steht vor "In Ordnung": es ist die Ausnahmeliste, die der
 // Verein tatsächlich abarbeitet (ADR-0006).
-var rueckstandsoptionen = []filteroption{
-	{Wert: rueckstandAlle, Beschriftung: "Alle Mitglieder"},
-	{Wert: rueckstandImRueckstand, Beschriftung: "Im Rückstand"},
-	{Wert: rueckstandInOrdnung, Beschriftung: "In Ordnung"},
+func rueckstandsoptionen(sprache i18n.Sprache) []filteroption {
+	return []filteroption{
+		{Wert: rueckstandAlle, Beschriftung: i18n.Text(sprache, "filter.rueckstand.alle")},
+		{Wert: rueckstandImRueckstand, Beschriftung: i18n.Text(sprache, "filter.rueckstand.offen")},
+		{Wert: rueckstandInOrdnung, Beschriftung: i18n.Text(sprache, "filter.rueckstand.ok")},
+	}
 }
 
-// frequenzoptionen sind die Stufen des Frequenzfilters, eine je möglicher
+// frequenzoptionenBauen sind die Stufen des Frequenzfilters, eine je möglicher
 // Frequenz. Sie werden gezählt und nicht aufgezählt, damit Wert, Beschriftung
-// und Auswertung aus derselben Quelle kommen; die Beschriftung holt sich die
-// Liste aus dem Service, wo das Vokabular für die Frequenz liegt.
+// und Auswertung aus derselben Quelle kommen. Die Beschriftung der Stufen
+// selbst holt sich service.Trainingsfrequenz.Bezeichnung — sie bleibt
+// unübersetzt (Ticket 07), nur "Jede Frequenz" kommt aus dem Katalog.
 //
 // Eine Stufe für "keine Frequenz" gibt es nicht — gefragt wird nach den
 // Trainierenden einer Frequenz, und wer keinen Termin hat, ist keine solche Gruppe.
-var frequenzoptionen = frequenzoptionenBauen()
-
-func frequenzoptionenBauen() []filteroption {
-	optionen := []filteroption{{Wert: frequenzAlle, Beschriftung: "Jede Frequenz"}}
+func frequenzoptionenBauen(sprache i18n.Sprache) []filteroption {
+	optionen := []filteroption{{Wert: frequenzAlle, Beschriftung: i18n.Text(sprache, "filter.frequenz.alle")}}
 	for stufe := 1; stufe <= service.MaxTrainingstermine; stufe++ {
 		optionen = append(optionen, filteroption{
 			Wert:         strconv.Itoa(stufe),
@@ -517,6 +518,12 @@ type listeDaten struct {
 	Meldung    meldung
 	Suche      suchEingabe
 	Navigation []navigationseintrag
+
+	// Sprache ist die aktuelle Anzeigesprache — gebraucht, um Spaltenköpfe
+	// und Filteroptionen erst hier aufzulösen (i18n.Text), statt sie wie vor
+	// Ticket 02 als deutsches Literal am spalte/filteroption-Wert
+	// mitzuführen.
+	Sprache i18n.Sprache
 
 	// Geschlechtswerte und Termine speisen die beiden Auswahllisten, die aus dem
 	// Bestand entstehen. Nur die ganze Ansicht trägt sie: das Ergebnis allein
@@ -588,7 +595,7 @@ func (d listeDaten) spaltenkopfFuer(s spalte) spaltenkopf {
 	}
 
 	kopf := spaltenkopf{
-		Schluessel: s.Schluessel, Beschriftung: s.Beschriftung,
+		Schluessel: s.Schluessel, Beschriftung: i18n.Text(d.Sprache, "spalte."+s.Schluessel),
 		AriaSort: "none", NaechsteRichtung: richtungAufsteigend,
 	}
 	if s.Schluessel != aktiveSpalte {
@@ -619,28 +626,42 @@ func (d listeDaten) SpaltenkopfBeitrag() spaltenkopf    { return d.spaltenkopfFu
 func (d listeDaten) SpaltenkopfRueckstand() spaltenkopf { return d.spaltenkopfFuer(spalteRueckstand) }
 func (d listeDaten) SpaltenkopfEintritt() spaltenkopf   { return d.spaltenkopfFuer(spalteEintritt) }
 
-// AusblendbareSpalten sind die Spalten, die das Spaltenmenü zeigt — siehe
-// spaltenAusblendbar.
-func (d listeDaten) AusblendbareSpalten() []spalte {
-	return spaltenAusblendbar
+// spaltenmenueintrag ist ein Eintrag des Spaltenmenüs: die Spalte und ihre
+// Beschriftung in der aktuellen Anzeigesprache.
+type spaltenmenueintrag struct {
+	Schluessel   string
+	Beschriftung string
+}
+
+// AusblendbareSpalten sind die Spalten, die das Spaltenmenü zeigt, mit ihrer
+// Beschriftung in der aktuellen Anzeigesprache — siehe spaltenAusblendbar.
+func (d listeDaten) AusblendbareSpalten() []spaltenmenueintrag {
+	eintraege := make([]spaltenmenueintrag, len(spaltenAusblendbar))
+	for i, s := range spaltenAusblendbar {
+		eintraege[i] = spaltenmenueintrag{Schluessel: s.Schluessel, Beschriftung: i18n.Text(d.Sprache, "spalte."+s.Schluessel)}
+	}
+
+	return eintraege
 }
 
 // Rueckstandsoptionen sind die Stufen des Rückstandsfilters, die gewählte
 // darunter markiert.
 func (d listeDaten) Rueckstandsoptionen() []filteroption {
-	return gewaehlteOption(rueckstandsoptionen, d.Suche.Rueckstand)
+	return gewaehlteOption(rueckstandsoptionen(d.Sprache), d.Suche.Rueckstand)
 }
 
 // Frequenzoptionen sind die Stufen des Frequenzfilters, die gewählte darunter
 // markiert.
 func (d listeDaten) Frequenzoptionen() []filteroption {
-	return gewaehlteOption(frequenzoptionen, d.Suche.Frequenz)
+	return gewaehlteOption(frequenzoptionenBauen(d.Sprache), d.Suche.Frequenz)
 }
 
 // Geschlechtsoptionen sind "jedes Geschlecht" und die Werte, die im Bestand
-// vorkommen, die gewählte darunter markiert.
+// vorkommen, die gewählte darunter markiert. Die Werte selbst sind Freitext
+// aus dem Bestand und bleiben unübersetzt (ADR-0006) — nur der erste Eintrag
+// "jedes Geschlecht" kommt aus dem Katalog.
 func (d listeDaten) Geschlechtsoptionen() []filteroption {
-	optionen := []filteroption{{Wert: geschlechtAlle, Beschriftung: "Jedes Geschlecht"}}
+	optionen := []filteroption{{Wert: geschlechtAlle, Beschriftung: i18n.Text(d.Sprache, "filter.geschlecht.alle")}}
 	for _, wert := range d.Geschlechtswerte {
 		optionen = append(optionen, filteroption{Wert: wert, Beschriftung: wert})
 	}
@@ -651,13 +672,14 @@ func (d listeDaten) Geschlechtsoptionen() []filteroption {
 // Terminoptionen sind "jeder Termin" und der Stundenplan in Wochenreihenfolge,
 // die gewählte darunter markiert. Archivierte stehen mit darin und sind als
 // solche beschriftet: wer für sie noch angemeldet ist, soll sich finden lassen
-// (ADR-0008).
+// (ADR-0008). t.Anzeige() ist die Beschriftung des Termins selbst (Wochentag
+// und Uhrzeit) und bleibt unübersetzt wie der übrige Stundenplan (Ticket 04).
 func (d listeDaten) Terminoptionen() []filteroption {
-	optionen := []filteroption{{Wert: terminAlle, Beschriftung: "Jeder Termin"}}
+	optionen := []filteroption{{Wert: terminAlle, Beschriftung: i18n.Text(d.Sprache, "filter.termin.alle")}}
 	for _, t := range d.Termine {
 		beschriftung := t.Anzeige()
 		if t.Archiviert {
-			beschriftung += " (archiviert)"
+			beschriftung += " " + i18n.Text(d.Sprache, "mitglieder.archiviert_suffix")
 		}
 		optionen = append(optionen, filteroption{Wert: strconv.FormatInt(t.ID, 10), Beschriftung: beschriftung})
 	}
@@ -771,6 +793,7 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		Meldung:    m,
 		Suche:      eingabe,
 		Navigation: a.navigation(bereichMitglieder),
+		Sprache:    a.Sprache(),
 	}, true
 }
 
@@ -810,7 +833,7 @@ func (a *App) mitgliedAnlegen(w http.ResponseWriter, r *http.Request) {
 	if len(fehler) == 0 {
 		_, err := a.svc.Create(neu)
 		if err == nil {
-			a.listeRendern(w, meldung{Text: fmt.Sprintf("%s %s wurde angelegt.", neu.Vorname, neu.Nachname)})
+			a.listeRendern(w, meldung{Text: i18n.Text(a.Sprache(), "meldung.angelegt", neu.Vorname, neu.Nachname)})
 			return
 		}
 
@@ -856,7 +879,7 @@ func (a *App) mitgliedAktualisieren(w http.ResponseWriter, r *http.Request) {
 	if len(fehler) == 0 {
 		err := a.svc.Update(id, patch)
 		if err == nil {
-			a.listeRendern(w, meldung{Text: fmt.Sprintf("%s %s wurde gespeichert.", eingabe.Vorname, eingabe.Nachname)})
+			a.listeRendern(w, meldung{Text: i18n.Text(a.Sprache(), "meldung.gespeichert", eingabe.Vorname, eingabe.Nachname)})
 			return
 		}
 
@@ -1170,9 +1193,9 @@ func (a *App) kuendigungEintragen(w http.ResponseWriter, r *http.Request) {
 	// k.Austritt ist hier gesetzt: ausgetreten wird nur, wer ein erreichtes
 	// Austrittsdatum hat, und geschrieben hat es genau dieser Aufruf.
 	aufListeUmleiten(w)
-	a.listeRendern(w, meldung{Text: fmt.Sprintf(
-		"Für %s %s ist der Austritt zum %s erfasst; die Zeile steht jetzt unter »Auch Ehemalige«.",
-		eintrag.Vorname, eintrag.Nachname, datumAnzeige(*k.Austritt))})
+	sprache := a.Sprache()
+	a.listeRendern(w, meldung{Text: i18n.Text(sprache, "meldung.austritt_erfasst",
+		eintrag.Vorname, eintrag.Nachname, datumAnzeige(*k.Austritt), i18n.Text(sprache, "mitglieder.auch_ehemalige"))})
 }
 
 // kuendigungLesen sammelt die beiden Datumsfelder ein. Ein leeres Feld heißt
@@ -1302,7 +1325,7 @@ func (a *App) wiedereintrittEintragen(w http.ResponseWriter, r *http.Request) {
 	// Die Zeile stand unter »Auch Ehemalige« und gehört jetzt woandershin —
 	// deshalb antwortet auch hier die ganze Liste.
 	aufListeUmleiten(w)
-	a.listeRendern(w, meldung{Text: fmt.Sprintf("%s %s ist zum %s wieder eingetreten.",
+	a.listeRendern(w, meldung{Text: i18n.Text(a.Sprache(), "meldung.wiedereingetreten",
 		eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))})
 }
 
@@ -1327,19 +1350,20 @@ func (a *App) wiedereintrittFormularMitFehler(w http.ResponseWriter, id int64, f
 // Mitglieds nicht mehr richtig. Zurück geht es dann in die Liste, die den
 // aktuellen Stand zeigt und sagt, was los war.
 func (a *App) veralteteAnsichtOderFehler(w http.ResponseWriter, err error) {
-	var text string
+	var schluessel string
 
 	switch {
 	case errors.Is(err, service.ErrNichtGefunden):
-		text = "Dieses Mitglied gibt es nicht mehr."
+		schluessel = "meldung.mitglied_nicht_mehr"
 	case errors.Is(err, service.ErrNichtAktiv):
-		text = "Dieses Mitglied ist bereits ausgetreten."
+		schluessel = "meldung.bereits_ausgetreten"
 	case errors.Is(err, service.ErrBereitsAktiv):
-		text = "Dieses Mitglied ist bereits aktiv."
+		schluessel = "meldung.bereits_aktiv"
 	default:
 		fehlerAntwort(w, err)
 		return
 	}
+	text := i18n.Text(a.Sprache(), schluessel)
 
 	aufListeUmleiten(w)
 	a.listeRendern(w, meldung{Text: text, Warnung: true})
@@ -1589,7 +1613,7 @@ func fehlerAntwort(w http.ResponseWriter, err error) {
 // nicht ein, und der Klick bliebe für den Nutzer wirkungslos.
 func (a *App) nichtGefundenOderFehler(w http.ResponseWriter, err error) {
 	if errors.Is(err, service.ErrNichtGefunden) {
-		a.listeRendern(w, meldung{Text: "Dieses Mitglied gibt es nicht mehr.", Warnung: true})
+		a.listeRendern(w, meldung{Text: i18n.Text(a.Sprache(), "meldung.mitglied_nicht_mehr"), Warnung: true})
 		return
 	}
 

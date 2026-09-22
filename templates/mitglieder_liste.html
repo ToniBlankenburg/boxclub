@@ -3,7 +3,7 @@
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
     <div class="mb-5 flex items-center justify-between gap-4">
-        <h2 class="text-base font-semibold">Mitglieder</h2>
+        <h2 class="text-base font-semibold">{{t "mitglieder.titel"}}</h2>
         <div class="flex gap-2">
             {{/* Serienmail nimmt die angekreuzten Zeilen des Ergebnisses mit
                  (siehe die Kontrollkästchen in "mitglied-zeile" unten) —
@@ -15,11 +15,11 @@
                     hx-post="/api/mitglieder/serienmail" hx-include="[name='mitglied_id']"
                     hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
                 {{template "icon-serienmail"}}
-                Serienmail
+                {{t "mitglieder.serienmail_knopf"}}
             </button>
             <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                     hx-get="/api/mitglied/formular" hx-target="#inhalt" hx-swap="innerHTML">
-                Neues Mitglied
+                {{t "mitglieder.neu_knopf"}}
             </button>
         </div>
     </div>
@@ -89,8 +89,8 @@
      mitgeschickt (siehe die Erklärung bei "mitglieder-filterleiste" oben). */}}
 <div class="mb-2 flex items-center justify-between gap-2">
     <input form="mitglieder-filter" id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
-           placeholder="Name, E-Mail, Telefon oder Mitglieds-ID" autocomplete="off"
-           aria-label="Mitglieder durchsuchen"
+           placeholder="{{t "mitglieder.suche_platzhalter"}}" autocomplete="off"
+           aria-label="{{t "mitglieder.suche_aria"}}"
            class="min-w-56 max-w-md flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
     {{/* Filter, Zurücksetzen und Spalten sind Icon-Buttons rechts von der
@@ -113,7 +113,7 @@
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/>
             </svg>
-            Filter
+            {{t "mitglieder.filter_knopf"}}
             {{/* id="filter-badge": das /api/mitglieder/ergebnis-Fragment tauscht
                  nur #mitglieder-ergebnis, nie diese Leiste — der aktuelle Wert
                  kommt deshalb per hx-swap-oob mit (siehe "filter-badge-oob"
@@ -122,7 +122,7 @@
                   class="{{template "zaehler-badge-klasse"}}">{{.AktiveFilterAnzahl}}</span>
         </button>
 
-        <button type="button" title="Zurücksetzen" aria-label="Suche und Filter zurücksetzen"
+        <button type="button" title="{{t "mitglieder.zuruecksetzen_titel"}}" aria-label="{{t "mitglieder.zuruecksetzen_aria"}}"
                 class="rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -140,18 +140,18 @@
              verborgen, main.js zieht Text und Sichtbarkeit sofort nach
              jedem Laden nach (spaltenAnwenden). */}}
         <details class="relative">
-            <summary aria-label="Sichtbare Spalten wählen"
+            <summary aria-label="{{t "mitglieder.spalten_aria"}}"
                      class="flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M4 4v16"/><path d="M12 4v16"/><path d="M20 4v16"/>
                 </svg>
-                Spalten
+                {{t "mitglieder.spalten_knopf"}}
                 <span data-spalten-badge hidden class="{{template "zaehler-badge-klasse"}}">0</span>
             </summary>
             <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
                 <button type="button" data-spalten-alle-anzeigen
                         class="mb-1 w-full rounded px-2 py-1.5 text-left text-sm font-medium text-[var(--akzent)] hover:bg-neutral-50">
-                    Alle anzeigen
+                    {{t "mitglieder.spalten_alle_anzeigen"}}
                 </button>
                 {{range .AusblendbareSpalten}}
                     <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
@@ -171,7 +171,7 @@
      einer Rückkehr aus dem Formular) — sonst verschwände ein aktiver Filter
      scheinbar spurlos hinter einem geschlossenen Panel. */}}
 <div id="mitglieder-filterpanel" class="{{if not .AktiveFilterAnzahl}}hidden {{end}}mb-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-2">
-    <select form="mitglieder-filter" id="filter-rueckstand" name="rueckstand" aria-label="Nach Rückstand filtern"
+    <select form="mitglieder-filter" id="filter-rueckstand" name="rueckstand" aria-label="{{t "mitglieder.filter_rueckstand_aria"}}"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Rueckstandsoptionen}}
             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
@@ -181,7 +181,7 @@
     {{/* Die Trainingsfrequenz ist die Anzahl der Termine und steht nirgends in
          der Datenbank (CONTEXT.md → Trainingsfrequenz); gefiltert wird
          trotzdem nach ihr, weil der Verein in Frequenzen denkt. */}}
-    <select form="mitglieder-filter" id="filter-frequenz" name="frequenz" aria-label="Nach Trainingsfrequenz filtern"
+    <select form="mitglieder-filter" id="filter-frequenz" name="frequenz" aria-label="{{t "mitglieder.filter_frequenz_aria"}}"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Frequenzoptionen}}
             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
@@ -189,7 +189,7 @@
     </select>
 
     {{/* Geschlecht ist Freitext; die Auswahl zeigt, was im Bestand steht. */}}
-    <select form="mitglieder-filter" id="filter-geschlecht" name="geschlecht" aria-label="Nach Geschlecht filtern"
+    <select form="mitglieder-filter" id="filter-geschlecht" name="geschlecht" aria-label="{{t "mitglieder.filter_geschlecht_aria"}}"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Geschlechtsoptionen}}
             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
@@ -198,7 +198,7 @@
 
     {{/* Nach einem Trainingstermin des Stundenplans: wer ist dafür angemeldet.
          Eine andere Frage als die Frequenz, die nur zählt. */}}
-    <select form="mitglieder-filter" id="filter-termin" name="termin" aria-label="Nach Trainingstermin filtern"
+    <select form="mitglieder-filter" id="filter-termin" name="termin" aria-label="{{t "mitglieder.filter_termin_aria"}}"
             class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
         {{range .Terminoptionen}}
             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
@@ -210,7 +210,7 @@
              ist — genau das macht "nur aktive" zum Standard. */}}
         <input form="mitglieder-filter" id="filter-ehemalige" name="ehemalige" type="checkbox" value="1"
                class="accent-[var(--akzent)]" {{if .Suche.Ehemalige}}checked{{end}}>
-        Auch Ehemalige
+        {{t "mitglieder.auch_ehemalige"}}
     </label>
 </div>
 {{end}}
@@ -235,7 +235,7 @@
 <input type="hidden" name="richtung" value="{{.Suche.Sortierrichtung}}">
 {{if .Eintraege}}
     <p class="mb-2 text-sm text-neutral-500" role="status" aria-live="polite">
-        {{len .Eintraege}} {{if eq (len .Eintraege) 1}}Mitglied{{else}}Mitglieder{{end}}
+        {{len .Eintraege}} {{if eq (len .Eintraege) 1}}{{t "mitglieder.eintrag_singular"}}{{else}}{{t "mitglieder.eintrag_plural"}}{{end}}
     </p>
     <div class="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
         <table class="w-max min-w-full table-fixed text-left">
@@ -302,10 +302,10 @@
                                hx-on:click="event.stopPropagation()">
                             <input type="checkbox" data-mitglied-alle-auswaehlen
                                    class="size-[1.1rem] cursor-pointer accent-[var(--akzent)]"
-                                   aria-label="Alle sichtbaren Mitglieder auswählen">
+                                   aria-label="{{t "mitglieder.alle_auswaehlen_aria"}}">
                         </label>
                     </th>
-                    <th class="w-16 px-4 py-2 font-medium" title="Mitglieds-ID"
+                    <th class="w-16 px-4 py-2 font-medium" title="{{t "mitglieder.mitglieds_id_titel"}}"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
                     <th class="relative min-w-[7rem] px-4 py-2 font-medium" data-col="name"
                         aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}{{template "spaltengriff" "name"}}</th>
@@ -334,9 +334,9 @@
     <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500"
        role="status" aria-live="polite">
         {{if .Gefiltert}}
-            Kein Mitglied passt zu Suche und Filter.
+            {{t "mitglieder.leer_gefiltert"}}
         {{else}}
-            Keine Mitglieder erfasst.
+            {{t "mitglieder.leer"}}
         {{end}}
     </p>
 {{end}}
@@ -386,7 +386,7 @@
 {{define "spaltenkopf"}}
 <button type="button"
         class="inline-flex items-center gap-1 hover:text-neutral-900 focus:underline focus:outline-none"
-        aria-label="Nach {{.Beschriftung}} sortieren{{if .Aktiv}} (aktuell {{if eq .AriaSort "ascending"}}aufsteigend{{else}}absteigend{{end}}){{end}}"
+        aria-label="{{t "mitglieder.sortieren_nach" .Beschriftung}}{{if .Aktiv}}{{if eq .AriaSort "ascending"}}{{t "mitglieder.aktuell_aufsteigend"}}{{else}}{{t "mitglieder.aktuell_absteigend"}}{{end}}{{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
         hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-ehemalige"
@@ -404,8 +404,8 @@
      um Mitternacht gerendert wird. */}}
 {{$status := .Status}}
 <tr class="cursor-pointer border-b border-neutral-100 last:border-0 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)]"
-    tabindex="0" title="Bearbeiten"
-    aria-label="{{.Vorname}} {{.Nachname}} bearbeiten"
+    tabindex="0" title="{{t "mitglieder.zeile_bearbeiten_titel"}}"
+    aria-label="{{t "mitglieder.zeile_bearbeiten_aria" .Vorname .Nachname}}"
     hx-get="/api/mitglied/{{.MitgliedID}}/formular"
     hx-target="#inhalt" hx-swap="innerHTML"
     hx-trigger="click, keyup[key=='Enter']">
@@ -422,7 +422,7 @@
                hx-on:click="event.stopPropagation()">
             <input type="checkbox" name="mitglied_id" value="{{.MitgliedID}}"
                    class="size-[1.1rem] cursor-pointer accent-[var(--akzent)]"
-                   aria-label="{{.Vorname}} {{.Nachname}} für die Serienmail auswählen"
+                   aria-label="{{t "mitglieder.serienmail_auswaehlen_aria" .Vorname .Nachname}}"
                    hx-on:keyup="event.stopPropagation()">
         </label>
     </td>
@@ -441,8 +441,8 @@
              übrigen sind die, die man noch fragen kann. Die Worte dazu kommen
              wie beim Rückstandskennzeichen aus dem Service. */}}
         {{if .GoogleBewertung}}
-            <span class="ml-1 text-amber-500" title="Google-Bewertung: {{.GoogleBewertung.Bezeichnung}}"
-                  aria-label="Google-Bewertung: {{.GoogleBewertung.Bezeichnung}}">&#9733;</span>
+            <span class="ml-1 text-amber-500" title="{{t "mitglieder.google_bewertung_titel" .GoogleBewertung.Bezeichnung}}"
+                  aria-label="{{t "mitglieder.google_bewertung_titel" .GoogleBewertung.Bezeichnung}}">&#9733;</span>
         {{end}}
     </td>
     {{/* Der Status wird nirgends gepflegt, sondern aus den Datumsfeldern
@@ -468,18 +468,18 @@
     <td class="px-4 py-2" data-col="status">
         {{if and .Ruhend (not $status.Ausgetreten)}}
             <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
-                  title="Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter (Status: {{$status.Bezeichnung}})">
-                ruhend
+                  title="{{t "mitglieder.ruhend_titel" $status.Bezeichnung}}">
+                {{t "mitglieder.ruhend_abzeichen"}}
             </span>
         {{else}}
             {{template "statuskennzeichen" $status}}
         {{end}}
         {{if .Austritt}}
-            <div class="mt-0.5 text-xs text-neutral-500">zum {{datum .Austritt}}</div>
+            <div class="mt-0.5 text-xs text-neutral-500">{{t "mitglieder.austritt_zum" (datum .Austritt)}}</div>
         {{else if .Kuendigungsdatum}}
             {{/* Eine Kündigung ohne Termin wäre sonst unsichtbar — der Status
                  sagt "In Kündigungsfrist", aber nicht, seit wann. */}}
-            <div class="mt-0.5 text-xs text-neutral-500">gekündigt {{datum .Kuendigungsdatum}}</div>
+            <div class="mt-0.5 text-xs text-neutral-500">{{t "mitglieder.gekuendigt_seit" (datum .Kuendigungsdatum)}}</div>
         {{end}}
     </td>
     {{/* Zweizeilig — Straße oben, Postleitzahl und Ort darunter —, damit die
@@ -524,12 +524,12 @@
             {{template "rueckstandskennzeichen" .Rueckstand}}
             <button type="button"
                     class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                    aria-label="Rückstand von {{.Vorname}} {{.Nachname}} pflegen"
+                    aria-label="{{t "mitglieder.rueckstand_pflegen_aria" .Vorname .Nachname}}"
                     hx-get="/api/mitglied/{{.MitgliedID}}/rueckstand"
                     hx-target="closest tr" hx-swap="outerHTML"
                     hx-on:click="event.stopPropagation()"
                     hx-on:keyup="event.stopPropagation()">
-                Ändern
+                {{t "mitglieder.rueckstand_aendern_knopf"}}
             </button>
         </div>
     </td>
@@ -549,12 +549,12 @@
                      korrigieren lässt. */}}
                 <button type="button"
                         class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                        aria-label="{{if $status.Ausgetreten}}Wiedereintritt für{{else}}Kündigung erfassen für{{end}} {{.Vorname}} {{.Nachname}}"
+                        aria-label="{{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_fuer_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.kuendigung_erfassen_fuer_aria" .Vorname .Nachname}}{{end}}"
                         hx-get="/api/mitglied/{{.MitgliedID}}/{{if $status.Ausgetreten}}wiedereintritt{{else}}kuendigung{{end}}"
                         hx-target="closest tr" hx-swap="outerHTML"
                         hx-on:click="event.stopPropagation()"
                         hx-on:keyup="event.stopPropagation()">
-                    {{if $status.Ausgetreten}}Wiedereintritt{{else}}Kündigung{{end}}
+                    {{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_knopf"}}{{else}}{{t "mitglieder.kuendigung_knopf"}}{{end}}
                 </button>
                 {{/* Ruhend schalten lässt sich nur, was läuft — bei einem Ehemaligen
                      gibt es keinen Einzug, den man aussetzen könnte. In der
@@ -565,12 +565,12 @@
                 {{if not $status.Ausgetreten}}
                     <button type="button"
                             class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                            aria-label="{{.Vorname}} {{.Nachname}} {{if .Ruhend}}wieder aktiv setzen{{else}}ruhend schalten{{end}}"
+                            aria-label="{{if .Ruhend}}{{t "mitglieder.aktiv_setzen_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.ruhend_schalten_aria" .Vorname .Nachname}}{{end}}"
                             hx-post="/api/mitglied/{{.MitgliedID}}/ruhend{{if not .Ruhend}}?ruhend=1{{end}}"
                             hx-target="closest tr" hx-swap="outerHTML"
                             hx-on:click="event.stopPropagation()"
                             hx-on:keyup="event.stopPropagation()">
-                        {{if .Ruhend}}Aktiv setzen{{else}}Ruhend{{end}}
+                        {{if .Ruhend}}{{t "mitglieder.aktiv_setzen_knopf"}}{{else}}{{t "mitglieder.ruhend_knopf"}}{{end}}
                     </button>
                 {{end}}
             </div>
@@ -609,29 +609,27 @@
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/kuendigung"
               hx-target="closest tr" hx-swap="outerHTML">
             <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">Gekündigt am</span>
+                <span class="text-sm text-neutral-600">{{t "mitglieder.gekuendigt_am_feld"}}</span>
                 <input name="kuendigungsdatum" type="date" value="{{.Kuendigungsdatum}}"
                        class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">Austritt zum</span>
+                <span class="text-sm text-neutral-600">{{t "mitglieder.austritt_zum_feld"}}</span>
                 <input name="austritt" type="date" value="{{.Austritt}}"
                        class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <button type="submit"
                     class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                Kündigung erfassen
+                {{t "mitglieder.kuendigung_erfassen_knopf"}}
             </button>
             <button type="button" data-shortcut="abbrechen"
                     class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
                     hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/zeile"
                     hx-target="closest tr" hx-swap="outerHTML">
-                Abbrechen
+                {{t "allgemein.abbrechen"}}
             </button>
             <span class="text-sm text-neutral-500">
-                Vorgeschlagen ist die reguläre Frist von drei Monaten zum
-                Monatsende. Steht der Termin noch nicht fest, leere das
-                Austrittsfeld — bis dahin trainiert und zahlt das Mitglied weiter.
+                {{t "mitglieder.kuendigung_hinweis"}}
             </span>
             {{range .Fehler}}
                 <span class="text-sm text-red-800" role="alert">{{.}}</span>
@@ -658,22 +656,22 @@
               hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/wiedereintritt"
               hx-target="closest tr" hx-swap="outerHTML">
             <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">Wiedereintritt zum</span>
+                <span class="text-sm text-neutral-600">{{t "mitglieder.wiedereintritt_zum_feld"}}</span>
                 <input name="datum" type="date" value="{{.Datum}}" required
                        class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <button type="submit"
                     class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                Wieder eintreten
+                {{t "mitglieder.wieder_eintreten_knopf"}}
             </button>
             <button type="button" data-shortcut="abbrechen"
                     class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
                     hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/zeile"
                     hx-target="closest tr" hx-swap="outerHTML">
-                Abbrechen
+                {{t "allgemein.abbrechen"}}
             </button>
             <span class="text-sm text-neutral-500">
-                Es entsteht eine neue Mitgliedschaft; Stammdaten und Historie bleiben erhalten.
+                {{t "mitglieder.wiedereintritt_hinweis"}}
             </span>
             {{range .Fehler}}
                 <span class="text-sm text-red-800" role="alert">{{.}}</span>
@@ -742,27 +740,27 @@
                      angehakt ist — ohne Haken heißt also: in Ordnung. */}}
                 <input name="rueckstand" type="checkbox" value="1"
                        class="accent-[var(--akzent)]" {{if .Rueckstand.Offen}}checked{{end}}>
-                Im Rückstand
+                {{t "mitglieder.im_rueckstand_kasten"}}
             </label>
             <label class="flex flex-1 items-center gap-2">
-                <span class="text-sm text-neutral-600">Notiz</span>
+                <span class="text-sm text-neutral-600">{{t "mitglieder.notiz_feld"}}</span>
                 <input name="notiz" type="text" value="{{.Rueckstand.Notiz}}"
-                       placeholder="Rücklastschrift Oktober, angeschrieben am 05.10."
+                       placeholder="{{t "mitglieder.notiz_platzhalter"}}"
                        class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
             </label>
             <button type="submit"
                     class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                Speichern
+                {{t "allgemein.speichern"}}
             </button>
             <button type="button" data-shortcut="abbrechen"
                     class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
                     hx-get="/api/mitglied/{{.MitgliedID}}/zeile"
                     hx-target="closest tr" hx-swap="outerHTML">
-                Abbrechen
+                {{t "allgemein.abbrechen"}}
             </button>
             {{/* Die Notiz überlebt das Aufheben: sie ist die einzige Spur, die
                  ein erledigter Vorgang hinterlässt (ADR-0006). */}}
-            <span class="text-sm text-neutral-500">Die Notiz bleibt auch dann stehen, wenn der Rückstand erledigt ist.</span>
+            <span class="text-sm text-neutral-500">{{t "mitglieder.rueckstand_hinweis"}}</span>
         </form>
     </td>
 </tr>
