@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/ToniBlankenburg/boxclub/app"
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -31,7 +32,21 @@ func main() {
 	}
 	defer svc.Close()
 
-	anwendung, err := app.New(svc)
+	einstellungenPfad, err := einstellungenPfad()
+	if err != nil {
+		log.Fatalf("Einstellungspfad bestimmen: %v", err)
+	}
+
+	// Eine unlesbare Einstellungsdatei ist anders als ein Datenbankfehler
+	// nicht fatal: sie enthält nur die Anzeigesprache, keine Mitgliederdaten
+	// — die App startet dann eben deutsch (siehe i18n.EinstellungenLaden).
+	einstellungen, err := i18n.EinstellungenLaden(einstellungenPfad)
+	if err != nil {
+		log.Printf("Einstellungen %s lesen, verwende Deutsch: %v", einstellungenPfad, err)
+		einstellungen = i18n.StandardEinstellungen
+	}
+
+	anwendung, err := app.New(svc, einstellungen.Sprache, einstellungenPfad)
 	if err != nil {
 		log.Fatalf("Anwendung initialisieren: %v", err)
 	}
@@ -97,4 +112,22 @@ func datenbankPfad() (string, error) {
 	}
 
 	return filepath.Join(verzeichnis, "boxclub.db"), nil
+}
+
+// einstellungenPfad liefert den Ort der Datei mit der Anzeigesprache
+// (ADR-0017). Sie liegt bewusst neben, nicht in der Datenbank: sie hat nichts
+// mit den Mitgliederdaten zu tun und soll ein Löschen der Dev-Datenbank
+// überstehen. BOXCLUB_EINSTELLUNGEN überschreibt den Pfad, analog zu
+// BOXCLUB_DB.
+func einstellungenPfad() (string, error) {
+	if pfad := os.Getenv("BOXCLUB_EINSTELLUNGEN"); pfad != "" {
+		return pfad, nil
+	}
+
+	basis, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(basis, "Boxclub", "einstellungen.json"), nil
 }

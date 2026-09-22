@@ -384,7 +384,7 @@ func (a *App) rechnungNeuRendern(w http.ResponseWriter, mitgliedID *int64, m mel
 func (a *App) rechnungFormularRendern(w http.ResponseWriter, mitgliedID *int64, eingabe rechnungEingabe, fehler []string, m meldung) {
 	var nav []navigationseintrag
 	if mitgliedID == nil {
-		nav = navigation(bereichRechnung)
+		nav = a.navigation(bereichRechnung)
 	}
 
 	a.rendern(w, "rechnung-bereich", rechnungDaten{

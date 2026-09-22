@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
@@ -41,7 +42,7 @@ func TestFragmenteWerdenNichtZwischengespeichert(t *testing.T) {
 		t.Fatalf("CreateTrainingstermin: %v", err)
 	}
 
-	a, err := New(svc)
+	a, err := New(svc, i18n.Deutsch, filepath.Join(t.TempDir(), "einstellungen.json"))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

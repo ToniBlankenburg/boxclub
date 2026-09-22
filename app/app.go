@@ -13,8 +13,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/ToniBlankenburg/boxclub/i18n"
 	"github.com/ToniBlankenburg/boxclub/service"
 	"github.com/ToniBlankenburg/boxclub/templates"
 )
@@ -33,16 +35,49 @@ type App struct {
 	// sobald Wails gestartet ist (siehe SpeicherzielSetzen); ohne ihn läuft
 	// alles außer dem Export.
 	speicherziel Speicherziel
+
+	// sprache ist die aktuelle Anzeigesprache der Oberfläche (ADR-0017).
+	// spracheMu schützt sie, weil der Assetserver Anfragen aus mehreren
+	// Goroutinen bedient. einstellungenPfad ist der Ort, an dem ein
+	// Sprachwechsel den Neustart übersteht.
+	spracheMu         sync.RWMutex
+	sprache           i18n.Sprache
+	einstellungenPfad string
 }
 
 // New parst die Fragment-Templates und bindet sie an den übergebenen Service.
-func New(svc *service.MemberService) (*App, error) {
-	tpl, err := template.New("boxclub").Funcs(templateFunktionen).ParseFS(templates.FS, "*.html")
+// sprache ist die beim Start geladene Anzeigesprache (siehe main.go),
+// einstellungenPfad der Ort, an dem ein späterer Sprachwechsel geschrieben
+// wird.
+func New(svc *service.MemberService, sprache i18n.Sprache, einstellungenPfad string) (*App, error) {
+	a := &App{svc: svc, sprache: sprache, einstellungenPfad: einstellungenPfad}
+
+	tpl, err := template.New("boxclub").Funcs(a.templateFunktionen()).ParseFS(templates.FS, "*.html")
 	if err != nil {
 		return nil, fmt.Errorf("templates parsen: %w", err)
 	}
+	a.tpl = tpl
 
-	return &App{svc: svc, tpl: tpl}, nil
+	return a, nil
+}
+
+// Sprache liefert die aktuelle Anzeigesprache.
+func (a *App) Sprache() i18n.Sprache {
+	a.spracheMu.RLock()
+	defer a.spracheMu.RUnlock()
+	return a.sprache
+}
+
+// spracheSetzen wechselt die Anzeigesprache und schreibt sie in die
+// Einstellungsdatei. Der Speicherwert wechselt vor dem Schreiben der Datei:
+// schlägt das Schreiben fehl, zeigt die Oberfläche trotzdem sofort die neue
+// Sprache, nur der nächste Programmstart würde die alte Sprache wieder laden.
+func (a *App) spracheSetzen(sprache i18n.Sprache) error {
+	a.spracheMu.Lock()
+	a.sprache = sprache
+	a.spracheMu.Unlock()
+
+	return i18n.Einstellungen{Sprache: sprache}.Speichern(a.einstellungenPfad)
 }
 
 // Handler liefert das Routing für die htmx-Aufrufe des Frontends. Der
@@ -91,6 +126,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/verein", a.vereinFormular)
 	mux.HandleFunc("POST /api/verein", a.vereinSpeichern)
 	mux.HandleFunc("GET /api/verein/logo", a.vereinLogo)
+	mux.HandleFunc("POST /api/einstellungen/sprache", a.spracheAendern)
 
 	return mux
 }
@@ -116,36 +152,41 @@ type navigationseintrag struct {
 }
 
 // bereiche sind die Bereiche in der Reihenfolge, in der die Navigation sie
-// zeigt. Wie bei den Filteroptionen steht die Liste in Go, damit Beschriftungen
-// und Pfade nicht als Textliterale ins Template wandern.
+// zeigt. Wie bei den Filteroptionen steht die Liste in Go, damit Pfade nicht
+// als Textliterale ins Template wandern. Beschriftung fehlt hier bewusst: sie
+// hängt von der Anzeigesprache ab und wird erst in navigation() aus dem
+// i18n-Katalog aufgelöst (Schlüssel "nav.<Schluessel>", siehe ADR-0017).
 var bereiche = []navigationseintrag{
-	{Schluessel: bereichMitglieder, Beschriftung: "Mitglieder", Pfad: "/api/mitglieder"},
+	{Schluessel: bereichMitglieder, Pfad: "/api/mitglieder"},
 	// Das Dashboard steht gleich nach der Startseite: es ist der Überblick, den
 	// Trainer und Admin zuerst suchen, wenn sie nicht an einem einzelnen
 	// Mitglied arbeiten (Ticket 26).
-	{Schluessel: bereichDashboard, Beschriftung: "Dashboard", Pfad: "/api/dashboard"},
-	{Schluessel: bereichTrainingstermine, Beschriftung: "Trainingstermine", Pfad: "/api/trainingstermine"},
-	{Schluessel: bereichImport, Beschriftung: "Excel-Import", Pfad: "/api/import"},
+	{Schluessel: bereichDashboard, Pfad: "/api/dashboard"},
+	{Schluessel: bereichTrainingstermine, Pfad: "/api/trainingstermine"},
+	{Schluessel: bereichImport, Pfad: "/api/import"},
 	// Der eigenständige Bereich ist für den Empfänger ohne Mitglied gedacht
 	// (CONTEXT.md → Rechnung) — am Mitglied selbst steht das Formular schon in
 	// dessen Stammdaten.
-	{Schluessel: bereichRechnung, Beschriftung: "Rechnung", Pfad: "/api/rechnung"},
+	{Schluessel: bereichRechnung, Pfad: "/api/rechnung"},
 	// Der Verein selbst steht zuletzt: es sind Einstellungen, die einmal
 	// gepflegt werden, und keine Ansicht, in der gearbeitet wird.
-	{Schluessel: bereichVerein, Beschriftung: "Verein", Pfad: "/api/verein"},
+	{Schluessel: bereichVerein, Pfad: "/api/verein"},
 }
 
 // navigation liefert die Navigationseinträge mit dem angegebenen Bereich als
-// aktivem — dasselbe Muster wie Rueckstandsoptionen: die feste Liste kopieren und
-// darin markieren.
+// aktivem und der Beschriftung in der aktuellen Anzeigesprache — dasselbe
+// Muster wie Rueckstandsoptionen: die feste Liste kopieren und darin
+// markieren.
 //
 // Mitgeschickt wird sie von jeder Antwort, die eine ganze Bereichsansicht
 // ersetzt. Antworten innerhalb eines Bereichs (Formulare, einzelne Zeilen)
 // lassen sie weg; die Markierung in der Kopfzeile bleibt dann stehen, wie sie ist.
-func navigation(aktiv string) []navigationseintrag {
+func (a *App) navigation(aktiv string) []navigationseintrag {
+	sprache := a.Sprache()
 	eintraege := slices.Clone(bereiche)
 	for i := range eintraege {
 		eintraege[i].Aktiv = eintraege[i].Schluessel == aktiv
+		eintraege[i].Beschriftung = i18n.Text(sprache, "nav."+eintraege[i].Schluessel)
 	}
 
 	return eintraege
@@ -729,7 +770,7 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		Eintraege:  eintraege,
 		Meldung:    m,
 		Suche:      eingabe,
-		Navigation: navigation(bereichMitglieder),
+		Navigation: a.navigation(bereichMitglieder),
 	}, true
 }
 
@@ -1584,73 +1625,108 @@ func datumAnzeige(d any) string {
 	}
 }
 
-var templateFunktionen = template.FuncMap{
-	// euro formatiert einen Cent-Betrag als "60,00 €" — dieselbe Schreibweise,
-	// die das Formular zur Bearbeitung anbietet, nur mit Währungszeichen.
-	"euro": func(cents int64) string {
-		return service.BeitragAlsEuro(cents) + " €"
-	},
-	"datum": datumAnzeige,
-	// dokumentgrenze nennt die Obergrenze der Ablage. Geschrieben wird sie im
-	// Service, damit der Hinweis unter dem Datei-Dialog dieselben Worte benutzt
-	// wie die Meldung, mit der eine zu große Datei abgewiesen wird.
-	"dokumentgrenze": service.Dokumentgrenze,
-	// logogrenze nennt die Obergrenze für ein hochgeladenes Vereinslogo,
-	// aus demselben Grund wie dokumentgrenze.
-	"logogrenze": service.Logogrenze,
-	// feld bündelt die Argumente für das Teil-Template "feld"; html/template
-	// kennt keine benannten Parameter.
-	"feld": func(beschriftung, name, typ, wert string, pflicht, breit bool) feldDaten {
-		return feldDaten{
-			Beschriftung: beschriftung,
-			Name:         name,
-			Typ:          typ,
-			Wert:         wert,
-			Pflicht:      pflicht,
-			Breit:        breit,
-		}
-	},
-	// anzeigefeld bündelt die Argumente für das Teil-Template "feld-nur-lesen".
-	"anzeigefeld": func(beschriftung, wert string) anzeigeDaten {
-		return anzeigeDaten{Beschriftung: beschriftung, Wert: wert}
-	},
-	// vorschlagsfeld bündelt die Argumente für das Teil-Template
-	// "feld-mit-vorschlaegen".
-	"vorschlagsfeld": func(beschriftung, name, wert string, vorschlaege []string) vorschlagsfeldDaten {
-		return vorschlagsfeldDaten{
-			Beschriftung: beschriftung,
-			Name:         name,
-			Wert:         wert,
-			Vorschlaege:  vorschlaege,
-		}
-	},
-	// geschlechtVorschlaege reicht die Eintipphilfe aus dem Service ins
-	// Template — die Werte stehen dort, wo das Vokabular liegt.
-	"geschlechtVorschlaege": service.GeschlechtVorschlaege,
-	// auswahlfeld bündelt die Argumente für das Teil-Template "feld-auswahl".
-	"auswahlfeld": func(beschriftung, name string, optionen []filteroption, pflicht bool) auswahlfeldDaten {
-		return auswahlfeldDaten{
-			Beschriftung: beschriftung,
-			Name:         name,
-			Optionen:     optionen,
-			Pflicht:      pflicht,
-		}
-	},
-	// kontrollkaestchen bündelt die Argumente für das Teil-Template
-	// "feld-kontrollkaestchen". Text beschreibt, was ein Haken bedeutet, und
-	// kommt deshalb aus dem Service.
-	"kontrollkaestchen": func(beschriftung, name, text string, gesetzt bool) kontrollkaestchenDaten {
-		return kontrollkaestchenDaten{
-			Beschriftung: beschriftung,
-			Name:         name,
-			Text:         text,
-			Gesetzt:      gesetzt,
-		}
-	},
-	// beschriftungHatBewertet ist der Text am Google-Haken: der Zustand, den ein
-	// gesetzter Haken bedeutet. Er kommt aus dem Service, damit Liste und
-	// Formular dieselben Worte benutzen (service.GoogleBewertung).
-	"beschriftungHatBewertet": service.GoogleBewertung(true).Bezeichnung,
+// templateFunktionen baut das FuncMap für a.tpl. Es ist eine Methode statt
+// eines package-level var, weil "t" die aktuelle Anzeigesprache von a braucht
+// — die einzige Template-Funktion, die zur Laufzeit statt beim Parsen
+// entscheidet, was sie liefert (siehe ADR-0017).
+func (a *App) templateFunktionen() template.FuncMap {
+	return template.FuncMap{
+		// euro formatiert einen Cent-Betrag als "60,00 €" — dieselbe Schreibweise,
+		// die das Formular zur Bearbeitung anbietet, nur mit Währungszeichen.
+		"euro": func(cents int64) string {
+			return service.BeitragAlsEuro(cents) + " €"
+		},
+		"datum": datumAnzeige,
+		// dokumentgrenze nennt die Obergrenze der Ablage. Geschrieben wird sie im
+		// Service, damit der Hinweis unter dem Datei-Dialog dieselben Worte benutzt
+		// wie die Meldung, mit der eine zu große Datei abgewiesen wird.
+		"dokumentgrenze": service.Dokumentgrenze,
+		// logogrenze nennt die Obergrenze für ein hochgeladenes Vereinslogo,
+		// aus demselben Grund wie dokumentgrenze.
+		"logogrenze": service.Logogrenze,
+		// feld bündelt die Argumente für das Teil-Template "feld"; html/template
+		// kennt keine benannten Parameter.
+		"feld": func(beschriftung, name, typ, wert string, pflicht, breit bool) feldDaten {
+			return feldDaten{
+				Beschriftung: beschriftung,
+				Name:         name,
+				Typ:          typ,
+				Wert:         wert,
+				Pflicht:      pflicht,
+				Breit:        breit,
+			}
+		},
+		// anzeigefeld bündelt die Argumente für das Teil-Template "feld-nur-lesen".
+		"anzeigefeld": func(beschriftung, wert string) anzeigeDaten {
+			return anzeigeDaten{Beschriftung: beschriftung, Wert: wert}
+		},
+		// vorschlagsfeld bündelt die Argumente für das Teil-Template
+		// "feld-mit-vorschlaegen".
+		"vorschlagsfeld": func(beschriftung, name, wert string, vorschlaege []string) vorschlagsfeldDaten {
+			return vorschlagsfeldDaten{
+				Beschriftung: beschriftung,
+				Name:         name,
+				Wert:         wert,
+				Vorschlaege:  vorschlaege,
+			}
+		},
+		// geschlechtVorschlaege reicht die Eintipphilfe aus dem Service ins
+		// Template — die Werte stehen dort, wo das Vokabular liegt.
+		"geschlechtVorschlaege": service.GeschlechtVorschlaege,
+		// auswahlfeld bündelt die Argumente für das Teil-Template "feld-auswahl".
+		"auswahlfeld": func(beschriftung, name string, optionen []filteroption, pflicht bool) auswahlfeldDaten {
+			return auswahlfeldDaten{
+				Beschriftung: beschriftung,
+				Name:         name,
+				Optionen:     optionen,
+				Pflicht:      pflicht,
+			}
+		},
+		// kontrollkaestchen bündelt die Argumente für das Teil-Template
+		// "feld-kontrollkaestchen". Text beschreibt, was ein Haken bedeutet, und
+		// kommt deshalb aus dem Service.
+		"kontrollkaestchen": func(beschriftung, name, text string, gesetzt bool) kontrollkaestchenDaten {
+			return kontrollkaestchenDaten{
+				Beschriftung: beschriftung,
+				Name:         name,
+				Text:         text,
+				Gesetzt:      gesetzt,
+			}
+		},
+		// beschriftungHatBewertet ist der Text am Google-Haken: der Zustand, den ein
+		// gesetzter Haken bedeutet. Er kommt aus dem Service, damit Liste und
+		// Formular dieselben Worte benutzen (service.GoogleBewertung).
+		"beschriftungHatBewertet": service.GoogleBewertung(true).Bezeichnung,
+		// t übersetzt einen Katalogschlüssel in die aktuelle Anzeigesprache
+		// (ADR-0017) — der einzige Weg, wie ein Template direkt einen Text
+		// sprachabhängig zeigen darf. Text, den der Go-Code schon vorher
+		// zusammenbaut (etwa navigationseintrag.Beschriftung), löst seine
+		// Übersetzung dort auf, nicht hier — sonst gäbe es zwei Stellen, die
+		// über denselben Text entscheiden.
+		"t": func(schluessel string, args ...any) string {
+			return i18n.Text(a.Sprache(), schluessel, args...)
+		},
+		// aktuelleSprache reicht die aktive Anzeigesprache an den
+		// Sprachumschalter in navigation.html durch — die einzige Stelle, die
+		// wissen muss, welcher der beiden Knöpfe gerade aktiv ist.
+		"aktuelleSprache": func() string {
+			return string(a.Sprache())
+		},
+		// sprachknopf bündelt die Argumente für das Teil-Template
+		// "sprache-knopf" — dasselbe Muster wie "feld".
+		"sprachknopf": func(wert, aktiv string) sprachknopfDaten {
+			return sprachknopfDaten{Wert: wert, Aktiv: aktiv}
+		},
+	}
+}
+
+// sprachknopfDaten beschreibt einen Knopf des Sprachumschalters für das
+// Teil-Template "sprache-knopf". Aktiv ist die gerade aktive Sprache, nicht
+// ein bool — der Knopf vergleicht selbst, ob er es ist, dieselbe Bauart wie
+// filteroption.
+type sprachknopfDaten struct {
+	Wert  string
+	Aktiv string
 }
 
 // vorschlagsfeldDaten beschreibt ein Freitextfeld mit Eintipphilfe für das

@@ -209,7 +209,7 @@ func (a *App) importAusfuehren(w http.ResponseWriter, r *http.Request) {
 
 	bericht.Dateiname = kopf.Filename
 	bericht.StundenplanLeer = plan.Leer()
-	bericht.Navigation = navigation(bereichImport)
+	bericht.Navigation = a.navigation(bereichImport)
 
 	a.rendern(w, "import-bericht", bericht)
 }
@@ -222,7 +222,7 @@ func (a *App) importFormularZeigen(w http.ResponseWriter, plan importer.Stundenp
 	a.rendern(w, "import-formular", importbericht{
 		Meldung:         meldung,
 		StundenplanLeer: plan.Leer(),
-		Navigation:      navigation(bereichImport),
+		Navigation:      a.navigation(bereichImport),
 	})
 }
 

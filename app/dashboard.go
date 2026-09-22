@@ -71,7 +71,7 @@ func (a *App) dashboardRendern(w http.ResponseWriter, m meldung) {
 
 	a.rendern(w, "dashboard", dashboardDaten{
 		Monatsuebersicht:      uebersicht,
-		Navigation:            navigation(bereichDashboard),
+		Navigation:            a.navigation(bereichDashboard),
 		Meldung:               m,
 		RueckstandLink:        rueckstandLink(),
 		MoneyMoneyEigenerText: verein.MoneyMoneyVerwendungszweck != "",

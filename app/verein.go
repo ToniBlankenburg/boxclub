@@ -174,6 +174,6 @@ func (a *App) vereinRendern(w http.ResponseWriter, m meldung, fehler []string) {
 		Vereinsdaten: daten,
 		Meldung:      m,
 		Fehler:       fehler,
-		Navigation:   navigation(bereichVerein),
+		Navigation:   a.navigation(bereichVerein),
 	})
 }

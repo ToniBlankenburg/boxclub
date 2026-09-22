@@ -14,10 +14,17 @@
      .scratch/prototyp-stilrichtungen-verdict.md und Branch
      prototype/stilrichtungen (Commit 391d4e3).
 
-     Die Daten sind []navigationseintrag. */}}
+     Die Daten sind []navigationseintrag.
+
+     Der Sprachumschalter (ADR-0017) sitzt in demselben <nav>, nicht in einer
+     eigenen OOB-Swap-Zone: er soll von jedem Bereich aus erreichbar sein, und
+     ein zweites Element mit eigener id müsste die index.html-Hülle schon
+     kennen, bevor der erste Aufruf zurückkommt. Er führt immer zur
+     Mitgliederliste zurück (App.spracheAendern) — es gibt keinen
+     serverseitigen Zustand, welcher Bereich gerade offen ist. */}}
 {{define "navigation"}}
 <nav id="navigation" hx-swap-oob="true" aria-label="Bereiche"
-     class="flex gap-0.5 rounded-full border border-neutral-200 bg-neutral-50 p-0.5">
+     class="flex items-center gap-0.5 rounded-full border border-neutral-200 bg-neutral-50 p-0.5">
     {{range .}}
         <button type="button" {{if .Aktiv}}aria-current="page"{{end}}
                 class="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none
@@ -27,7 +34,26 @@
             {{.Beschriftung}}
         </button>
     {{end}}
+    {{$sprache := aktuelleSprache}}
+    <div class="ml-1 flex items-center gap-0.5 border-l border-neutral-200 pl-1.5"
+         role="group" aria-label="{{t "sprache.hinweis"}}">
+        {{template "sprache-knopf" sprachknopf "de" $sprache}}
+        {{template "sprache-knopf" sprachknopf "en" $sprache}}
+    </div>
 </nav>
+{{end}}
+
+{{/* sprache-knopf ist ein Knopf des Sprachumschalters. Die Daten kommen über
+     die Bündel-Funktion sprachknopf (app.go, templateFunktionen) — dasselbe
+     Muster wie "feld" u. a., html/template kennt keine benannten Parameter. */}}
+{{define "sprache-knopf"}}
+<button type="button" {{if eq .Wert .Aktiv}}aria-current="true"{{end}}
+        class="rounded-full px-2 py-1 text-xs font-medium focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none
+               {{if eq .Wert .Aktiv}}bg-[var(--akzent-hell)] text-[var(--akzent-dunkel)]{{else}}text-neutral-600 hover:bg-white{{end}}"
+        hx-post="/api/einstellungen/sprache" hx-vals='{"sprache":"{{.Wert}}"}'
+        hx-target="#inhalt" hx-swap="innerHTML">
+    {{t (printf "sprache.name.%s" .Wert)}}
+</button>
 {{end}}
 
 {{/* navigation-icon ist ein winziges, einfarbiges Symbol je Bereich — reine

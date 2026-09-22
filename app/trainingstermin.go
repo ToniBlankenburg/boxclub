@@ -258,7 +258,7 @@ func (a *App) trainingstermineRendern(w http.ResponseWriter, auchArchivierte boo
 		Termine:         terminzeilen(listen, auchArchivierte),
 		AuchArchivierte: auchArchivierte,
 		Meldung:         m,
-		Navigation:      navigation(bereichTrainingstermine),
+		Navigation:      a.navigation(bereichTrainingstermine),
 	})
 }
 
