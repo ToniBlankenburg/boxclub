@@ -19,24 +19,20 @@
 {{define "dashboard"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
-    <h2 class="mb-1 text-base font-semibold">Dashboard</h2>
+    <h2 class="mb-1 text-base font-semibold">{{t "dashboard.titel"}}</h2>
     <p class="mb-4 max-w-2xl text-sm text-neutral-600">
-        Mitgliederzahlen und das <strong>Monatssoll</strong> des laufenden
-        Monats. Das Monatssoll ist ein Soll und kein Ist: es zeigt, was
-        eingezogen werden soll, nicht, was tatsächlich ankam — das weiß nur
-        die Bank. Es gibt hier deshalb auch keinen Verlauf über mehrere
-        Monate.
+        {{t "dashboard.beschreibung_vor"}}<strong>{{t "dashboard.monatssoll"}}</strong>{{t "dashboard.beschreibung_nach"}}
     </p>
 
     {{template "meldung" .Meldung}}
 
     <div class="mb-4 flex flex-wrap divide-x divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 bg-white">
         <div class="min-w-40 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">Monatssoll</p>
+            <p class="text-xs text-neutral-500">{{t "dashboard.monatssoll"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{euro .MonatssollCents}}</p>
         </div>
         <div class="min-w-40 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">davon ruhend</p>
+            <p class="text-xs text-neutral-500">{{t "dashboard.stat_davon_ruhend"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Mitgliederzahlen.Ruhend}} · {{euro .RuhendCents}}</p>
         </div>
         {{/* Die Zahl ist nur nützlich, wenn man von ihr aus weiterarbeiten
@@ -46,22 +42,22 @@
         <button type="button"
                 class="min-w-40 flex-1 px-5 py-4 text-left hover:bg-neutral-50 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="{{.RueckstandLink}}" hx-target="#inhalt" hx-swap="innerHTML">
-            <p class="text-xs text-neutral-500">Im Rückstand</p>
+            <p class="text-xs text-neutral-500">{{t "mitglieder.im_rueckstand_kasten"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums text-red-800">{{.RueckstandAnzahl}}</p>
         </button>
         <div class="min-w-40 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">Neu / Ausgetreten (Monat)</p>
+            <p class="text-xs text-neutral-500">{{t "dashboard.stat_neu_ausgetreten"}}</p>
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.NeuEingetretenDiesenMonat}} / {{.AusgetretenDiesenMonat}}</p>
         </div>
     </div>
 
     <div class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-neutral-200 bg-white px-5 py-3 text-sm">
-        <span class="font-medium text-neutral-700">Mitglieder nach Zustand ({{.Mitgliederzahlen.Gesamt}} gesamt)</span>
-        <span class="text-neutral-600">Aktiv <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Aktiv}}</strong></span>
-        <span class="text-neutral-600">In Kündigungsfrist <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.InKuendigungsfrist}}</strong></span>
-        <span class="text-neutral-600">Neu <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Neu}}</strong></span>
-        <span class="text-neutral-600">Ruhend <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ruhend}}</strong></span>
-        <span class="text-neutral-600">Ausgetreten <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ausgetreten}}</strong></span>
+        <span class="font-medium text-neutral-700">{{t "dashboard.zustand_ueberschrift" .Mitgliederzahlen.Gesamt}}</span>
+        <span class="text-neutral-600">{{t "dashboard.status_aktiv"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Aktiv}}</strong></span>
+        <span class="text-neutral-600">{{t "dashboard.status_kuendigungsfrist"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.InKuendigungsfrist}}</strong></span>
+        <span class="text-neutral-600">{{t "dashboard.status_neu"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Neu}}</strong></span>
+        <span class="text-neutral-600">{{t "dashboard.status_ruhend"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ruhend}}</strong></span>
+        <span class="text-neutral-600">{{t "dashboard.status_ausgetreten"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ausgetreten}}</strong></span>
     </div>
 
     {{/* Der MoneyMoney-Export (ADR-0013) stößt den Lastschrifteinzug dieses
@@ -73,10 +69,10 @@
         <button type="button"
                 class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-post="/api/moneymoney/export" hx-target="#inhalt" hx-swap="innerHTML">
-            MoneyMoney-Export …
+            {{t "dashboard.moneymoney_knopf"}}
         </button>
         <span class="ml-2 text-sm text-neutral-500">
-            CSV für den Lastschrifteinzug dieses Monats, eine Zeile je Mitgliedschaft.
+            {{t "dashboard.moneymoney_hinweis"}}
         </span>
         {{/* Warnhinweis, wenn Vereinsdaten einen eigenen Verwendungszweck
              hinterlegt haben (ADR-0016) — der Text führt sich nicht selbst
@@ -84,9 +80,7 @@
              am Feld selbst (templates/verein.html). */}}
         {{if .MoneyMoneyEigenerText}}
             <div class="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Achtung: In den Vereinsdaten ist ein eigener Verwendungszweck hinterlegt —
-                der Export verwendet ihn statt "Vereinsname Beitrag MM/JJJJ" und aktualisiert
-                ihn nicht selbst. Vor dem Export prüfen, ob er noch zu diesem Monat passt.
+                {{t "dashboard.moneymoney_warnung"}}
             </div>
         {{end}}
     </div>

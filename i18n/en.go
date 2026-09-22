@@ -135,4 +135,24 @@ var englisch = map[string]string{
 	"meldung.mitglied_nicht_mehr": "This member no longer exists.",
 	"meldung.bereits_ausgetreten": "This member has already left.",
 	"meldung.bereits_aktiv":       "This member is already active.",
+
+	"dashboard.titel":            "Dashboard",
+	"dashboard.beschreibung_vor": "Member numbers and the ",
+	"dashboard.monatssoll":       "monthly target",
+	"dashboard.beschreibung_nach": " for the current month. The monthly target is a target, not an actual " +
+		"figure: it shows what is scheduled to be collected, not what actually arrived — only the bank " +
+		"knows that. There is therefore no history across several months here.",
+	"dashboard.stat_davon_ruhend":       "of which suspended",
+	"dashboard.stat_neu_ausgetreten":    "New / Left (month)",
+	"dashboard.zustand_ueberschrift":    "Members by status (%d total)",
+	"dashboard.status_aktiv":            "Active",
+	"dashboard.status_kuendigungsfrist": "In notice period",
+	"dashboard.status_neu":              "New",
+	"dashboard.status_ruhend":           "Suspended",
+	"dashboard.status_ausgetreten":      "Left",
+	"dashboard.moneymoney_knopf":        "MoneyMoney export …",
+	"dashboard.moneymoney_hinweis":      "CSV for this month's direct debit run, one row per membership.",
+	"dashboard.moneymoney_warnung": "Warning: the club data has its own payment reference set — the " +
+		"export uses it instead of \"Club name Fee MM/YYYY\" and does not update it by itself. Check before " +
+		"exporting whether it still fits this month.",
 }

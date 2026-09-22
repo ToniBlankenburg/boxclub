@@ -158,4 +158,28 @@ var deutsch = map[string]string{
 	"meldung.mitglied_nicht_mehr": "Dieses Mitglied gibt es nicht mehr.",
 	"meldung.bereits_ausgetreten": "Dieses Mitglied ist bereits ausgetreten.",
 	"meldung.bereits_aktiv":       "Dieses Mitglied ist bereits aktiv.",
+
+	// dashboard.* ist der Überblick für Trainer und Admin (Ticket 03,
+	// templates/dashboard.html). monatssoll ist eigens benannt, weil das Wort
+	// zweimal vorkommt (Kennzahl und Fließtext) und beide Stellen dasselbe
+	// Wort tragen sollen.
+	"dashboard.titel":            "Dashboard",
+	"dashboard.beschreibung_vor": "Mitgliederzahlen und das ",
+	"dashboard.monatssoll":       "Monatssoll",
+	"dashboard.beschreibung_nach": " des laufenden Monats. Das Monatssoll ist ein Soll und kein Ist: es " +
+		"zeigt, was eingezogen werden soll, nicht, was tatsächlich ankam — das weiß nur die Bank. Es gibt hier " +
+		"deshalb auch keinen Verlauf über mehrere Monate.",
+	"dashboard.stat_davon_ruhend":       "davon ruhend",
+	"dashboard.stat_neu_ausgetreten":    "Neu / Ausgetreten (Monat)",
+	"dashboard.zustand_ueberschrift":    "Mitglieder nach Zustand (%d gesamt)",
+	"dashboard.status_aktiv":            "Aktiv",
+	"dashboard.status_kuendigungsfrist": "In Kündigungsfrist",
+	"dashboard.status_neu":              "Neu",
+	"dashboard.status_ruhend":           "Ruhend",
+	"dashboard.status_ausgetreten":      "Ausgetreten",
+	"dashboard.moneymoney_knopf":        "MoneyMoney-Export …",
+	"dashboard.moneymoney_hinweis":      "CSV für den Lastschrifteinzug dieses Monats, eine Zeile je Mitgliedschaft.",
+	"dashboard.moneymoney_warnung": "Achtung: In den Vereinsdaten ist ein eigener Verwendungszweck " +
+		"hinterlegt — der Export verwendet ihn statt \"Vereinsname Beitrag MM/JJJJ\" und aktualisiert ihn " +
+		"nicht selbst. Vor dem Export prüfen, ob er noch zu diesem Monat passt.",
 }
