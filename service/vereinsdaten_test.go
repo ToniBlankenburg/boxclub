@@ -16,12 +16,13 @@ func vereinsdatenImTest() service.Vereinsdaten {
 		Anschrift: service.Anschrift{
 			Adresse: "Kanalstraße 12", Postleitzahl: "12043", Ort: "Berlin",
 		},
-		Email:          "vorstand@example.org",
-		Telefon:        "030 1234567",
-		IBAN:           "DE02120300000000202051",
-		BIC:            "BYLADEM1001",
-		Kreditinstitut: "Musterbank",
-		Fusszeile:      "Kein Ausweis von Umsatzsteuer\ngemäß § 19 UStG.",
+		Email:                      "vorstand@example.org",
+		Telefon:                    "030 1234567",
+		IBAN:                       "DE02120300000000202051",
+		BIC:                        "BYLADEM1001",
+		Kreditinstitut:             "Musterbank",
+		Fusszeile:                  "Kein Ausweis von Umsatzsteuer\ngemäß § 19 UStG.",
+		MoneyMoneyVerwendungszweck: "Nachzahlung Turnier",
 	}
 }
 
@@ -138,8 +139,9 @@ func TestSetVereinsdaten_SchneidetUmschliessendenLeerraumAb(t *testing.T) {
 	svc := neuerService(t)
 
 	if err := svc.SetVereinsdaten(service.Vereinsdaten{
-		Name:      "  Boxclub Musterstadt e. V.  ",
-		Fusszeile: "\nErste Zeile\nZweite Zeile\n\n",
+		Name:                       "  Boxclub Musterstadt e. V.  ",
+		Fusszeile:                  "\nErste Zeile\nZweite Zeile\n\n",
+		MoneyMoneyVerwendungszweck: "  Nachzahlung Turnier  ",
 	}); err != nil {
 		t.Fatalf("SetVereinsdaten: %v", err)
 	}
@@ -153,6 +155,9 @@ func TestSetVereinsdaten_SchneidetUmschliessendenLeerraumAb(t *testing.T) {
 	}
 	if daten.Fusszeile != "Erste Zeile\nZweite Zeile" {
 		t.Errorf("Fußzeile = %q, erwartet ohne leere Zeilen davor und danach", daten.Fusszeile)
+	}
+	if daten.MoneyMoneyVerwendungszweck != "Nachzahlung Turnier" {
+		t.Errorf("MoneyMoneyVerwendungszweck = %q, erwartet ohne umschließenden Leerraum", daten.MoneyMoneyVerwendungszweck)
 	}
 }
 

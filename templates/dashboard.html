@@ -78,6 +78,17 @@
         <span class="ml-2 text-sm text-neutral-500">
             CSV für den Lastschrifteinzug dieses Monats, eine Zeile je Mitgliedschaft.
         </span>
+        {{/* Warnhinweis, wenn Vereinsdaten einen eigenen Verwendungszweck
+             hinterlegt haben (ADR-0016) — der Text führt sich nicht selbst
+             nach Monat und Jahr fort, das steht auch schon im Hinweistext
+             am Feld selbst (templates/verein.html). */}}
+        {{if .MoneyMoneyEigenerText}}
+            <div class="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Achtung: In den Vereinsdaten ist ein eigener Verwendungszweck hinterlegt —
+                der Export verwendet ihn statt "Vereinsname Beitrag MM/JJJJ" und aktualisiert
+                ihn nicht selbst. Vor dem Export prüfen, ob er noch zu diesem Monat passt.
+            </div>
+        {{end}}
     </div>
 </div>
 {{end}}

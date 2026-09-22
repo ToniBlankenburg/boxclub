@@ -154,8 +154,9 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 			Zahlungspflichtiger: strings.TrimSpace(vorname + " " + nachname),
 			IBAN:                iban,
 			BetragCents:         betragCents,
-			Verwendungszweck:    moneyMoneyVerwendungszweck(verein.Name, gebuehrEnthalten, jetzt),
-			UnterschriebenAm:    unterschriebenAm,
+			Verwendungszweck: moneyMoneyVerwendungszweck(
+				verein.Name, verein.MoneyMoneyVerwendungszweck, gebuehrEnthalten, jetzt),
+			UnterschriebenAm: unterschriebenAm,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -165,20 +166,30 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 	return export, nil
 }
 
-// moneyMoneyVerwendungszweck baut den Buchungstext: Vereinsname und der
-// Beitragsmonat, ergänzt um die Anmeldegebühr, wenn die Zeile sie enthält —
-// genau wie im Blatt "Money Money" der alten Excel-Tabelle
+// moneyMoneyVerwendungszweck baut den Buchungstext: normalerweise Vereinsname
+// und der Beitragsmonat, ergänzt um die Anmeldegebühr, wenn die Zeile sie
+// enthält — genau wie im Blatt "Money Money" der alten Excel-Tabelle
 // ("Anmeldegebühr + Beitrag 10/2026").
-func moneyMoneyVerwendungszweck(vereinsname string, gebuehrEnthalten bool, monat time.Time) string {
-	zweck := fmt.Sprintf("Beitrag %02d/%d", monat.Month(), monat.Year())
+//
+// Ist in den Vereinsdaten ein eigener Text hinterlegt (ADR-0016), tritt er an
+// die Stelle von "Vereinsname Beitrag MM/JJJJ" — das "Anmeldegebühr + "-Präfix
+// bleibt aber in jedem Fall automatisch: es ist Faktenstand dieser einen
+// Zeile (ob die Mitgliedschaft eine offene Anmeldegebühr enthält), kein
+// Stiltext, den der eigene Text überschreiben könnte.
+func moneyMoneyVerwendungszweck(vereinsname, eigenerText string, gebuehrEnthalten bool, monat time.Time) string {
+	zweck := eigenerText
+	if zweck == "" {
+		zweck = fmt.Sprintf("Beitrag %02d/%d", monat.Month(), monat.Year())
+		if vereinsname != "" {
+			zweck = vereinsname + " " + zweck
+		}
+	}
+
 	if gebuehrEnthalten {
 		zweck = "Anmeldegebühr + " + zweck
 	}
-	if vereinsname == "" {
-		return zweck
-	}
 
-	return vereinsname + " " + zweck
+	return zweck
 }
 
 // AnmeldegebuehrenAlsEingezogenMarkieren trägt für die angegebenen Zeiträume

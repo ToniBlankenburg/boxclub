@@ -169,6 +169,68 @@ func TestMoneyMoneyExportieren_AddiertOffeneAnmeldegebuehr(t *testing.T) {
 	}
 }
 
+// Ein eigener Verwendungszweck in den Vereinsdaten (ADR-0016) ersetzt den
+// automatisch erzeugten "Vereinsname Beitrag MM/JJJJ"-Teil.
+func TestMoneyMoneyExportieren_EigenerVerwendungszweckErsetztAutomatischenText(t *testing.T) {
+	svc := neuerService(t)
+
+	verein, err := svc.GetVereinsdaten()
+	if err != nil {
+		t.Fatalf("GetVereinsdaten: %v", err)
+	}
+	verein.MoneyMoneyVerwendungszweck = "Nachzahlung Turnier"
+	if err := svc.SetVereinsdaten(verein); err != nil {
+		t.Fatalf("SetVereinsdaten: %v", err)
+	}
+
+	id := moneyMoneyMitglied(t, svc, "Ella", "Fuchs", "DE02120300000000202051")
+
+	export, err := svc.MoneyMoneyExportieren()
+	if err != nil {
+		t.Fatalf("MoneyMoneyExportieren: %v", err)
+	}
+
+	zeile := zeileZuMitglied(t, export, id)
+	if zeile.Verwendungszweck != "Nachzahlung Turnier" {
+		t.Errorf("Verwendungszweck = %q, erwartet den eigenen Text unverändert", zeile.Verwendungszweck)
+	}
+}
+
+// Das "Anmeldegebühr + "-Präfix bleibt automatisch, auch wenn ein eigener
+// Verwendungszweck gesetzt ist — es ist Faktenstand der Zeile, kein Stiltext
+// (ADR-0016).
+func TestMoneyMoneyExportieren_EigenerVerwendungszweckBehaeltAnmeldegebuehrPraefix(t *testing.T) {
+	svc := neuerService(t)
+
+	verein, err := svc.GetVereinsdaten()
+	if err != nil {
+		t.Fatalf("GetVereinsdaten: %v", err)
+	}
+	verein.MoneyMoneyVerwendungszweck = "Nachzahlung Turnier"
+	if err := svc.SetVereinsdaten(verein); err != nil {
+		t.Fatalf("SetVereinsdaten: %v", err)
+	}
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname: "Finn", Nachname: "Graf", BeitragCents: beitragImTest,
+		Eintritt:  heuteVersetzt(-5),
+		Anmeldung: service.Anmeldung{GebuehrCents: 3000},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	export, err := svc.MoneyMoneyExportieren()
+	if err != nil {
+		t.Fatalf("MoneyMoneyExportieren: %v", err)
+	}
+
+	zeile := zeileZuMitglied(t, export, id)
+	if erwartet := "Anmeldegebühr + Nachzahlung Turnier"; zeile.Verwendungszweck != erwartet {
+		t.Errorf("Verwendungszweck = %q, erwartet %q", zeile.Verwendungszweck, erwartet)
+	}
+}
+
 // Ist die Anmeldegebühr schon eingezogen, taucht sie nicht noch einmal auf.
 func TestMoneyMoneyExportieren_LaesstBereitsEingezogeneGebuehrWeg(t *testing.T) {
 	svc := neuerService(t)

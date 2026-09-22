@@ -118,6 +118,27 @@
                         {{template "feld" feld "BIC" "bic" "text" .BIC false false}}
                         {{template "feld" feld "Kreditinstitut" "kreditinstitut" "text" .Kreditinstitut false true}}
                     </div>
+
+                    {{/* Eigener Verwendungszweck für den MoneyMoney-Export
+                         (ADR-0016, CONTEXT.md → MoneyMoney-Export). Leer
+                         lässt den Export beim automatisch erzeugten
+                         "Vereinsname Beitrag MM/JJJJ" — der Hinweistext
+                         erklärt die Falle: ein gesetzter Text pflegt sich
+                         nicht selbst nach Monat und Jahr nach. Der zweite
+                         Warnhinweis dazu steht am Export-Button selbst
+                         (templates/dashboard.html). */}}
+                    <label class="mt-3 flex flex-col gap-1.5">
+                        <span class="text-sm text-neutral-600">MoneyMoney-Export: eigener Verwendungszweck</span>
+                        <input type="text" name="moneymoney_verwendungszweck" value="{{.MoneyMoneyVerwendungszweck}}"
+                               class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                        <span class="text-sm text-neutral-500">
+                            Ersetzt im MoneyMoney-Export den automatisch erzeugten Text
+                            "Vereinsname Beitrag MM/JJJJ". Leer lassen für den Automatismus.
+                            Ein gesetzter Text führt sich <strong>nicht von selbst</strong> nach
+                            Monat und Jahr fort — nach dem Export hier wieder leeren, sonst
+                            steht er auch im nächsten Monatslauf noch so da.
+                        </span>
+                    </label>
                 </div>
             </div>
 

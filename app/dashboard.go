@@ -24,6 +24,12 @@ type dashboardDaten struct {
 	// Schulden, ADR-0006), und ohne den Filter zeigte die geöffnete Liste
 	// weniger Mitglieder, als die Zahl gerade versprochen hat.
 	RueckstandLink string
+
+	// MoneyMoneyEigenerText ist gesetzt, wenn die Vereinsdaten einen eigenen
+	// Verwendungszweck für den MoneyMoney-Export hinterlegt haben (ADR-0016)
+	// — der Export-Button zeigt dann einen Warnhinweis, weil dieser Text
+	// sich nicht selbst nach Monat und Jahr fortführt.
+	MoneyMoneyEigenerText bool
 }
 
 // rueckstandLink baut dieselbe Rückstandsfilter-Adresse, die auch die
@@ -57,10 +63,17 @@ func (a *App) dashboardRendern(w http.ResponseWriter, m meldung) {
 		return
 	}
 
+	verein, err := a.svc.GetVereinsdaten()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
 	a.rendern(w, "dashboard", dashboardDaten{
-		Monatsuebersicht: uebersicht,
-		Navigation:       navigation(bereichDashboard),
-		Meldung:          m,
-		RueckstandLink:   rueckstandLink(),
+		Monatsuebersicht:      uebersicht,
+		Navigation:            navigation(bereichDashboard),
+		Meldung:               m,
+		RueckstandLink:        rueckstandLink(),
+		MoneyMoneyEigenerText: verein.MoneyMoneyVerwendungszweck != "",
 	})
 }

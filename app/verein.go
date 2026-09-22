@@ -47,12 +47,13 @@ func vereinsdatenLesen(r *http.Request) service.Vereinsdaten {
 			Postleitzahl: r.FormValue("postleitzahl"),
 			Ort:          r.FormValue("ort"),
 		},
-		Email:          r.FormValue("email"),
-		Telefon:        r.FormValue("telefon"),
-		IBAN:           r.FormValue("iban"),
-		BIC:            r.FormValue("bic"),
-		Kreditinstitut: r.FormValue("kreditinstitut"),
-		Fusszeile:      r.FormValue("fusszeile"),
+		Email:                      r.FormValue("email"),
+		Telefon:                    r.FormValue("telefon"),
+		IBAN:                       r.FormValue("iban"),
+		BIC:                        r.FormValue("bic"),
+		Kreditinstitut:             r.FormValue("kreditinstitut"),
+		Fusszeile:                  r.FormValue("fusszeile"),
+		MoneyMoneyVerwendungszweck: r.FormValue("moneymoney_verwendungszweck"),
 	}
 }
 

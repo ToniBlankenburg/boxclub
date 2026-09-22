@@ -442,7 +442,11 @@ CREATE TABLE IF NOT EXISTS vereinsdaten (
 	kreditinstitut TEXT NOT NULL DEFAULT '',
 	fusszeile      TEXT NOT NULL DEFAULT '',
 	logo           BLOB,
-	logo_mime      TEXT NOT NULL DEFAULT ''
+	logo_mime      TEXT NOT NULL DEFAULT '',
+	-- moneymoney_verwendungszweck überschreibt, wenn gesetzt, den
+	-- automatisch erzeugten "Vereinsname Beitrag MM/JJJJ"-Teil des
+	-- MoneyMoney-Exports (ADR-0016). Leer heißt: weiter automatisch.
+	moneymoney_verwendungszweck TEXT NOT NULL DEFAULT ''
 );
 `
 

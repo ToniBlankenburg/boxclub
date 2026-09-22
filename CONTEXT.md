@@ -148,7 +148,7 @@ Der **Empfänger** ist frei eintragbar und wird aus dem Mitglied vorbelegt: ein 
 
 ## Vereinsdaten
 
-Name, Anschrift, Bankverbindung, Fußzeile und *Vereinslogo* des Vereins selbst — alles, was auf einer Rechnung über dem Inhalt steht. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
+Name, Anschrift, Bankverbindung, Fußzeile, *Vereinslogo* und ein eigener Verwendungszweck-Text für den *MoneyMoney-Export* — alles, was auf einer Rechnung über dem Inhalt steht oder den monatlichen Lastschriftlauf betrifft. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
 
 ## Vereinslogo
 
@@ -165,6 +165,8 @@ Welches Format hochgeladen wurde und welches gespeichert ist, gehört nicht zum 
 Eine CSV-Datei, mit der der Verein den Lastschrifteinzug eines Monats über MoneyMoney anstößt — eine Zeile je Mitgliedschaft, die diesen Monat einzieht, dieselbe Menge wie das Monatssoll ([ADR-0013](docs/adr/0013-moneymoney-csv-export-fuer-lastschrifteinzug.md)). Die Datei geht aus der App heraus, nicht herein.
 
 **Nicht zu verwechseln mit:** dem in CLAUDE.md ausgeschlossenen *MoneyMoney-Import* — jener meint Kontoumsätze, die in die App **hinein** sollen, um Rücklastschriften automatisch zu erkennen (v2). Dieser Export geht die andere Richtung und ersetzt nur das Abtippen in MoneyMoney, das der Verein ohnehin schon von Hand macht.
+
+Der Verwendungszweck ist zum Teil überschreibbar: die *Vereinsdaten* tragen dafür ein eigenes, optionales Textfeld ([ADR-0016](docs/adr/0016-eigener-verwendungszweck-in-vereinsdaten.md)). Leer heißt automatisch wie oben; gesetzt ersetzt es nur den Vereinsname-und-Monat-Teil — der Anmeldegebühr-Hinweis bleibt davon unberührt und immer automatisch, weil er Faktenstand der einzelnen Zeile ist, kein Stiltext.
 
 ## Monatssoll
 

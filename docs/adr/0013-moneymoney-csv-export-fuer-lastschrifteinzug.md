@@ -1,6 +1,6 @@
 # ADR-0013: CSV-Export für den Lastschrifteinzug über MoneyMoney
 
-**Status:** Accepted — löst den SEPA-Export-Ausschluss aus [ADR-0006](0006-rueckstand-statt-bezahlt-bis.md) in diesem einen Punkt ab
+**Status:** Accepted — löst den SEPA-Export-Ausschluss aus [ADR-0006](0006-rueckstand-statt-bezahlt-bis.md) in diesem einen Punkt ab. Der automatisch erzeugte Verwendungszweck ist seit [ADR-0016](0016-eigener-verwendungszweck-in-vereinsdaten.md) optional überschreibbar.
 **Datum:** 2026-09-18
 
 ## Kontext

@@ -57,6 +57,14 @@ type Vereinsdaten struct {
 	// richtigen Content-Type setzen kann, ohne die Bilddaten selbst zu
 	// untersuchen.
 	LogoMime string
+
+	// MoneyMoneyVerwendungszweck überschreibt, wenn gesetzt, den automatisch
+	// erzeugten "Vereinsname Beitrag MM/JJJJ"-Teil des MoneyMoney-Exports
+	// (ADR-0016, CONTEXT.md → MoneyMoney-Export). Leer heißt: weiter
+	// automatisch. Der "Anmeldegebühr + "-Hinweis bleibt davon unberührt — er
+	// ist Faktenstand der einzelnen Zeile, kein Stiltext, den dieses Feld
+	// überschreiben könnte.
+	MoneyMoneyVerwendungszweck string
 }
 
 // vereinsdatenID ist der Schlüssel der einen Zeile. Die Vereinsdaten sind keine
@@ -76,12 +84,13 @@ func (s *MemberService) GetVereinsdaten() (Vereinsdaten, error) {
 
 	err := s.db.QueryRow(
 		`SELECT name, adresse, postleitzahl, ort, email, telefon,
-		 	iban, bic, kreditinstitut, fusszeile, logo, logo_mime
+		 	iban, bic, kreditinstitut, fusszeile, logo, logo_mime,
+		 	moneymoney_verwendungszweck
 		 FROM vereinsdaten WHERE id = ?`, vereinsdatenID).Scan(
 		&daten.Name, &daten.Anschrift.Adresse, &daten.Anschrift.Postleitzahl,
 		&daten.Anschrift.Ort, &daten.Email, &daten.Telefon,
 		&daten.IBAN, &daten.BIC, &daten.Kreditinstitut, &daten.Fusszeile,
-		&daten.Logo, &daten.LogoMime)
+		&daten.Logo, &daten.LogoMime, &daten.MoneyMoneyVerwendungszweck)
 	if err != nil {
 		return Vereinsdaten{}, fmt.Errorf("vereinsdaten lesen: %w", err)
 	}
@@ -108,8 +117,9 @@ func (s *MemberService) SetVereinsdaten(daten Vereinsdaten) error {
 	if _, err := s.db.Exec(
 		`INSERT INTO vereinsdaten
 		 	(id, name, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, bic, kreditinstitut, fusszeile, logo, logo_mime)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 	 iban, bic, kreditinstitut, fusszeile, logo, logo_mime,
+		 	 moneymoney_verwendungszweck)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		 	name = excluded.name,
 		 	adresse = excluded.adresse,
@@ -122,12 +132,13 @@ func (s *MemberService) SetVereinsdaten(daten Vereinsdaten) error {
 		 	kreditinstitut = excluded.kreditinstitut,
 		 	fusszeile = excluded.fusszeile,
 		 	logo = excluded.logo,
-		 	logo_mime = excluded.logo_mime`,
+		 	logo_mime = excluded.logo_mime,
+		 	moneymoney_verwendungszweck = excluded.moneymoney_verwendungszweck`,
 		vereinsdatenID, daten.Name,
 		daten.Anschrift.Adresse, daten.Anschrift.Postleitzahl, daten.Anschrift.Ort,
 		daten.Email, daten.Telefon,
 		daten.IBAN, daten.BIC, daten.Kreditinstitut, daten.Fusszeile,
-		daten.Logo, daten.LogoMime); err != nil {
+		daten.Logo, daten.LogoMime, daten.MoneyMoneyVerwendungszweck); err != nil {
 		return fmt.Errorf("vereinsdaten speichern: %w", err)
 	}
 
@@ -148,13 +159,14 @@ func (v Vereinsdaten) bereinigt() Vereinsdaten {
 			Postleitzahl: strings.TrimSpace(v.Anschrift.Postleitzahl),
 			Ort:          strings.TrimSpace(v.Anschrift.Ort),
 		},
-		Email:          strings.TrimSpace(v.Email),
-		Telefon:        strings.TrimSpace(v.Telefon),
-		IBAN:           strings.TrimSpace(v.IBAN),
-		BIC:            strings.TrimSpace(v.BIC),
-		Kreditinstitut: strings.TrimSpace(v.Kreditinstitut),
-		Fusszeile:      strings.TrimSpace(v.Fusszeile),
-		Logo:           v.Logo,
-		LogoMime:       v.LogoMime,
+		Email:                      strings.TrimSpace(v.Email),
+		Telefon:                    strings.TrimSpace(v.Telefon),
+		IBAN:                       strings.TrimSpace(v.IBAN),
+		BIC:                        strings.TrimSpace(v.BIC),
+		Kreditinstitut:             strings.TrimSpace(v.Kreditinstitut),
+		Fusszeile:                  strings.TrimSpace(v.Fusszeile),
+		Logo:                       v.Logo,
+		LogoMime:                   v.LogoMime,
+		MoneyMoneyVerwendungszweck: strings.TrimSpace(v.MoneyMoneyVerwendungszweck),
 	}
 }
