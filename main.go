@@ -10,6 +10,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/ToniBlankenburg/boxclub/app"
@@ -67,6 +68,11 @@ func main() {
 			Handler: anwendung.Handler(),
 		},
 		BackgroundColour: &options.RGBA{R: 250, G: 250, B: 250, A: 1},
+		// Ohne dieses Feld bleibt Mac nil, und Wails deaktiviert dann den
+		// grünen Zoom-Button am Fenster explizit (siehe darwin/WailsContext.m:
+		// !zoomable && resizable → Button wird disabled) — natives Vollbild
+		// wäre sonst aus, nicht nur nicht extra an.
+		Mac: &mac.Options{},
 		// Der Datei-Dialog braucht den Wails-Kontext, den es erst ab hier gibt.
 		// Er ist die eine Stelle, an der die App das Betriebssystem braucht:
 		// Dokumente liegen als Blob in der Datenbank (ADR-0007), und ohne einen
