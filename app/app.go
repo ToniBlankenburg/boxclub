@@ -94,7 +94,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied", a.mitgliedAnlegen)
 	mux.HandleFunc("GET /api/mitglied/{id}/formular", a.mitgliedBearbeitenFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}", a.mitgliedAktualisieren)
-	mux.HandleFunc("GET /api/mitglied/{id}/zeile", a.mitgliedZeile)
+	mux.HandleFunc("GET /api/mitglied/{id}/status", a.mitgliedStatusBlock)
 	mux.HandleFunc("GET /api/mitglied/{id}/rueckstand", a.rueckstandFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/rueckstand", a.rueckstandSpeichern)
 	mux.HandleFunc("GET /api/mitglied/{id}/kuendigung", a.kuendigungFormular)
@@ -126,6 +126,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("GET /api/verein", a.vereinFormular)
 	mux.HandleFunc("POST /api/verein", a.vereinSpeichern)
 	mux.HandleFunc("GET /api/verein/logo", a.vereinLogo)
+	mux.HandleFunc("POST /api/verein/datenbank-loeschen", a.datenbankLoeschen)
 	mux.HandleFunc("POST /api/einstellungen/sprache", a.spracheAendern)
 
 	return mux
@@ -305,6 +306,13 @@ type formularDaten struct {
 	// entsteht — der Nullwert beim Anlegen, wo es noch kein Mitglied gibt, an
 	// dem eine Rechnung hängen könnte (siehe mitglied_formular.html).
 	Rechnung rechnungDaten
+
+	// Status speist den Statusblock über den Registerkarten: Rückstand,
+	// Lebenszyklus und die Aktionen, die beides ändern (Ticket "Buttons in die
+	// Mitgliedsansicht"). Dieselben Daten wie eine Listenzeile, aus der die
+	// Aktionen früher stammten — der Nullwert beim Anlegen, wo es noch keine
+	// Zeile zu diesem Mitglied gibt.
+	Status service.Listeneintrag
 
 	Fehler []string
 }
@@ -946,6 +954,11 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		return
 	}
 
+	status, ok := a.zeileLesenZuID(w, id)
+	if !ok {
+		return
+	}
+
 	a.rendern(w, "mitglied-formular", formularDaten{
 		Bearbeiten:          true,
 		MitgliedID:          m.ID,
@@ -955,6 +968,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		Termine:             auswahl,
 		Vertraege:           vertragsbloecke(m.Mitgliedschaften),
 		Rechnung:            rechnungBereichAmMitglied(m),
+		Status:              status,
 		Fehler:              fehler,
 	})
 }
@@ -987,15 +1001,16 @@ func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe)
 	return auswahl, true
 }
 
-// mitgliedZeile liefert eine einzelne Listenzeile — der Rückweg aus der
-// Rückstandseingabe, wenn der Nutzer abbricht.
-func (a *App) mitgliedZeile(w http.ResponseWriter, r *http.Request) {
+// mitgliedStatusBlock liefert den Statusblock des Mitgliedsformulars in seiner
+// Ausgangsform — der Rückweg aus Rückstand, Kündigung, Wiedereintritt und
+// Ruhend, wenn der Nutzer abbricht.
+func (a *App) mitgliedStatusBlock(w http.ResponseWriter, r *http.Request) {
 	eintrag, ok := a.zeileLesen(w, r)
 	if !ok {
 		return
 	}
 
-	a.rendern(w, "mitglied-zeile", eintrag)
+	a.rendern(w, "mitglied-status-block", eintrag)
 }
 
 // rueckstandFormular tauscht die Zeile gegen die Pflege von Kennzeichen und
@@ -1066,7 +1081,7 @@ func (a *App) rueckstandSpeichern(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.rendern(w, "mitglied-zeile", eintrag)
+	a.rendern(w, "mitglied-status-block", eintrag)
 }
 
 // kuendigungDaten speist die Zeile, in der eine Kündigung erfasst wird: zwei
@@ -1175,27 +1190,11 @@ func (a *App) kuendigungEintragen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Solange der Austritt nicht erreicht ist, endet nichts: das Mitglied bleibt
-	// in der Standardansicht — auch mit erfasstem Termin, denn in der
-	// Kündigungsfrist trainiert und zahlt es weiter. Die Zeile kommt dann mit
-	// ihrem neuen Status zurück. Über beides entscheidet der Service, nicht das
-	// Vorhandensein eines Datums.
-	if !eintrag.Status().Ausgetreten() {
-		a.rendern(w, "mitglied-zeile", eintrag)
-		return
-	}
-
-	// Ist der Austritt dagegen schon erreicht — heute oder früher —, ist die
-	// Zeile nicht mehr der richtige Platz für die Antwort: in der
-	// Standardansicht gibt es sie nicht mehr. Deshalb kommt die ganze Liste
-	// zurück und sagt zugleich, wo das Mitglied jetzt steht.
-	//
-	// k.Austritt ist hier gesetzt: ausgetreten wird nur, wer ein erreichtes
-	// Austrittsdatum hat, und geschrieben hat es genau dieser Aufruf.
-	aufListeUmleiten(w)
-	sprache := a.Sprache()
-	a.listeRendern(w, meldung{Text: i18n.Text(sprache, "meldung.austritt_erfasst",
-		eintrag.Vorname, eintrag.Nachname, datumAnzeige(*k.Austritt), i18n.Text(sprache, "mitglieder.auch_ehemalige"))})
+	// Anders als in der Liste gibt es hier keine Ansicht, aus der ein
+	// erreichter Austritt die Zeile verschwinden ließe — der Statusblock steht
+	// im eigenen Formular des Mitglieds und bleibt dessen Platz, ausgetreten
+	// oder nicht.
+	a.rendern(w, "mitglied-status-block", eintrag)
 }
 
 // kuendigungLesen sammelt die beiden Datumsfelder ein. Ein leeres Feld heißt
@@ -1269,7 +1268,7 @@ func (a *App) ruhendSchalten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.rendern(w, "mitglied-zeile", eintrag)
+	a.rendern(w, "mitglied-status-block", eintrag)
 }
 
 // wiedereintrittFormular tauscht die Zeile gegen die Datumseingabe. Vorbelegt
@@ -1322,11 +1321,7 @@ func (a *App) wiedereintrittEintragen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Die Zeile stand unter »Auch Ehemalige« und gehört jetzt woandershin —
-	// deshalb antwortet auch hier die ganze Liste.
-	aufListeUmleiten(w)
-	a.listeRendern(w, meldung{Text: i18n.Text(a.Sprache(), "meldung.wiedereingetreten",
-		eintrag.Vorname, eintrag.Nachname, datumAnzeige(d))})
+	a.rendern(w, "mitglied-status-block", eintrag)
 }
 
 // wiedereintrittFormularMitFehler zeigt die Datumseingabe erneut, mitsamt den

@@ -55,7 +55,7 @@ func TestFragmenteWerdenNichtZwischengespeichert(t *testing.T) {
 		"/api/mitglieder/ergebnis",
 		"/api/mitglied/formular",
 		"/api/mitglied/1/formular",
-		"/api/mitglied/1/zeile",
+		"/api/mitglied/1/status",
 		"/api/mitglied/1/rueckstand",
 		"/api/mitglied/1/kuendigung",
 		"/api/mitglied/1/wiedereintritt",

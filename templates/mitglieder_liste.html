@@ -516,169 +516,164 @@
     {{/* Der Beitrag ist individuell vereinbart (ADR-0005); 0,00 € ist ein
          gültiger Betrag und keine fehlende Angabe. */}}
     <td class="px-4 py-2 text-right tabular-nums" data-col="beitrag">{{euro .BeitragCents}}</td>
+    {{/* Rückstand, Kündigung/Wiedereintritt und Ruhend ändern sich nicht mehr
+         von hier aus — die Zeile zeigt nur noch den Stand, die Schaltflächen
+         dazu stehen am Mitglied selbst (mitglied-status-block unten). */}}
     <td class="px-4 py-2" data-col="rueckstand">
-        {{/* Die Schaltfläche steht bei dem Wert, den sie ändert. Die ganze Zeile
-             öffnet sonst das Bearbeitungsformular; diese Schaltfläche ist die
-             Ausnahme davon und hält ihr Ereignis deshalb bei sich. */}}
-        <div class="flex items-center justify-between gap-3">
-            {{template "rueckstandskennzeichen" .Rueckstand}}
-            <button type="button"
-                    class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                    aria-label="{{t "mitglieder.rueckstand_pflegen_aria" .Vorname .Nachname}}"
-                    hx-get="/api/mitglied/{{.MitgliedID}}/rueckstand"
-                    hx-target="closest tr" hx-swap="outerHTML"
-                    hx-on:click="event.stopPropagation()"
-                    hx-on:keyup="event.stopPropagation()">
-                {{t "mitglieder.rueckstand_aendern_knopf"}}
-            </button>
-        </div>
+        {{template "rueckstandskennzeichen" .Rueckstand}}
     </td>
     <td class="px-4 py-2 tabular-nums" data-col="eintritt">
-        {{/* Die Aktion steht bei der Mitgliedschaft, deren Zeitraum sie ändert.
-             Wie die Schaltfläche daneben hält sie ihr Ereignis bei sich, damit
-             der Klick nicht das Bearbeitungsformular öffnet. */}}
-        <div class="flex items-center justify-between gap-3">
-            {{datum .Eintritt}}
-            <div class="flex flex-wrap justify-end gap-1">
-                {{/* Über die Aktion entscheidet der Status und nicht das bloße
-                     Vorhandensein eines Austrittsdatums: erst ein *erreichter*
-                     Austritt macht ehemalig, und nur dann ist Wiedereintritt die
-                     Aktion. Während der Kündigungsfrist läuft die Mitgliedschaft
-                     noch — dort führt die Schaltfläche zurück ins
-                     Kündigungsformular, in dem sich ein falscher Termin
-                     korrigieren lässt. */}}
-                <button type="button"
-                        class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                        aria-label="{{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_fuer_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.kuendigung_erfassen_fuer_aria" .Vorname .Nachname}}{{end}}"
-                        hx-get="/api/mitglied/{{.MitgliedID}}/{{if $status.Ausgetreten}}wiedereintritt{{else}}kuendigung{{end}}"
-                        hx-target="closest tr" hx-swap="outerHTML"
-                        hx-on:click="event.stopPropagation()"
-                        hx-on:keyup="event.stopPropagation()">
-                    {{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_knopf"}}{{else}}{{t "mitglieder.kuendigung_knopf"}}{{end}}
-                </button>
-                {{/* Ruhend schalten lässt sich nur, was läuft — bei einem Ehemaligen
-                     gibt es keinen Einzug, den man aussetzen könnte. In der
-                     Kündigungsfrist gibt es ihn sehr wohl, dort steht die
-                     Schaltfläche deshalb weiterhin. Sie schickt den gewünschten
-                     Wert mit, nicht den aktuellen: so tut ein Klick aus einer
-                     veralteten Ansicht nicht das Gegenteil. */}}
-                {{if not $status.Ausgetreten}}
-                    <button type="button"
-                            class="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                            aria-label="{{if .Ruhend}}{{t "mitglieder.aktiv_setzen_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.ruhend_schalten_aria" .Vorname .Nachname}}{{end}}"
-                            hx-post="/api/mitglied/{{.MitgliedID}}/ruhend{{if not .Ruhend}}?ruhend=1{{end}}"
-                            hx-target="closest tr" hx-swap="outerHTML"
-                            hx-on:click="event.stopPropagation()"
-                            hx-on:keyup="event.stopPropagation()">
-                        {{if .Ruhend}}{{t "mitglieder.aktiv_setzen_knopf"}}{{else}}{{t "mitglieder.ruhend_knopf"}}{{end}}
-                    </button>
-                {{end}}
-            </div>
-        </div>
+        {{datum .Eintritt}}
     </td>
 </tr>
 {{end}}
 
-{{/* mitglied-kuendigung-formular ersetzt eine Zeile durch die Erfassung der
-     Kündigung: zwei Datumsfelder nebeneinander. Die Daten sind kuendigungDaten.
+{{/* mitglied-status-block zeigt Rückstand und Lebenszyklus-Status eines
+     Mitglieds zusammen mit den Schaltflächen, die beides ändern — sie standen
+     früher in der Zeile der Liste, stehen jetzt im Mitgliedsformular
+     (mitglied_formular.html), direkt unter dessen Überschrift.
+
+     Der Block ersetzt sich bei jeder Aktion selbst über seine feste ID
+     "mitglied-status-{MitgliedID}"; dieselbe ID adressieren auch die drei
+     Formen darunter und ihr jeweiliges "Abbrechen". Die Daten sind ein
+     service.Listeneintrag — dieselben, aus denen die Zeile schon immer den
+     Status abliest. */}}
+{{define "mitglied-status-block"}}
+{{$status := .Status}}
+<div id="mitglied-status-{{.MitgliedID}}"
+     class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-4">
+    {{/* Ruhend verdrängt das Statuskennzeichen, solange die Mitgliedschaft
+         läuft — dieselbe Regel wie in der Zeile (siehe dort). */}}
+    {{if and .Ruhend (not $status.Ausgetreten)}}
+        <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
+              title="{{t "mitglieder.ruhend_titel" $status.Bezeichnung}}">
+            {{t "mitglieder.ruhend_abzeichen"}}
+        </span>
+    {{else}}
+        {{template "statuskennzeichen" $status}}
+    {{end}}
+    {{if .Austritt}}
+        <span class="text-sm text-neutral-500">{{t "mitglieder.austritt_zum" (datum .Austritt)}}</span>
+    {{else if .Kuendigungsdatum}}
+        <span class="text-sm text-neutral-500">{{t "mitglieder.gekuendigt_seit" (datum .Kuendigungsdatum)}}</span>
+    {{end}}
+
+    {{template "rueckstandskennzeichen" .Rueckstand}}
+
+    <div class="ml-auto flex flex-wrap gap-2">
+        <button type="button"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                aria-label="{{t "mitglieder.rueckstand_pflegen_aria" .Vorname .Nachname}}"
+                hx-get="/api/mitglied/{{.MitgliedID}}/rueckstand"
+                hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
+            {{t "mitglieder.rueckstand_aendern_knopf"}}
+        </button>
+        {{/* Über die Aktion entscheidet der Status und nicht das bloße
+             Vorhandensein eines Austrittsdatums: erst ein *erreichter* Austritt
+             macht ehemalig, und nur dann ist Wiedereintritt die Aktion. */}}
+        <button type="button"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                aria-label="{{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_fuer_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.kuendigung_erfassen_fuer_aria" .Vorname .Nachname}}{{end}}"
+                hx-get="/api/mitglied/{{.MitgliedID}}/{{if $status.Ausgetreten}}wiedereintritt{{else}}kuendigung{{end}}"
+                hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
+            {{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_knopf"}}{{else}}{{t "mitglieder.kuendigung_knopf"}}{{end}}
+        </button>
+        {{/* Ruhend schalten lässt sich nur, was läuft — bei einem Ehemaligen
+             gibt es keinen Einzug, den man aussetzen könnte. Die Schaltfläche
+             schickt den gewünschten Wert mit, nicht den aktuellen: so tut ein
+             Klick aus einer veralteten Ansicht nicht das Gegenteil. */}}
+        {{if not $status.Ausgetreten}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    aria-label="{{if .Ruhend}}{{t "mitglieder.aktiv_setzen_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.ruhend_schalten_aria" .Vorname .Nachname}}{{end}}"
+                    hx-post="/api/mitglied/{{.MitgliedID}}/ruhend{{if not .Ruhend}}?ruhend=1{{end}}"
+                    hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
+                {{if .Ruhend}}{{t "mitglieder.aktiv_setzen_knopf"}}{{else}}{{t "mitglieder.ruhend_knopf"}}{{end}}
+            </button>
+        {{end}}
+    </div>
+</div>
+{{end}}
+
+{{/* mitglied-kuendigung-formular ersetzt den Statusblock durch die Erfassung
+     der Kündigung: zwei Datumsfelder nebeneinander. Die Daten sind
+     kuendigungDaten.
 
      Das Austrittsfeld zeigt den erfassten Termin und sonst den regulären nach
      der Satzungsfrist — drei Monate zum Monatsende (siehe kuendigungsformular).
      Das ist ein Vorschlag: er lässt sich überschreiben, und wer das Feld leert,
-     erfasst eine Kündigung, deren Termin noch offen ist.
-
-     Zurück kommt je nach Eingabe die Zeile oder die ganze Liste: ist der Austritt
-     bereits erreicht, gibt es die Zeile in der Standardansicht nicht mehr. Ein
-     Austritt, der noch bevorsteht, lässt sie dagegen stehen — dann ist das
-     Mitglied in der Kündigungsfrist und weiterhin aktiv. Das Ziel setzt die
-     Antwort selbst (HX-Retarget). */}}
+     erfasst eine Kündigung, deren Termin noch offen ist. */}}
 {{define "mitglied-kuendigung-formular"}}
-<tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
-    hx-on::load="this.querySelector('input').focus()">
-    {{/* Leere Zelle an der Stelle der Auswahlspalte — die Zeile ersetzt sich
-         gerade selbst, keine Auswahl zum Ankreuzen. */}}
-    <td class="px-2 py-2"></td>
-    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
-    <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    {{/* colspan="6" ist der Ausgangswert bei allen sechs ausblendbaren Spalten
-         sichtbar; data-colspan-optional lässt main.js ihn nachziehen, sobald
-         eine davon ausgeblendet ist — sonst reichte diese Zelle über den
-         Rand der Tabelle hinaus (Ticket 27). */}}
-    <td class="px-4 py-2" colspan="6" data-colspan-optional>
-        <form class="flex flex-wrap items-center gap-2"
-              hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/kuendigung"
-              hx-target="closest tr" hx-swap="outerHTML">
-            <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">{{t "mitglieder.gekuendigt_am_feld"}}</span>
-                <input name="kuendigungsdatum" type="date" value="{{.Kuendigungsdatum}}"
-                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-            </label>
-            <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">{{t "mitglieder.austritt_zum_feld"}}</span>
-                <input name="austritt" type="date" value="{{.Austritt}}"
-                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-            </label>
-            <button type="submit"
-                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                {{t "mitglieder.kuendigung_erfassen_knopf"}}
-            </button>
-            <button type="button" data-shortcut="abbrechen"
-                    class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
-                    hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/zeile"
-                    hx-target="closest tr" hx-swap="outerHTML">
-                {{t "allgemein.abbrechen"}}
-            </button>
-            <span class="text-sm text-neutral-500">
-                {{t "mitglieder.kuendigung_hinweis"}}
-            </span>
-            {{range .Fehler}}
-                <span class="text-sm text-red-800" role="alert">{{.}}</span>
-            {{end}}
-        </form>
-    </td>
-</tr>
+<div id="mitglied-status-{{.Eintrag.MitgliedID}}"
+     class="mb-4 rounded-md border border-neutral-200 bg-neutral-50 p-4"
+     hx-on::load="this.querySelector('input').focus()">
+    <form class="flex flex-wrap items-center gap-2"
+          hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/kuendigung"
+          hx-target="#mitglied-status-{{.Eintrag.MitgliedID}}" hx-swap="outerHTML">
+        <label class="flex items-center gap-2">
+            <span class="text-sm text-neutral-600">{{t "mitglieder.gekuendigt_am_feld"}}</span>
+            <input name="kuendigungsdatum" type="date" value="{{.Kuendigungsdatum}}"
+                   class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        </label>
+        <label class="flex items-center gap-2">
+            <span class="text-sm text-neutral-600">{{t "mitglieder.austritt_zum_feld"}}</span>
+            <input name="austritt" type="date" value="{{.Austritt}}"
+                   class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        </label>
+        <button type="submit"
+                class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+            {{t "mitglieder.kuendigung_erfassen_knopf"}}
+        </button>
+        <button type="button" data-shortcut="abbrechen"
+                class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
+                hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/status"
+                hx-target="#mitglied-status-{{.Eintrag.MitgliedID}}" hx-swap="outerHTML">
+            {{t "allgemein.abbrechen"}}
+        </button>
+        <span class="text-sm text-neutral-500">
+            {{t "mitglieder.kuendigung_hinweis"}}
+        </span>
+        {{range .Fehler}}
+            <span class="text-sm text-red-800" role="alert">{{.}}</span>
+        {{end}}
+    </form>
+</div>
 {{end}}
 
-{{/* mitglied-wiedereintritt-formular ersetzt eine Zeile durch die Datumseingabe
-     für den Wiedereintritt. Hier genügt ein Datum: ein Eintritt beginnt einen
-     Zeitraum, er beendet keinen. Die Daten sind wiedereintrittDaten. */}}
+{{/* mitglied-wiedereintritt-formular ersetzt den Statusblock durch die
+     Datumseingabe für den Wiedereintritt. Hier genügt ein Datum: ein Eintritt
+     beginnt einen Zeitraum, er beendet keinen. Die Daten sind
+     wiedereintrittDaten. */}}
 {{define "mitglied-wiedereintritt-formular"}}
-<tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
-    hx-on::load="this.querySelector('input').focus()">
-    {{/* Leere Zelle an der Stelle der Auswahlspalte, siehe
-         mitglied-kuendigung-formular oben. */}}
-    <td class="px-2 py-2"></td>
-    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.Eintrag.MitgliedID}}</td>
-    <td class="px-4 py-2">{{.Eintrag.Nachname}}, {{.Eintrag.Vorname}}</td>
-    {{/* data-colspan-optional siehe mitglied-kuendigung-formular oben. */}}
-    <td class="px-4 py-2" colspan="6" data-colspan-optional>
-        <form class="flex flex-wrap items-center gap-2"
-              hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/wiedereintritt"
-              hx-target="closest tr" hx-swap="outerHTML">
-            <label class="flex items-center gap-2">
-                <span class="text-sm text-neutral-600">{{t "mitglieder.wiedereintritt_zum_feld"}}</span>
-                <input name="datum" type="date" value="{{.Datum}}" required
-                       class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-            </label>
-            <button type="submit"
-                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                {{t "mitglieder.wieder_eintreten_knopf"}}
-            </button>
-            <button type="button" data-shortcut="abbrechen"
-                    class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
-                    hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/zeile"
-                    hx-target="closest tr" hx-swap="outerHTML">
-                {{t "allgemein.abbrechen"}}
-            </button>
-            <span class="text-sm text-neutral-500">
-                {{t "mitglieder.wiedereintritt_hinweis"}}
-            </span>
-            {{range .Fehler}}
-                <span class="text-sm text-red-800" role="alert">{{.}}</span>
-            {{end}}
-        </form>
-    </td>
-</tr>
+<div id="mitglied-status-{{.Eintrag.MitgliedID}}"
+     class="mb-4 rounded-md border border-neutral-200 bg-neutral-50 p-4"
+     hx-on::load="this.querySelector('input').focus()">
+    <form class="flex flex-wrap items-center gap-2"
+          hx-post="/api/mitglied/{{.Eintrag.MitgliedID}}/wiedereintritt"
+          hx-target="#mitglied-status-{{.Eintrag.MitgliedID}}" hx-swap="outerHTML">
+        <label class="flex items-center gap-2">
+            <span class="text-sm text-neutral-600">{{t "mitglieder.wiedereintritt_zum_feld"}}</span>
+            <input name="datum" type="date" value="{{.Datum}}" required
+                   class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        </label>
+        <button type="submit"
+                class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+            {{t "mitglieder.wieder_eintreten_knopf"}}
+        </button>
+        <button type="button" data-shortcut="abbrechen"
+                class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
+                hx-get="/api/mitglied/{{.Eintrag.MitgliedID}}/status"
+                hx-target="#mitglied-status-{{.Eintrag.MitgliedID}}" hx-swap="outerHTML">
+            {{t "allgemein.abbrechen"}}
+        </button>
+        <span class="text-sm text-neutral-500">
+            {{t "mitglieder.wiedereintritt_hinweis"}}
+        </span>
+        {{range .Fehler}}
+            <span class="text-sm text-red-800" role="alert">{{.}}</span>
+        {{end}}
+    </form>
+</div>
 {{end}}
 
 {{/* statuskennzeichen rendert den abgelesenen Lebenszyklus-Zustand. Wie beim
@@ -717,51 +712,44 @@
 </span>
 {{end}}
 
-{{/* mitglied-rueckstand-formular ersetzt eine Zeile durch die Pflege von
+{{/* mitglied-rueckstand-formular ersetzt den Statusblock durch die Pflege von
      Kennzeichen und Notiz. Beides steht zusammen, weil Setzen, Aufheben und das
      Nachtragen der Notiz für den Nutzer derselbe Vorgang sind. Gespeichert wird
-     gegen dieselbe Zeile, die dadurch mit neuem Kennzeichen zurückkommt. Die
+     gegen denselben Block, der dadurch mit neuem Kennzeichen zurückkommt. Die
      Daten sind ein service.Listeneintrag. */}}
 {{define "mitglied-rueckstand-formular"}}
-<tr class="border-b border-neutral-100 bg-neutral-50 last:border-0"
-    hx-on::load="this.querySelector('input[name=notiz]').focus()">
-    {{/* Leere Zelle an der Stelle der Auswahlspalte, siehe
-         mitglied-kuendigung-formular oben. */}}
-    <td class="px-2 py-2"></td>
-    <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
-    <td class="px-4 py-2">{{.Nachname}}, {{.Vorname}}</td>
-    {{/* data-colspan-optional siehe mitglied-kuendigung-formular oben. */}}
-    <td class="px-4 py-2" colspan="6" data-colspan-optional>
-        <form class="flex flex-wrap items-center gap-2"
-              hx-post="/api/mitglied/{{.MitgliedID}}/rueckstand"
-              hx-target="closest tr" hx-swap="outerHTML">
-            <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-700">
-                {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es
-                     angehakt ist — ohne Haken heißt also: in Ordnung. */}}
-                <input name="rueckstand" type="checkbox" value="1"
-                       class="accent-[var(--akzent)]" {{if .Rueckstand.Offen}}checked{{end}}>
-                {{t "mitglieder.im_rueckstand_kasten"}}
-            </label>
-            <label class="flex flex-1 items-center gap-2">
-                <span class="text-sm text-neutral-600">{{t "mitglieder.notiz_feld"}}</span>
-                <input name="notiz" type="text" value="{{.Rueckstand.Notiz}}"
-                       placeholder="{{t "mitglieder.notiz_platzhalter"}}"
-                       class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-            </label>
-            <button type="submit"
-                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                {{t "allgemein.speichern"}}
-            </button>
-            <button type="button" data-shortcut="abbrechen"
-                    class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
-                    hx-get="/api/mitglied/{{.MitgliedID}}/zeile"
-                    hx-target="closest tr" hx-swap="outerHTML">
-                {{t "allgemein.abbrechen"}}
-            </button>
-            {{/* Die Notiz überlebt das Aufheben: sie ist die einzige Spur, die
-                 ein erledigter Vorgang hinterlässt (ADR-0006). */}}
-            <span class="text-sm text-neutral-500">{{t "mitglieder.rueckstand_hinweis"}}</span>
-        </form>
-    </td>
-</tr>
+<div id="mitglied-status-{{.MitgliedID}}"
+     class="mb-4 rounded-md border border-neutral-200 bg-neutral-50 p-4"
+     hx-on::load="this.querySelector('input[name=notiz]').focus()">
+    <form class="flex flex-wrap items-center gap-2"
+          hx-post="/api/mitglied/{{.MitgliedID}}/rueckstand"
+          hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
+        <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-700">
+            {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es
+                 angehakt ist — ohne Haken heißt also: in Ordnung. */}}
+            <input name="rueckstand" type="checkbox" value="1"
+                   class="accent-[var(--akzent)]" {{if .Rueckstand.Offen}}checked{{end}}>
+            {{t "mitglieder.im_rueckstand_kasten"}}
+        </label>
+        <label class="flex flex-1 items-center gap-2">
+            <span class="text-sm text-neutral-600">{{t "mitglieder.notiz_feld"}}</span>
+            <input name="notiz" type="text" value="{{.Rueckstand.Notiz}}"
+                   placeholder="{{t "mitglieder.notiz_platzhalter"}}"
+                   class="min-w-56 flex-1 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+        </label>
+        <button type="submit"
+                class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+            {{t "allgemein.speichern"}}
+        </button>
+        <button type="button" data-shortcut="abbrechen"
+                class="rounded-md px-3 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-200 focus:ring-2 focus:ring-neutral-400/40 focus:outline-none"
+                hx-get="/api/mitglied/{{.MitgliedID}}/status"
+                hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
+            {{t "allgemein.abbrechen"}}
+        </button>
+        {{/* Die Notiz überlebt das Aufheben: sie ist die einzige Spur, die
+             ein erledigter Vorgang hinterlässt (ADR-0006). */}}
+        <span class="text-sm text-neutral-500">{{t "mitglieder.rueckstand_hinweis"}}</span>
+    </form>
+</div>
 {{end}}

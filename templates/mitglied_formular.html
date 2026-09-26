@@ -63,6 +63,16 @@
         {{end}}
     </h2>
 
+    {{/* Rückstand, Kündigung/Wiedereintritt und Ruhend hingen früher als
+         Schaltflächen in der Tabellenzeile — sie stehen jetzt hier, am
+         Mitglied selbst, statt in der Liste, die nur noch den Stand zeigt
+         (siehe mitglieder_liste.html → mitglied-status-block). Vor der
+         Fehlerliste, weil er zum Mitglied gehört und nicht zur gerade
+         abgeschickten Eingabe. */}}
+    {{if .Bearbeiten}}
+        {{template "mitglied-status-block" .Status}}
+    {{end}}
+
     {{if .Fehler}}
         <ul class="mb-5 list-disc rounded-md border border-red-700 bg-red-50 py-3 pr-3 pl-8 text-sm text-red-800"
             role="alert">

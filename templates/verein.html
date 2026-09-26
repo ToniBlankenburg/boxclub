@@ -184,5 +184,22 @@
             </button>
         </div>
     </form>
+
+    {{/* Die Gefahrenzone steht außerhalb des Formulars wie der
+         Sprachumschalter oben — ein eigener Vorgang, der nicht mit
+         "Speichern" vermischt werden soll. hx-confirm zeigt den nativen
+         Bestätigungsdialog des Browsers, bevor htmx den Aufruf überhaupt
+         losschickt: ohne bewusstes Bestätigen passiert nichts. */}}
+    <div class="mt-5 rounded-lg border border-red-700/30 bg-red-50 p-4">
+        <p class="mb-3 text-sm font-semibold text-red-800">{{t "verein.gefahrenzone_titel"}}</p>
+        <p class="mb-3 max-w-2xl text-sm text-red-800">{{t "verein.datenbank_loeschen_beschreibung"}}</p>
+        <button type="button"
+                class="rounded-md border border-red-700 bg-white px-4 py-2 font-semibold text-red-800 hover:bg-red-100 focus:ring-2 focus:ring-red-700/40 focus:outline-none"
+                hx-post="/api/verein/datenbank-loeschen"
+                hx-confirm="{{t "verein.datenbank_loeschen_bestaetigung"}}"
+                hx-target="#inhalt" hx-swap="innerHTML">
+            {{t "verein.datenbank_loeschen_knopf"}}
+        </button>
+    </div>
 </div>
 {{end}}

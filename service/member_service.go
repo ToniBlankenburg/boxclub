@@ -460,6 +460,49 @@ func (s *MemberService) migrate() error {
 	return nil
 }
 
+// DatenbankZuruecksetzen leert die gesamte Datenbank und legt sie wieder im
+// selben leeren Zustand an wie direkt nach Open — nichts wird geseedet
+// (CLAUDE.md: „eine frische Datenbank ist leer"). Das Schema selbst bleibt
+// unangetastet: gelöscht wird über DELETE und nicht über DROP TABLE, damit die
+// laufende Verbindung kein neues migrate() braucht.
+//
+// Ausschließlich zu Testzwecken gedacht — ein Verein mit echten Daten hat für
+// diesen Knopf keinen Anlass, die Ansicht sagt das auch so.
+//
+// Ein DELETE FROM mitglied genügt für alles, was an einer Person oder ihren
+// Mitgliedschaften hängt: mitgliedschaft, mitgliedschaft_trainingstermin und
+// dokument tragen alle ON DELETE CASCADE auf ihren jeweiligen Fremdschlüssel
+// (siehe schema oben) und verschwinden von selbst. trainingstermin hängt an
+// keinem Mitglied und braucht deshalb eine eigene Anweisung; vereinsdaten hat
+// immer genau eine Zeile (CHECK id = 1) und wird deshalb nach dem Löschen
+// sofort wieder leer angelegt, statt dauerhaft zu fehlen.
+func (s *MemberService) DatenbankZuruecksetzen() error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("transaktion starten: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM mitglied`); err != nil {
+		return fmt.Errorf("mitglieder löschen: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM trainingstermin`); err != nil {
+		return fmt.Errorf("trainingstermine löschen: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM vereinsdaten`); err != nil {
+		return fmt.Errorf("vereinsdaten löschen: %w", err)
+	}
+	if _, err := tx.Exec(vereinsdatenZeile); err != nil {
+		return fmt.Errorf("zeile der vereinsdaten neu anlegen: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("transaktion abschließen: %w", err)
+	}
+
+	return nil
+}
+
 // Create legt ein Mitglied samt seiner ersten, noch laufenden Mitgliedschaft an
 // und liefert die vergebene Mitglied-ID. Beides passiert in einer Transaktion:
 // ein Mitglied ohne Mitgliedschaft darf nicht entstehen.

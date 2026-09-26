@@ -153,8 +153,6 @@ var deutsch = map[string]string{
 	// der Mitgliederliste (Ticket 02, app.meldung).
 	"meldung.angelegt":            "%s %s wurde angelegt.",
 	"meldung.gespeichert":         "%s %s wurde gespeichert.",
-	"meldung.austritt_erfasst":    "Für %s %s ist der Austritt zum %s erfasst; die Zeile steht jetzt unter »%s«.",
-	"meldung.wiedereingetreten":   "%s %s ist zum %s wieder eingetreten.",
 	"meldung.mitglied_nicht_mehr": "Dieses Mitglied gibt es nicht mehr.",
 	"meldung.bereits_ausgetreten": "Dieses Mitglied ist bereits ausgetreten.",
 	"meldung.bereits_aktiv":       "Dieses Mitglied ist bereits aktiv.",
@@ -445,6 +443,17 @@ var deutsch = map[string]string{
 	"verein.gespeichert": "Die Vereinsdaten wurden gespeichert.",
 	"verein.formular_zu_gross": "Die Formulardaten ließen sich nicht entgegennehmen — das Logo ist " +
 		"größer als %s.",
+
+	// Die Gefahrenzone: ein Testwerkzeug, kein Teil der eigentlichen
+	// Vereinsverwaltung.
+	"verein.gefahrenzone_titel": "Gefahrenzone",
+	"verein.datenbank_loeschen_beschreibung": "Löscht alle Mitglieder, Mitgliedschaften, Dokumente, " +
+		"Trainingstermine und Vereinsdaten unwiderruflich und legt die Datenbank leer neu an — nur zu " +
+		"Testzwecken.",
+	"verein.datenbank_loeschen_knopf": "Datenbank löschen",
+	"verein.datenbank_loeschen_bestaetigung": "Wirklich die gesamte Datenbank löschen? Das lässt sich " +
+		"nicht rückgängig machen.",
+	"verein.datenbank_geloescht": "Die Datenbank wurde geleert.",
 
 	// validierung.* sind die Meldungen aus service/, dort als
 	// *service.ValidierungsFehler mit Schlüssel statt fertigem Text gebaut

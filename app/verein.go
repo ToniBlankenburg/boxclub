@@ -133,6 +133,19 @@ func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
 	a.vereinRendern(w, meldung{Text: i18n.Text(a.Sprache(), "verein.gespeichert")}, nil)
 }
 
+// datenbankLoeschen leert die gesamte Datenbank — ausschließlich zu
+// Testzwecken (service.MemberService.DatenbankZuruecksetzen). Eine
+// Rückfrage im Browser sichert das schon ab (siehe verein.html, hx-confirm);
+// hier gibt es deshalb keine zweite.
+func (a *App) datenbankLoeschen(w http.ResponseWriter, r *http.Request) {
+	if err := a.svc.DatenbankZuruecksetzen(); err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+
+	a.vereinRendern(w, meldung{Text: i18n.Text(a.Sprache(), "verein.datenbank_geloescht")}, nil)
+}
+
 // vereinLogo liefert das hinterlegte Vereinslogo aus — der einzige Weg, auf
 // dem das Bild außerhalb eines erzeugten PDFs zu sehen ist (CONTEXT.md →
 // Vereinslogo). Ohne Logo antwortet die Route mit 404: die Ansicht bindet den

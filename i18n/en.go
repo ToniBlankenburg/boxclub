@@ -130,8 +130,6 @@ var englisch = map[string]string{
 
 	"meldung.angelegt":            "%s %s was added.",
 	"meldung.gespeichert":         "%s %s was saved.",
-	"meldung.austritt_erfasst":    "The exit for %s %s is recorded as of %s; the row is now listed under \"%s\".",
-	"meldung.wiedereingetreten":   "%s %s rejoined as of %s.",
 	"meldung.mitglied_nicht_mehr": "This member no longer exists.",
 	"meldung.bereits_ausgetreten": "This member has already left.",
 	"meldung.bereits_aktiv":       "This member is already active.",
@@ -358,6 +356,13 @@ var englisch = map[string]string{
 		"goes — for example the reference to § 19 UStG. The app does not check any of it.",
 	"verein.gespeichert":       "The club data was saved.",
 	"verein.formular_zu_gross": "The form data could not be accepted — the logo is larger than %s.",
+
+	"verein.gefahrenzone_titel": "Danger zone",
+	"verein.datenbank_loeschen_beschreibung": "Deletes all members, memberships, documents, training " +
+		"sessions and club data irrevocably and recreates an empty database — for testing purposes only.",
+	"verein.datenbank_loeschen_knopf":        "Delete database",
+	"verein.datenbank_loeschen_bestaetigung": "Really delete the entire database? This cannot be undone.",
+	"verein.datenbank_geloescht":             "The database was cleared.",
 
 	// validierung.* — see the German catalog's comment (Ticket 07, ADR-0018).
 	"validierung.mitglied.vorname_leer":    "First name must not be empty.",
