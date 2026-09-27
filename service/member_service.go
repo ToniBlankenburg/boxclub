@@ -453,11 +453,127 @@ func (s *MemberService) migrate() error {
 		return fmt.Errorf("schema anlegen: %w", err)
 	}
 
+	if err := s.spaltenErgaenzen(); err != nil {
+		return err
+	}
+
 	if _, err := s.db.Exec(vereinsdatenZeile); err != nil {
 		return fmt.Errorf("zeile der vereinsdaten anlegen: %w", err)
 	}
 
 	return nil
+}
+
+// spaltenNachtraege sind Spalten, die nach der ursprünglichen Anlage ihrer
+// Tabelle hinzukamen. CREATE TABLE IF NOT EXISTS oben legt eine ganz neue
+// Tabelle mit dem vollen, aktuellen Schema an, ändert aber eine bereits
+// bestehende Tabelle nicht — eine Datenbank, die eine dieser Spalten noch
+// nicht kennt (etwa eine seit Monaten laufende Installation), bekäme sie ohne
+// diese Liste nie, und jede Abfrage, die sie braucht, schlüge fehl ("no such
+// column"). GetVereinsdaten war der Anlass (logo/logo_mime/
+// moneymoney_verwendungszweck, ADR-0012/ADR-0016), aber dieselbe Lücke betrifft
+// mitglied und mitgliedschaft genauso.
+//
+// Jede Spalte hier ist mit ihrem Schema-Default nachgezogen: der Default
+// bedeutet in jedem Fall exakt "diese Zeile kannte die Angabe noch nicht" und
+// nicht irgendeinen geratenen Wert — sonst wäre das Nachziehen eine stille
+// Falschaussage statt einer Lücke.
+//
+// beitrag_monatlich_cents steht deshalb bewusst NICHT hier: vor dessen
+// Einführung gab es die inzwischen entfernte Beitragsklasse mit einem eigenen
+// Satz, und 0 € ist dort ein gültiger, aber anderer Beitrag als "unbekannt"
+// (CONTEXT.md → Beitrag) — anders als bei anmeldegebuehr_cents, wo der Verein
+// "keine erhoben" und "0 €" bewusst gleichsetzt (CONTEXT.md → Anmeldegebühr).
+// Eine Datenbank aus dieser sehr frühen Zeit bräuchte eine echte
+// Datenübernahme aus der (längst entfernten) beitragsklasse-Tabelle, keinen
+// Default, und bricht hier weiterhin kontrolliert mit einer klaren
+// Fehlermeldung ab, statt Beiträge stillschweigend auf 0 zu setzen.
+var spaltenNachtraege = []struct {
+	tabelle, spalte, definition string
+}{
+	// mitglied: vor ADR-0006 gab es bezahlt_bis statt Rückstand.
+	{"mitglied", "rueckstand", "INTEGER NOT NULL DEFAULT 0"},
+	{"mitglied", "rueckstand_notiz", "TEXT NOT NULL DEFAULT ''"},
+	// mitglied: die Anschrift war ursprünglich ein einzelnes Feld
+	// (CONTEXT.md → Anschrift).
+	{"mitglied", "postleitzahl", "TEXT NOT NULL DEFAULT ''"},
+	{"mitglied", "ort", "TEXT NOT NULL DEFAULT ''"},
+	{"mitglied", "iban", "TEXT NOT NULL DEFAULT ''"},
+	{"mitglied", "geschlecht", "TEXT NOT NULL DEFAULT ''"},
+	{"mitglied", "google_bewertung", "INTEGER NOT NULL DEFAULT 0"},
+
+	// mitgliedschaft: Anmeldedatum/-gebühr, Kündigungsdatum und Ruhend kamen
+	// nacheinander dazu, alle mit demselben Grundgedanken: ohne Angabe fehlt
+	// die Information, sie ist nicht falsch gesetzt.
+	{"mitgliedschaft", "anmeldedatum", "TEXT"},
+	{"mitgliedschaft", "anmeldegebuehr_cents", "INTEGER NOT NULL DEFAULT 0"},
+	{"mitgliedschaft", "kuendigungsdatum", "TEXT"},
+	{"mitgliedschaft", "ruhend", "INTEGER NOT NULL DEFAULT 0"},
+	{"mitgliedschaft", "anmeldegebuehr_eingezogen", "INTEGER NOT NULL DEFAULT 0"},
+
+	// vereinsdaten: Logo (ADR-0012) und eigener MoneyMoney-Verwendungszweck
+	// (ADR-0016) kamen zuletzt dazu — der ursprüngliche Auslöser dieses Fixes
+	// (GetVereinsdaten scheiterte an "no such column: logo").
+	{"vereinsdaten", "logo", "BLOB"},
+	{"vereinsdaten", "logo_mime", "TEXT NOT NULL DEFAULT ''"},
+	{"vereinsdaten", "moneymoney_verwendungszweck", "TEXT NOT NULL DEFAULT ''"},
+}
+
+// spaltenErgaenzen zieht an einer bereits bestehenden Tabelle jede Spalte aus
+// spaltenNachtraege nach, die dort noch fehlt. Wiederholt aufrufbar: eine
+// bereits ergänzte Spalte wird beim nächsten Start übersprungen statt einen
+// "duplicate column"-Fehler zu werfen.
+func (s *MemberService) spaltenErgaenzen() error {
+	vorhandeneSpalten := make(map[string]map[string]bool)
+
+	for _, sp := range spaltenNachtraege {
+		if vorhandeneSpalten[sp.tabelle] == nil {
+			spalten, err := s.spaltenVon(sp.tabelle)
+			if err != nil {
+				return fmt.Errorf("spalten von %s lesen: %w", sp.tabelle, err)
+			}
+			vorhandeneSpalten[sp.tabelle] = spalten
+		}
+
+		if vorhandeneSpalten[sp.tabelle][sp.spalte] {
+			continue
+		}
+
+		stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", sp.tabelle, sp.spalte, sp.definition)
+		if _, err := s.db.Exec(stmt); err != nil {
+			return fmt.Errorf("spalte %s.%s ergänzen: %w", sp.tabelle, sp.spalte, err)
+		}
+		vorhandeneSpalten[sp.tabelle][sp.spalte] = true
+	}
+
+	return nil
+}
+
+// spaltenVon liefert die Namen der vorhandenen Spalten einer Tabelle über
+// PRAGMA table_info — der Weg, auf dem SQLite das eigene Schema preisgibt.
+// tabelle kommt ausschließlich aus spaltenNachtraege oben, nie von außen; ein
+// Platzhalter ist in PRAGMA-Anweisungen ohnehin nicht zulässig.
+func (s *MemberService) spaltenVon(tabelle string) (map[string]bool, error) {
+	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", tabelle))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	spalten := make(map[string]bool)
+	for rows.Next() {
+		var (
+			cid, notnull, pk int
+			name, ctype      string
+			dflt             sql.NullString
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		spalten[name] = true
+	}
+
+	return spalten, rows.Err()
 }
 
 // DatenbankZuruecksetzen leert die gesamte Datenbank und legt sie wieder im
