@@ -91,17 +91,23 @@ function spaltenAnwenden() {
         zelle.colSpan = Math.max(1, sichtbar.length);
     });
 
-    document.querySelectorAll('[data-spalten-kasten]').forEach((kasten) => {
-        kasten.checked = sichtbar.includes(kasten.value);
+    // Das Fallback-Element am Ende der Kopfzeile (ADR-0020) zeigt je einen
+    // Knopf zum Wiedereinblenden — aber nur für Spalten, die gerade
+    // tatsächlich versteckt sind; die übrigen bleiben hier verborgen.
+    document.querySelectorAll('[data-spalten-zeigen]').forEach((knopf) => {
+        knopf.hidden = sichtbar.includes(knopf.getAttribute('data-spalten-zeigen'));
     });
 
-    // Der Zähler neben "Spalten" (ADR-0015) zeigt, wie viele der sechs
-    // ausblendbaren Spalten gerade versteckt sind — Go kennt diesen Wert nie,
-    // er lebt ausschließlich hier.
+    // Der Zähler am Fallback-Element zeigt, wie viele der sechs ausblendbaren
+    // Spalten gerade versteckt sind — Go kennt diesen Wert nie, er lebt
+    // ausschließlich hier.
     const versteckt = spaltenAusblendbar.length - sichtbar.length;
-    document.querySelectorAll('[data-spalten-badge]').forEach((badge) => {
+    document.querySelectorAll('[data-spalten-fallback-badge]').forEach((badge) => {
         badge.textContent = versteckt;
         badge.hidden = versteckt === 0;
+    });
+    document.querySelectorAll('[data-spalten-fallback-leer]').forEach((hinweis) => {
+        hinweis.hidden = versteckt !== 0;
     });
 
     sortierfallbackPruefen(sichtbar);
@@ -137,8 +143,6 @@ function sortierfallbackPruefen(sichtbar) {
     if (geschlecht && geschlecht.value) parameter.set('geschlecht', geschlecht.value);
     const termin = document.getElementById('filter-termin');
     if (termin && termin.value) parameter.set('termin', termin.value);
-    const ehemalige = document.getElementById('filter-ehemalige');
-    if (ehemalige && ehemalige.checked) parameter.set('ehemalige', '1');
     // sort und richtung bleiben weg: der fehlende Wert ist bereits der
     // Standard "Name, aufsteigend" (service.Sortierung-Nullwert).
 
@@ -154,30 +158,53 @@ function sortierfallbackPruefen(sichtbar) {
 // Inline-Formular ersetzt.
 document.body.addEventListener('htmx:afterSwap', spaltenAnwenden);
 
-// Ein Kästchen im Spaltenmenü ändert sich: neu speichern und sofort anwenden.
-document.body.addEventListener('change', (ereignis) => {
-    if (!ereignis.target.matches('[data-spalten-kasten]')) {
+// "Spalte ausblenden" im Zahnrad-Menü einer Spalte (ADR-0020): sie fliegt aus
+// der sichtbaren Auswahl, ihr eigenes Zahnrad verschwindet damit gleich mit —
+// wiederzufinden ist sie über das Fallback-Element am Ende der Kopfzeile.
+document.body.addEventListener('click', (ereignis) => {
+    const knopf = ereignis.target.closest('[data-spalten-verstecken]');
+    if (!knopf) {
         return;
     }
 
-    const sichtbar = spaltenAusblendbar.filter((spalte) => {
-        const kasten = document.querySelector(`[data-spalten-kasten][value="${spalte}"]`);
-        return !kasten || kasten.checked;
-    });
+    const spalte = knopf.getAttribute('data-spalten-verstecken');
+    const sichtbar = sichtbareSpaltenLesen().filter((s) => s !== spalte);
     sichtbareSpaltenSchreiben(sichtbar);
     spaltenAnwenden();
 });
 
-// "Alle anzeigen" im Spaltenmenü setzt alle sechs Kästchen auf einmal zurück
-// statt jedes einzeln (ADR-0015).
+// Ein Knopf im Fallback-Element blendet seine Spalte wieder ein.
 document.body.addEventListener('click', (ereignis) => {
-    if (!ereignis.target.closest('[data-spalten-alle-anzeigen]')) {
+    const knopf = ereignis.target.closest('[data-spalten-zeigen]');
+    if (!knopf) {
         return;
     }
 
-    sichtbareSpaltenSchreiben(spaltenAusblendbar.slice());
+    const spalte = knopf.getAttribute('data-spalten-zeigen');
+    const sichtbar = sichtbareSpaltenLesen();
+    if (!sichtbar.includes(spalte)) {
+        // In der Reihenfolge von spaltenAusblendbar wieder einsetzen, statt
+        // ans Ende zu hängen — dieselbe Reihenfolge, in der main.js die
+        // Spalten überall sonst aufzählt.
+        sichtbareSpaltenSchreiben(spaltenAusblendbar.filter((s) => sichtbar.includes(s) || s === spalte));
+    }
     spaltenAnwenden();
 });
+
+// Nur ein Zahnrad-Menü gleichzeitig offen (spec.md, Story 3): sobald eines
+// aufklappt, schließen alle anderen. Das "toggle"-Ereignis eines <details>
+// blubbert nicht — abgefangen wird es deshalb in der Erfassungsphase, die
+// jedes Ereignis unabhängig davon erreicht.
+document.body.addEventListener('toggle', (ereignis) => {
+    const details = ereignis.target;
+    if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-spaltenmenu]') || !details.open) {
+        return;
+    }
+
+    document.querySelectorAll('details[data-spaltenmenu][open]').forEach((andere) => {
+        if (andere !== details) andere.open = false;
+    });
+}, true);
 
 // Das Kästchen in der Kopfzelle der Auswahlspalte (Serienmail) setzt alle
 // sichtbaren Kästchen der Zeilen auf einmal — reine Bedienungshilfe, ohne

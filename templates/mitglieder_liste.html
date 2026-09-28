@@ -27,210 +27,120 @@
     {{template "meldung" .Meldung}}
     <div id="serienmail-ergebnis"></div>
 
-    {{template "mitglieder-filterleiste" .}}
+    {{template "mitglieder-werkzeugleiste" .}}
 
     {{/* Nur dieser Bereich wird bei Suche und Filter ausgetauscht — die
-         Filterleiste bleibt stehen, damit das Suchfeld den Fokus behält. */}}
+         Werkzeugleiste bleibt stehen, damit das Suchfeld den Fokus behält.
+         Die Spaltenfilter selbst liegen seit ADR-0020 zwar innerhalb dieses
+         Bereichs (an den Zahnrädern der Kopfzeile), verlieren dabei aber
+         nichts: ihr Wert kommt bei jedem Austausch frisch aus der
+         Adresszeile, anders als der Tippzustand im Suchfeld. */}}
     <div id="mitglieder-ergebnis">
         {{template "mitglieder-ergebnis" .}}
     </div>
 </div>
 {{end}}
 
-{{/* mitglieder-filterleiste ist die Steuerung über der Liste. Jede Änderung
-     holt das Ergebnis neu; gesucht und gefiltert wird ausschließlich im
-     Service, hier verlassen nur die Rohwerte das Formular. Die Daten sind
-     listeDaten.
+{{/* mitglieder-werkzeugleiste ist die Steuerung über der Liste: Suchfeld und
+     Reset-Knopf. Die eigentlichen Filter sitzen seit ADR-0020 verteilt an
+     den Zahnrad-Icons der Spaltenköpfe (siehe "mitglieder-ergebnis" unten,
+     Zellen mit data-spaltenmenu) — hier steht nur noch, was zu keiner
+     einzelnen Spalte gehört: Volltextsuche und das Zurücksetzen aller
+     Filter auf einmal. Die Daten sind listeDaten.
 
-     Eine Zeile mit Suche und Aktionen, darunter ein Filterpanel, das nur
-     aufklappt, wenn tatsächlich gefiltert wird oder jemand es öffnet
-     (ADR-0015; löst ADR-0014 ab). Suche, Zurücksetzen und Spalten teilen
-     sich die ruhige obere Zeile; die vier Filter treten erst hervor, wenn
-     sie gebraucht werden, statt dauerhaft mitzulaufen.
-
-     Alle Kontrollen, die den Server befragen — Suchfeld, alle Filter,
-     Ehemalige-Kästchen — sind Geschwister, nicht Kinder des Formulars: das
-     Formular selbst steht daneben, leer und ohne eigene Box (kein
-     "display:flex" o.ä.), und jedes Feld hängt per HTML-Attribut "form" an
-     ihm, statt sein DOM-Kind zu sein.
-     Der naheliegendere Weg — die Felder als Kinder *in* das Formular zu
-     schachteln — wurde probiert und wieder verworfen: das Formular wäre dann
-     selbst ein Flex-Kind seiner Zeile und bräche bei schmalem Fenster
-     *innerhalb seiner eigenen Box* ein zweites Mal um, während Aktionen
-     daneben auf halber Höhe der so entstandenen Zeilen schweben — ein
-     verschachtelter Umbruch, den niemand vorhersagen kann. "display:
-     contents" auf dem Formular sollte das umgehen, deckte aber einen echten
-     Chromium-Bug auf: das einzelne Feld, das dann allein umbricht, bekommt
-     die volle Breite der Zeile *davor* zugewiesen statt seiner eigenen
-     Inhaltsbreite — eine riesige Lücke vor "Zurücksetzen". Das "form"-Attribut
-     ist der robustere Weg zum selben Ziel: die Formularzugehörigkeit ist eine
-     reine HTML-Verknüpfung über die ID, unabhängig von der DOM-Verschachtelung
-     und vom Layout — htmx sammelt die Werte trotzdem vollständig ein, weil
-     `HTMLFormElement.elements` (und damit `FormData`) extern verknüpfte Felder
-     genauso einschließt wie verschachtelte. */}}
-{{define "mitglieder-filterleiste"}}
+     Suchfeld und Reset-Knopf sind Geschwister eines leeren, unsichtbaren
+     Formulars (form="mitglieder-filter"), nicht seine Kinder — dieselbe
+     Begründung wie vor ADR-0020 (siehe ADR-0015 für den ausführlichen
+     Chromium-Befund): das Formular bräche als eigenes Flex-Kind sonst ein
+     zweites Mal um. Das "form"-Attribut ist rein deklarativ und
+     unabhängig von der DOM-Verschachtelung — htmx sammelt die Werte
+     trotzdem vollständig ein, weil `HTMLFormElement.elements` (und damit
+     `FormData`) extern verknüpfte Felder genauso einschließt wie
+     verschachtelte. Das gilt jetzt auch für die vier Filterfelder selbst,
+     die im Zahnrad-Menü ihrer Spalte stehen (unten in "mitglieder-ergebnis")
+     und trotzdem über dasselbe "form"-Attribut an dieses Formular
+     angebunden sind. */}}
+{{define "mitglieder-werkzeugleiste"}}
 <form id="mitglieder-filter"
       hx-get="/api/mitglieder/ergebnis"
       hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
       {{/* Die Sortierung steht nicht in diesem Formular, sondern als
            verstecktes Feld im Ergebnis selbst (siehe "mitglieder-ergebnis"
            unten) — ein Klick auf eine Kopfzeile rendert nur das Ergebnis neu,
-           nicht die Filterleiste. Eingebunden holt sich Suche und Filter die
+           nicht die Werkzeugleiste. Eingebunden holt sich Suche und Filter die
            zuletzt gewählte Sortierung deshalb von dort: so bleibt ein
            Sortierklick auch dann erhalten, wenn direkt danach gesucht oder
            gefiltert wird (Ticket 27). */}}
       hx-include="#mitglieder-ergebnis"
-      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-ehemalige">
+      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin">
 </form>
 
 {{/* Achtung bei einem weiteren Feld hier: es braucht ein eigenes
      form="mitglieder-filter" — ohne das Attribut sieht es zwar richtig aus,
      wird aber bei jeder Suche und jedem Filter stillschweigend nicht
-     mitgeschickt (siehe die Erklärung bei "mitglieder-filterleiste" oben). */}}
+     mitgeschickt (siehe die Erklärung bei "mitglieder-werkzeugleiste" oben). */}}
 <div class="mb-2 flex items-center justify-between gap-2">
     <input form="mitglieder-filter" id="suchfeld" name="q" type="search" value="{{.Suche.Query}}"
            placeholder="{{t "mitglieder.suche_platzhalter"}}" autocomplete="off"
            aria-label="{{t "mitglieder.suche_aria"}}"
            class="min-w-56 max-w-md flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
-    {{/* Filter, Zurücksetzen und Spalten sind Icon-Buttons rechts von der
-         Suche (ADR-0015). Filter klappt das Panel darunter auf und zu —
-         kein <details>, dessen Inhaltsbox hinge sonst im selben Flex-Kind
-         wie die Suche und bräche dort ein zweites Mal um (siehe die lange
-         Begründung bei "mitglieder-filterleiste" oben); ein reines
-         Kästchen-Umschalten per hx-on:click umgeht das. Zurücksetzen holt
-         die Suche des Formulars nicht mit, sondern die ganze Ansicht in den
-         Standard zurück; Spalten löst ohnehin keinen Server-Aufruf aus
-         (siehe main.js). Alle drei bleiben deshalb außerhalb des Formulars. */}}
-    <div class="flex shrink-0 items-center gap-2">
-        {{/* aria-expanded folgt dem tatsächlichen Anfangszustand des Panels
-             darunter (siehe dort): steht es schon offen, weil ein Filter
-             aktiv ist, soll der Button das nicht als "false" behaupten.
-             main.js' hx-on:click hält den Wert danach synchron. */}}
-        <button type="button" aria-expanded="{{if .AktiveFilterAnzahl}}true{{else}}false{{end}}" aria-controls="mitglieder-filterpanel"
-                class="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                hx-on:click="const p=document.getElementById('mitglieder-filterpanel'); const auf=p.classList.toggle('hidden'); this.setAttribute('aria-expanded', String(!auf))">
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/>
-            </svg>
-            {{t "mitglieder.filter_knopf"}}
-            {{/* id="filter-badge": das /api/mitglieder/ergebnis-Fragment tauscht
-                 nur #mitglieder-ergebnis, nie diese Leiste — der aktuelle Wert
-                 kommt deshalb per hx-swap-oob mit (siehe "filter-badge-oob"
-                 unten und mitgliederErgebnis in app.go). */}}
-            <span id="filter-badge" {{if not .AktiveFilterAnzahl}}hidden{{end}}
-                  class="{{template "zaehler-badge-klasse"}}">{{.AktiveFilterAnzahl}}</span>
-        </button>
-
-        <button type="button" title="{{t "mitglieder.zuruecksetzen_titel"}}" aria-label="{{t "mitglieder.zuruecksetzen_aria"}}"
-                class="rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                hx-get="/api/mitglieder" hx-target="#inhalt" hx-swap="innerHTML">
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
-            </svg>
-        </button>
-
-        {{/* Das Spaltenmenü stellt nur, welche Spalten sichtbar sind — eine
-             Ansichtsvorliebe an diesem einen Rechner, die localStorage trägt
-             und nie durch Go läuft (Ticket 27). Ein Kästchen darin löst
-             keinen Server-Aufruf aus, das erledigt main.js. Name und Nr.
-             stehen nicht zur Wahl — sie identifizieren die Zeile und bleiben
-             immer sichtbar. Der Zähler daneben lebt ebenfalls allein in
-             localStorage: die Badge steht hier serverseitig auf 0 und
-             verborgen, main.js zieht Text und Sichtbarkeit sofort nach
-             jedem Laden nach (spaltenAnwenden). */}}
-        <details class="relative">
-            <summary aria-label="{{t "mitglieder.spalten_aria"}}"
-                     class="flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M4 4v16"/><path d="M12 4v16"/><path d="M20 4v16"/>
-                </svg>
-                {{t "mitglieder.spalten_knopf"}}
-                <span data-spalten-badge hidden class="{{template "zaehler-badge-klasse"}}">0</span>
-            </summary>
-            <div class="absolute right-0 z-10 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
-                <button type="button" data-spalten-alle-anzeigen
-                        class="mb-1 w-full rounded px-2 py-1.5 text-left text-sm font-medium text-[var(--akzent)] hover:bg-neutral-50">
-                    {{t "mitglieder.spalten_alle_anzeigen"}}
-                </button>
-                {{range .AusblendbareSpalten}}
-                    <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
-                        {{/* Checked ist hier nur der Anfangszustand vor dem ersten
-                             Rendern durch main.js — sie gleicht ihn sofort danach
-                             mit localStorage ab (siehe dort, spaltenAnwenden). */}}
-                        <input type="checkbox" class="accent-[var(--akzent)]" data-spalten-kasten value="{{.Schluessel}}" checked>
-                        {{.Beschriftung}}
-                    </label>
-                {{end}}
-            </div>
-        </details>
-    </div>
-</div>
-
-{{/* Aufgeklappt beim ersten Rendern, sobald schon gefiltert ist (z.B. nach
-     einer Rückkehr aus dem Formular) — sonst verschwände ein aktiver Filter
-     scheinbar spurlos hinter einem geschlossenen Panel. */}}
-<div id="mitglieder-filterpanel" class="{{if not .AktiveFilterAnzahl}}hidden {{end}}mb-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-2">
-    <select form="mitglieder-filter" id="filter-rueckstand" name="rueckstand" aria-label="{{t "mitglieder.filter_rueckstand_aria"}}"
-            class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-        {{range .Rueckstandsoptionen}}
-            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
-        {{end}}
-    </select>
-
-    {{/* Die Trainingsfrequenz ist die Anzahl der Termine und steht nirgends in
-         der Datenbank (CONTEXT.md → Trainingsfrequenz); gefiltert wird
-         trotzdem nach ihr, weil der Verein in Frequenzen denkt. */}}
-    <select form="mitglieder-filter" id="filter-frequenz" name="frequenz" aria-label="{{t "mitglieder.filter_frequenz_aria"}}"
-            class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-        {{range .Frequenzoptionen}}
-            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
-        {{end}}
-    </select>
-
-    {{/* Geschlecht ist Freitext; die Auswahl zeigt, was im Bestand steht. */}}
-    <select form="mitglieder-filter" id="filter-geschlecht" name="geschlecht" aria-label="{{t "mitglieder.filter_geschlecht_aria"}}"
-            class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-        {{range .Geschlechtsoptionen}}
-            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
-        {{end}}
-    </select>
-
-    {{/* Nach einem Trainingstermin des Stundenplans: wer ist dafür angemeldet.
-         Eine andere Frage als die Frequenz, die nur zählt. */}}
-    <select form="mitglieder-filter" id="filter-termin" name="termin" aria-label="{{t "mitglieder.filter_termin_aria"}}"
-            class="rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-        {{range .Terminoptionen}}
-            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
-        {{end}}
-    </select>
-
-    <label class="flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700">
-        {{/* Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt
-             ist — genau das macht "nur aktive" zum Standard. */}}
-        <input form="mitglieder-filter" id="filter-ehemalige" name="ehemalige" type="checkbox" value="1"
-               class="accent-[var(--akzent)]" {{if .Suche.Ehemalige}}checked{{end}}>
-        {{t "mitglieder.auch_ehemalige"}}
-    </label>
+    {{/* Setzt alle Spaltenfilter zurück, lässt die Suche aber unangetastet —
+         anders als das alte Zurücksetzen vor ADR-0020, das die ganze Ansicht
+         auf ihren Standard zurückwarf. hx-include zählt hier bewusst nur
+         Suchfeld und Sortierung auf statt des ganzen #mitglieder-ergebnis:
+         alles andere sind Filter, die verschwinden sollen. */}}
+    <button type="button" title="{{t "mitglieder.zuruecksetzen_titel"}}" aria-label="{{t "mitglieder.zuruecksetzen_aria"}}"
+            class="shrink-0 rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+            hx-get="/api/mitglieder/ergebnis"
+            hx-include="#suchfeld, [name='sort'], [name='richtung']"
+            hx-target="#mitglieder-ergebnis" hx-swap="innerHTML">
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+        </svg>
+    </button>
 </div>
 {{end}}
 
-{{/* zaehler-badge-klasse ist die gemeinsame Optik der kleinen Zähler-Kreise
-     an "Filter" und "Spalten" — einmal notiert, an beiden Stellen
-     eingesetzt, damit eine spätere Anpassung nicht eine der beiden
-     vergisst. */}}
+{{/* zaehler-badge-klasse ist die Optik des kleinen Zähler-Kreises am
+     Fallback-Element für ausgeblendete Spalten (siehe "spalten-fallback"
+     unten). */}}
 {{define "zaehler-badge-klasse"}}inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--akzent)] px-1 text-[10px] font-semibold text-white{{end}}
+
+{{/* zahnrad-icon ist das Symbol jedes Spalten-Zahnrads: umrissen im
+     Ruhezustand, gefüllt (fill statt stroke, derselbe Pfad), wenn mindestens
+     einer der Filter der zugehörigen Spalte gerade eingrenzt (ADR-0020). Die
+     Daten sind ein bool. */}}
+{{define "zahnrad-icon"}}
+<svg class="size-4" viewBox="0 0 24 24" fill="{{if .}}currentColor{{else}}none{{end}}" stroke="currentColor" stroke-width="{{if .}}0{{else}}2{{end}}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3"></circle>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+</svg>
+{{end}}
+
+{{/* spalte-ausblenden-aktion ist die "Spalte ausblenden"-Zeile am Ende
+     jedes Zahnrad-Menüs, das eine ausblendbare Spalte hat — data-spalten-
+     verstecken löst kein Server-Aufruf aus, main.js entfernt die Spalte
+     rein client-seitig aus der localStorage-Auswahl (wie bisher das
+     "Spalten"-Menü, jetzt aber verteilt statt an einer Stelle gesammelt).
+     Die Daten sind der Spaltenschlüssel als Zeichenkette, z. B. "training". */}}
+{{define "spalte-ausblenden-aktion"}}
+<button type="button" data-spalten-verstecken="{{.}}"
+        class="w-full rounded px-2 py-1.5 text-left text-sm text-neutral-600 hover:bg-neutral-50">
+    {{t "mitglieder.spalte_ausblenden_knopf" (t (printf "spalte.%s" .))}}
+</button>
+{{end}}
 
 {{/* mitglieder-ergebnis ist der Teil, den Suche und Filter austauschen. Die
      Daten sind listeDaten. */}}
 {{define "mitglieder-ergebnis"}}
 {{/* Die Sortierung reist als verstecktes Feld mit diesem Fragment statt mit
-     der Filterleiste (siehe deren hx-include, "mitglieder-filterleiste" oben)
-     — ein Klick auf eine Kopfzeile ersetzt nur dieses Fragment, nicht das
-     Formular. Zwei Adressen greifen darauf zu: main.js liest den Wert von
+     der Werkzeugleiste (siehe deren hx-include, "mitglieder-werkzeugleiste"
+     oben) — ein Klick auf eine Kopfzeile ersetzt nur dieses Fragment, nicht
+     das Formular. Zwei Adressen greifen darauf zu: main.js liest den Wert von
      "sort", um bei einer ausgeblendeten aktiven Sortierspalte auf Namen
-     zurückzufallen, und die Filterleiste bindet beide über ihr eigenes
-     hx-include ein. */}}
+     zurückzufallen, und das Formular der Werkzeugleiste bindet beide über
+     sein eigenes hx-include ein. */}}
 <input type="hidden" name="sort" value="{{.Suche.Sortierspalte}}">
 <input type="hidden" name="richtung" value="{{.Suche.Sortierrichtung}}">
 {{if .Eintraege}}
@@ -307,20 +217,156 @@
                     </th>
                     <th class="w-16 px-4 py-2 font-medium" title="{{t "mitglieder.mitglieds_id_titel"}}"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
+                    {{/* Name ist nicht ausblendbar und bekommt deshalb keine
+                         "Spalte ausblenden"-Aktion — ihr Zahnrad trägt trotzdem
+                         den Geschlecht-Filter, weil Geschlecht keine eigene
+                         Spalte hat (ADR-0020, Auflösung des Widerspruchs
+                         zwischen Story 9 und Story 20 aus spec.md). */}}
                     <th class="relative min-w-[7rem] px-4 py-2 font-medium" data-col="name"
-                        aria-sort="{{.SpaltenkopfName.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfName}}{{template "spaltengriff" "name"}}</th>
+                        aria-sort="{{.SpaltenkopfName.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfName}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.name")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" .AktivGeschlecht}}
+                            </summary>
+                            <div class="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-geschlecht">{{t "mitglieder.filter_geschlecht_aria"}}</label>
+                                <select form="mitglieder-filter" id="filter-geschlecht" name="geschlecht" aria-label="{{t "mitglieder.filter_geschlecht_aria"}}"
+                                        class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                    {{range .Geschlechtsoptionen}}
+                                        <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+                                    {{end}}
+                                </select>
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "name"}}
+                    </th>
+                    {{/* Status trägt in diesem Ticket noch keinen eigenen
+                         Filter (kommt in Ticket 02) — das Zahnrad-Menü enthält
+                         bis dahin nur "Spalte ausblenden". */}}
                     <th class="relative w-36 px-4 py-2 font-medium" data-col="status"
-                        aria-sort="{{.SpaltenkopfStatus.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfStatus}}{{template "spaltengriff" "status"}}</th>
+                        aria-sort="{{.SpaltenkopfStatus.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfStatus}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.status")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" false}}
+                            </summary>
+                            <div class="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                {{template "spalte-ausblenden-aktion" "status"}}
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "status"}}
+                    </th>
+                    {{/* Anschrift bekommt bewusst nie einen Filter (spec.md,
+                         Out of Scope) — ihr Zahnrad-Menü enthält dauerhaft nur
+                         "Spalte ausblenden". */}}
                     <th class="relative w-56 px-4 py-2 font-medium" data-col="anschrift"
-                        aria-sort="{{.SpaltenkopfAnschrift.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfAnschrift}}{{template "spaltengriff" "anschrift"}}</th>
+                        aria-sort="{{.SpaltenkopfAnschrift.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfAnschrift}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.anschrift")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" false}}
+                            </summary>
+                            <div class="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                {{template "spalte-ausblenden-aktion" "anschrift"}}
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "anschrift"}}
+                    </th>
+                    {{/* Training bündelt Frequenz- und Termin-Filter im selben
+                         Menü, weil beide dieselbe Spalte betreffen (spec.md,
+                         Story 8). */}}
                     <th class="relative w-48 px-4 py-2 font-medium" data-col="training"
-                        aria-sort="{{.SpaltenkopfTraining.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfTraining}}{{template "spaltengriff" "training"}}</th>
+                        aria-sort="{{.SpaltenkopfTraining.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfTraining}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.training")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" .AktivTraining}}
+                            </summary>
+                            <div class="absolute left-0 top-full z-20 mt-1 w-56 space-y-2 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-frequenz">{{t "mitglieder.filter_frequenz_aria"}}</label>
+                                    <select form="mitglieder-filter" id="filter-frequenz" name="frequenz" aria-label="{{t "mitglieder.filter_frequenz_aria"}}"
+                                            class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                        {{range .Frequenzoptionen}}
+                                            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-termin">{{t "mitglieder.filter_termin_aria"}}</label>
+                                    <select form="mitglieder-filter" id="filter-termin" name="termin" aria-label="{{t "mitglieder.filter_termin_aria"}}"
+                                            class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                        {{range .Terminoptionen}}
+                                            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                                <hr class="border-neutral-200">
+                                {{template "spalte-ausblenden-aktion" "training"}}
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "training"}}
+                    </th>
+                    {{/* Beitrag trägt in diesem Ticket noch keinen eigenen
+                         Filter (kommt in Ticket 03). */}}
                     <th class="relative w-24 px-4 py-2 text-right font-medium" data-col="beitrag"
-                        aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfBeitrag}}{{template "spaltengriff" "beitrag"}}</th>
+                        aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfBeitrag}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.beitrag")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" false}}
+                            </summary>
+                            <div class="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                {{template "spalte-ausblenden-aktion" "beitrag"}}
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "beitrag"}}
+                    </th>
                     <th class="relative w-48 px-4 py-2 font-medium" data-col="rueckstand"
-                        aria-sort="{{.SpaltenkopfRueckstand.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfRueckstand}}{{template "spaltengriff" "rueckstand"}}</th>
+                        aria-sort="{{.SpaltenkopfRueckstand.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfRueckstand}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.rueckstand")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" .AktivRueckstand}}
+                            </summary>
+                            <div class="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-rueckstand">{{t "mitglieder.filter_rueckstand_aria"}}</label>
+                                <select form="mitglieder-filter" id="filter-rueckstand" name="rueckstand" aria-label="{{t "mitglieder.filter_rueckstand_aria"}}"
+                                        class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                    {{range .Rueckstandsoptionen}}
+                                        <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+                                    {{end}}
+                                </select>
+                                <hr class="my-2 border-neutral-200">
+                                {{template "spalte-ausblenden-aktion" "rueckstand"}}
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "rueckstand"}}
+                    </th>
+                    {{/* Eintritt trägt in diesem Ticket noch keinen eigenen
+                         Filter (kommt in Ticket 04). */}}
                     <th class="relative w-56 px-4 py-2 font-medium" data-col="eintritt"
-                        aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfEintritt}}{{template "spaltengriff" "eintritt"}}</th>
+                        aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">
+                        {{template "spaltenkopf" .SpaltenkopfEintritt}}
+                        <details class="relative inline-block align-middle" data-spaltenmenu>
+                            <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.eintritt")}}"
+                                     class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+                                {{template "zahnrad-icon" false}}
+                            </summary>
+                            <div class="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                {{template "spalte-ausblenden-aktion" "eintritt"}}
+                            </div>
+                        </details>
+                        {{template "spaltengriff" "eintritt"}}
+                    </th>
+                    {{template "spalten-fallback" .}}
                 </tr>
             </thead>
             <tbody>
@@ -342,32 +388,45 @@
 {{end}}
 {{end}}
 
-{{/* filter-badge-oob aktualisiert den Zähler am "Filter"-Button außerhalb
-     von #mitglieder-ergebnis, wenn nur dieses Fragment getauscht wird —
-     genau das Muster, das navigation.html für die Bereichsumschaltung
-     nutzt: hx-swap-oob="true" auf einem Element mit passender ID, als
-     direktes Geschwister im Antworttext (sonst erkennt htmx den Austausch
-     nicht, siehe dort). Eingesetzt wird sie ausschließlich über
-     "mitglieder-ergebnis-mit-filterbadge" unten — "mitglieder-ergebnis"
-     selbst bleibt unverändert, weil es auch beim vollständigen Rendern der
-     ganzen Ansicht läuft, wo der Zähler ohnehin frisch aus der
-     Filterleiste kommt. Die Daten sind listeDaten. */}}
-{{define "filter-badge-oob"}}
-<span id="filter-badge" hx-swap-oob="true" {{if not .AktiveFilterAnzahl}}hidden{{end}}
-      class="{{template "zaehler-badge-klasse"}}">{{.AktiveFilterAnzahl}}</span>
+{{/* spalten-fallback ist das permanent sichtbare "+"-Element am Ende der
+     Kopfzeile (ADR-0020): eine ausgeblendete Spalte verliert ihr eigenes
+     Zahnrad mit sich selbst, hier lässt sie sich wiederfinden. Läuft wie die
+     Spaltensichtbarkeit selbst vollständig client-seitig über localStorage
+     (frontend/src/main.js) — Go rendert alle sechs ausblendbaren Spalten
+     als Einträge, hidden ist hier nur der Anfangszustand vor dem ersten
+     Rendern durch main.js (spaltenAnwenden), die ihn sofort danach mit der
+     tatsächlichen Auswahl abgleicht: sichtbar bleibt nur, was gerade
+     versteckt ist. Die Daten sind listeDaten. */}}
+{{define "spalten-fallback"}}
+<th class="w-10 px-2 py-2 text-right font-medium">
+    <details class="relative inline-block" data-spalten-fallback>
+        <summary aria-label="{{t "mitglieder.spalten_fallback_aria"}}"
+                 class="relative inline-flex list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <span data-spalten-fallback-badge hidden class="absolute -right-2 -top-2 {{template "zaehler-badge-klasse"}}">0</span>
+        </summary>
+        <div class="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+            <p class="mb-1 px-2 text-xs font-medium text-neutral-500">{{t "mitglieder.spalten_fallback_titel"}}</p>
+            {{range .AusblendbareSpalten}}
+                <button type="button" data-spalten-zeigen="{{.Schluessel}}" hidden
+                        class="w-full rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-50">
+                    {{.Beschriftung}}
+                </button>
+            {{end}}
+            <p data-spalten-fallback-leer class="px-2 text-sm text-neutral-400">{{t "mitglieder.spalten_fallback_leer"}}</p>
+        </div>
+    </details>
+</th>
 {{end}}
-
-{{/* mitglieder-ergebnis-mit-filterbadge ist die Antwort auf
-     /api/mitglieder/ergebnis (siehe mitgliederErgebnis in app.go): das
-     Ergebnis-Fragment plus die Out-of-Band-Aktualisierung des
-     Filter-Zählers, als flache Geschwister im selben Antworttext. */}}
-{{define "mitglieder-ergebnis-mit-filterbadge"}}{{template "mitglieder-ergebnis" .}}{{template "filter-badge-oob" .}}{{end}}
 
 {{/* spaltenkopf rendert die klickbare Kopfzeile einer sortierbaren Spalte:
      Beschriftung plus Pfeil, wenn sie gerade die Sortierspalte ist. Der Klick
      holt nur das Ergebnis neu, wie Suche und Filter es auch tun (ADR-0004),
-     und nimmt Suchbegriff und Filter über hx-include mit — sie leben in der
-     Filterleiste außerhalb dieser Zelle. Die Daten sind ein app.spaltenkopf. */}}
+     und nimmt Suchbegriff und Filter über hx-include mit — sie leben jetzt am
+     Zahnrad-Menü ihrer Spalte, das Suchfeld in der Werkzeugleiste außerhalb
+     dieser Zelle (ADR-0020). Die Daten sind ein app.spaltenkopf. */}}
 {{/* spaltengriff rendert den Ziehgriff am rechten Rand einer Kopfzelle, mit
      dem sich ihre Spalte in der Breite ziehen lässt (spaltenbreite.js) — siehe
      die Begründung bei der Mitglieds-ID oben. Die Daten sind die data-col-
@@ -389,7 +448,7 @@
         aria-label="{{t "mitglieder.sortieren_nach" .Beschriftung}}{{if .Aktiv}}{{if eq .AriaSort "ascending"}}{{t "mitglieder.aktuell_aufsteigend"}}{{else}}{{t "mitglieder.aktuell_absteigend"}}{{end}}{{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-ehemalige"
+        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin"
         hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
     {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
 </button>
@@ -525,6 +584,10 @@
     <td class="px-4 py-2 tabular-nums" data-col="eintritt">
         {{datum .Eintritt}}
     </td>
+    {{/* Passt die Zeile an die zusätzliche Kopfzelle des Fallback-Elements
+         an (siehe "spalten-fallback") — ohne eigenen Inhalt, sie identifiziert
+         keine Spalte und trägt deshalb kein data-col. */}}
+    <td class="p-0"></td>
 </tr>
 {{end}}
 

@@ -1,6 +1,6 @@
 # ADR-0015: Mitglieder-Filterleiste mit ausklappbarem Filterpanel
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0020](0020-spaltenfilter-am-zahnrad-statt-filterleiste.md)
 **Datum:** 2026-09-21
 
 ## Kontext

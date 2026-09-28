@@ -410,7 +410,6 @@ type suchEingabe struct {
 	Frequenz   string
 	Geschlecht string
 	Termin     string
-	Ehemalige  bool
 
 	// Sortierspalte und Sortierrichtung sind die Rohwerte eines Klicks auf
 	// eine Kopfzeile (Ticket 27). Sie reisen wie die übrigen Filterwerte über
@@ -427,9 +426,7 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 	werte := r.URL.Query()
 
 	return suchEingabe{
-		Query: werte.Get("q"),
-		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
-		Ehemalige:       werte.Get("ehemalige") != "",
+		Query:           werte.Get("q"),
 		Rueckstand:      werte.Get("rueckstand"),
 		Frequenz:        werte.Get("frequenz"),
 		Geschlecht:      werte.Get("geschlecht"),
@@ -444,7 +441,7 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 // einem selbstgebauten Request stammen, und eine Filterleiste ist kein Ort für
 // Fehlermeldungen.
 func (e suchEingabe) alsSuchfilter() service.Suchfilter {
-	filter := service.Suchfilter{AuchEhemalige: e.Ehemalige}
+	filter := service.Suchfilter{}
 
 	switch e.Rueckstand {
 	case rueckstandImRueckstand:
@@ -541,28 +538,15 @@ type listeDaten struct {
 	Termine          []service.Trainingstermin
 }
 
-// AktiveFilterAnzahl zählt die vom Standard abweichenden Filter — für die
-// Badge am Filter-Button (ADR-0015) und um das Filterpanel beim Rendern
-// offen zu lassen, wenn schon eingegrenzt ist.
-func (d listeDaten) AktiveFilterAnzahl() int {
-	n := 0
-	if d.Suche.Rueckstand != rueckstandAlle {
-		n++
-	}
-	if d.Suche.Frequenz != frequenzAlle {
-		n++
-	}
-	if d.Suche.Geschlecht != geschlechtAlle {
-		n++
-	}
-	if d.Suche.Termin != terminAlle {
-		n++
-	}
-	if d.Suche.Ehemalige {
-		n++
-	}
-	return n
+// AktivRueckstand, AktivTraining und AktivGeschlecht sagen, ob der Filter
+// hinter dem jeweiligen Spalten-Zahnrad vom Nullwert abweicht — für dessen
+// gefüllten statt umrissenen Zustand (ADR-0020). Training bündelt Frequenz
+// und Termin, weil beide im selben Zahnrad-Menü stehen (spec.md, Story 8).
+func (d listeDaten) AktivRueckstand() bool { return d.Suche.Rueckstand != rueckstandAlle }
+func (d listeDaten) AktivTraining() bool {
+	return d.Suche.Frequenz != frequenzAlle || d.Suche.Termin != terminAlle
 }
+func (d listeDaten) AktivGeschlecht() bool { return d.Suche.Geschlecht != geschlechtAlle }
 
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
 // sich dann anders: "nichts gefunden" statt "noch nichts erfasst".
@@ -728,7 +712,7 @@ func (a *App) mitgliederErgebnis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.rendern(w, "mitglieder-ergebnis-mit-filterbadge", daten)
+	a.rendern(w, "mitglieder-ergebnis", daten)
 }
 
 // mitgliederSerienmail bereitet die Serienmail an die angekreuzten Zeilen der
