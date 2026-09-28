@@ -19,7 +19,7 @@ import (
 func sortiert(t *testing.T, svc *service.MemberService, sortierung service.Sortierung) []string {
 	t.Helper()
 
-	liste, err := svc.Search("", service.Suchfilter{AuchEhemalige: true, Sortierung: sortierung})
+	liste, err := svc.Search("", service.Suchfilter{Sortierung: sortierung})
 	if err != nil {
 		t.Fatalf("Search mit Sortierung %+v: %v", sortierung, err)
 	}
@@ -67,25 +67,26 @@ func TestSearch_SortiertNachMitgliedIDNumerisch(t *testing.T) {
 }
 
 // TestSearch_SortiertNachStatusLebenszyklusNichtAlphabetisch: Neu, Aktiv, In
-// Kündigungsfrist, Ausgetreten — in dieser Reihenfolge, weil es die des
-// Lebenszyklus ist (status.go). Die Namen sind bewusst so gewählt, dass die
-// alphabetische Reihenfolge eine andere wäre — käme sie stattdessen zum
-// Zug, fiele das hier auf.
+// Kündigungsfrist — in dieser Reihenfolge, weil es die des Lebenszyklus ist
+// (status.go). Die Namen sind bewusst so gewählt, dass die alphabetische
+// Reihenfolge eine andere wäre — käme sie stattdessen zum Zug, fiele das
+// hier auf.
+//
+// Ausgetreten bleibt hier außen vor: seit Ticket 02 lädt Search Ausgetretene
+// nur noch exklusiv über StatusfilterAusgetreten, nie gemischt mit den
+// übrigen drei Zuständen (siehe Suchfilter.Status) — eine gemeinsame
+// Sortierung mit ihnen lässt sich über die Service-API deshalb nicht mehr
+// beobachten.
 func TestSearch_SortiertNachStatusLebenszyklusNichtAlphabetisch(t *testing.T) {
 	svc := neuerService(t)
 
-	// "Neu" hieße alphabetisch vor "Zumbach" und "Anders" — die erwartete
+	// "Neu" hieße alphabetisch vor "Doerr" und "Meier" — die erwartete
 	// Statusreihenfolge sagt aber, dass "Zumbach" (Neu) zuerst kommt.
 	neuID := mitgliedAnlegenZum(t, svc, "Zumbach", heuteVersetzt(10))
 	aktivID := mitgliedAnlegenZum(t, svc, "Meier", heuteVersetzt(-10))
 
 	kuendigungID := mitgliedAnlegenZum(t, svc, "Doerr", heuteVersetzt(-30))
 	if err := svc.SetKuendigung(kuendigungID, austrittZum(heuteVersetzt(30))); err != nil {
-		t.Fatalf("SetKuendigung: %v", err)
-	}
-
-	ausgetretenID := mitgliedAnlegenZum(t, svc, "Anders", heuteVersetzt(-100))
-	if err := svc.SetKuendigung(ausgetretenID, austrittZum(heuteVersetzt(-1))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
 
@@ -99,14 +100,14 @@ func TestSearch_SortiertNachStatusLebenszyklusNichtAlphabetisch(t *testing.T) {
 
 	auf := sortiert(t, svc, service.Sortierung{Spalte: service.SortierspalteStatus})
 	pruefeReihenfolge(t, auf, []string{
-		namenVon(neuID), namenVon(aktivID), namenVon(kuendigungID), namenVon(ausgetretenID),
+		namenVon(neuID), namenVon(aktivID), namenVon(kuendigungID),
 	})
 
 	ab := sortiert(t, svc, service.Sortierung{
 		Spalte: service.SortierspalteStatus, Richtung: service.SortierrichtungAbsteigend,
 	})
 	pruefeReihenfolge(t, ab, []string{
-		namenVon(ausgetretenID), namenVon(kuendigungID), namenVon(aktivID), namenVon(neuID),
+		namenVon(kuendigungID), namenVon(aktivID), namenVon(neuID),
 	})
 }
 

@@ -267,28 +267,31 @@ func TestSearch_KombiniertFrequenzMitRueckstandUndAktivitaet(t *testing.T) {
 	svc := neuerService(t)
 	suchbestandAnlegen(t, svc)
 
-	// Berger und Klein trainieren beide zweimal; Klein ist ausgetreten.
+	// Berger und Klein trainieren beide zweimal; Klein ist ausgetreten und
+	// steht deshalb nur im exklusiven Statusfilter, nie gemischt mit Berger
+	// in der Standardansicht (Ticket 02).
 	gefunden := suchen(t, svc, "", service.Suchfilter{Frequenz: service.FrequenzfilterZweimal})
 	if !slices.Equal(gefunden, []string{"Berger, Anna"}) {
 		t.Errorf("2× aktiv = %v, erwartet [Berger, Anna]", gefunden)
 	}
 
 	gefunden = suchen(t, svc, "", service.Suchfilter{
-		Frequenz:      service.FrequenzfilterZweimal,
-		AuchEhemalige: true,
-	})
-	if !slices.Equal(gefunden, []string{"Berger, Anna", "Klein, Nina"}) {
-		t.Errorf("2× inkl. Ehemaliger = %v, erwartet [Berger, Anna Klein, Nina]", gefunden)
-	}
-
-	// Von den beiden ist nur Klein im Rückstand.
-	gefunden = suchen(t, svc, "", service.Suchfilter{
-		Frequenz:      service.FrequenzfilterZweimal,
-		Rueckstand:    service.RueckstandsfilterImRueckstand,
-		AuchEhemalige: true,
+		Frequenz: service.FrequenzfilterZweimal,
+		Status:   service.StatusfilterAusgetreten,
 	})
 	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
-		t.Errorf("2× im Rückstand inkl. Ehemaliger = %v, erwartet [Klein, Nina]", gefunden)
+		t.Errorf("2× ausgetreten = %v, erwartet [Klein, Nina]", gefunden)
+	}
+
+	// Klein ist zugleich im Rückstand — der Filter greift auch im exklusiven
+	// Statusfilter weiter.
+	gefunden = suchen(t, svc, "", service.Suchfilter{
+		Frequenz:   service.FrequenzfilterZweimal,
+		Rueckstand: service.RueckstandsfilterImRueckstand,
+		Status:     service.StatusfilterAusgetreten,
+	})
+	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
+		t.Errorf("2× im Rückstand, ausgetreten = %v, erwartet [Klein, Nina]", gefunden)
 	}
 
 	// Und der Suchbegriff muss zusätzlich treffen: Wagner trainiert dreimal und
@@ -306,7 +309,7 @@ func TestSearch_KombiniertFrequenzMitRueckstandUndAktivitaet(t *testing.T) {
 	}
 }
 
-func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAuchEhemalige(t *testing.T) {
+func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAusschliesslichAusgetretene(t *testing.T) {
 	svc := neuerService(t)
 	b := suchbestandAnlegen(t, svc)
 
@@ -315,35 +318,28 @@ func TestSearch_ZeigtStandardmaessigNurAktiveUndAufWunschAuchEhemalige(t *testin
 		t.Errorf("Standardansicht = %v, erwartet nur die Aktiven %v", gefunden, alleAktiven)
 	}
 
-	mitEhemaligen := []string{"Berger, Anna", "Klein, Nina", "Meier-Schmidt, Jörg", "Öztürk, Mehmet", "Wagner, Paul"}
-
-	liste, err := svc.Search("", service.Suchfilter{AuchEhemalige: true})
+	// Seit Ticket 02 lädt StatusfilterAusgetreten Ausgetretene exklusiv —
+	// nicht gemischt mit den Aktiven wie zuvor AuchEhemalige.
+	liste, err := svc.Search("", service.Suchfilter{Status: service.StatusfilterAusgetreten})
 	if err != nil {
-		t.Fatalf("Search mit AuchEhemalige: %v", err)
+		t.Fatalf("Search mit StatusfilterAusgetreten: %v", err)
 	}
-	if !slices.Equal(namen(liste), mitEhemaligen) {
-		t.Errorf("Search mit AuchEhemalige = %v, erwartet %v", namen(liste), mitEhemaligen)
+	if !slices.Equal(namen(liste), []string{"Klein, Nina"}) {
+		t.Errorf("Search mit StatusfilterAusgetreten = %v, erwartet [Klein, Nina]", namen(liste))
 	}
 
-	// Die ehemalige Mitgliedschaft trägt ihr Austrittsdatum mit; die laufenden
-	// bleiben offen. Nur so lässt sich die Zeile als "ehemalig" kennzeichnen.
+	// Die ehemalige Mitgliedschaft trägt ihr Austrittsdatum mit.
 	austritt := datum(t, "2026-06-30")
-	for _, e := range liste {
-		switch {
-		case e.MitgliedID == b.Klein:
-			if e.Austritt == nil || !e.Austritt.Equal(austritt) {
-				t.Errorf("Austritt von Klein = %v, erwartet %v", e.Austritt, austritt)
-			}
-		case e.Austritt != nil:
-			t.Errorf("Austritt von %s %s = %v, erwartet nil (läuft noch)", e.Vorname, e.Nachname, e.Austritt)
-		}
+	if liste[0].MitgliedID != b.Klein {
+		t.Fatalf("MitgliedID = %d, erwartet %d", liste[0].MitgliedID, b.Klein)
+	}
+	if liste[0].Austritt == nil || !liste[0].Austritt.Equal(austritt) {
+		t.Errorf("Austritt von Klein = %v, erwartet %v", liste[0].Austritt, austritt)
 	}
 
 	// Der Eintritt der beendeten Mitgliedschaft steht weiterhin in der Zeile.
-	for _, e := range liste {
-		if e.MitgliedID == b.Klein && !e.Eintritt.Equal(datum(t, "2026-01-05")) {
-			t.Errorf("Eintritt von Klein = %v, erwartet 2026-01-05", e.Eintritt)
-		}
+	if !liste[0].Eintritt.Equal(datum(t, "2026-01-05")) {
+		t.Errorf("Eintritt von Klein = %v, erwartet 2026-01-05", liste[0].Eintritt)
 	}
 }
 
@@ -361,13 +357,14 @@ func TestSearch_KombiniertSucheUndFilter(t *testing.T) {
 		t.Errorf("aktive im Rückstand = %v, erwartet [Öztürk, Mehmet Wagner, Paul]", gefunden)
 	}
 
-	// Derselbe Filter, jetzt auch mit den Ehemaligen: Klein kommt dazu.
-	mitEhemaligen := aktiveImRueckstand
-	mitEhemaligen.AuchEhemalige = true
+	// Derselbe Rückstandsfilter, jetzt exklusiv auf Ausgetretene: nur Klein,
+	// nicht mehr gemischt mit Öztürk und Wagner (Ticket 02).
+	ausgetretenImRueckstand := aktiveImRueckstand
+	ausgetretenImRueckstand.Status = service.StatusfilterAusgetreten
 
-	gefunden = suchen(t, svc, "", mitEhemaligen)
-	if !slices.Equal(gefunden, []string{"Klein, Nina", "Öztürk, Mehmet", "Wagner, Paul"}) {
-		t.Errorf("derselbe Filter inkl. Ehemaliger = %v, erwartet [Klein, Nina Öztürk, Mehmet Wagner, Paul]", gefunden)
+	gefunden = suchen(t, svc, "", ausgetretenImRueckstand)
+	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
+		t.Errorf("derselbe Filter, ausgetreten = %v, erwartet [Klein, Nina]", gefunden)
 	}
 
 	// Query und Filter müssen beide zutreffen.
@@ -393,10 +390,10 @@ func TestSearch_LeererQueryEntsprichtFilterOhneSuche(t *testing.T) {
 		{},
 		{Rueckstand: service.RueckstandsfilterInOrdnung},
 		{Rueckstand: service.RueckstandsfilterImRueckstand},
-		{AuchEhemalige: true},
-		{Rueckstand: service.RueckstandsfilterImRueckstand, AuchEhemalige: true},
+		{Status: service.StatusfilterAusgetreten},
+		{Rueckstand: service.RueckstandsfilterImRueckstand, Status: service.StatusfilterAusgetreten},
 		{Frequenz: service.FrequenzfilterZweimal},
-		{Frequenz: service.FrequenzfilterZweimal, AuchEhemalige: true},
+		{Frequenz: service.FrequenzfilterZweimal, Status: service.StatusfilterAusgetreten},
 		{Frequenz: service.FrequenzfilterDreimal, Rueckstand: service.RueckstandsfilterImRueckstand},
 	}
 
@@ -425,8 +422,12 @@ func TestSearch_LeererQueryEntsprichtFilterOhneSuche(t *testing.T) {
 func pruefeFilter(t *testing.T, e service.Listeneintrag, f service.Suchfilter) {
 	t.Helper()
 
-	if !f.AuchEhemalige && e.Austritt != nil {
-		t.Errorf("%s: ausgetreten, gehört ohne AuchEhemalige nicht ins Ergebnis", e.Nachname)
+	if f.Status == service.StatusfilterAusgetreten {
+		if !e.Status().Ausgetreten() {
+			t.Errorf("%s: %v, erwartet ausgetreten", e.Nachname, e.Status())
+		}
+	} else if e.Status().Ausgetreten() {
+		t.Errorf("%s: ausgetreten, gehört ohne StatusfilterAusgetreten nicht ins Ergebnis", e.Nachname)
 	}
 
 	switch f.Rueckstand {
@@ -479,8 +480,8 @@ func TestSearch_OhneMitgliederIstLeer(t *testing.T) {
 	svc := neuerService(t)
 
 	liste, err := svc.Search("berger", service.Suchfilter{
-		Rueckstand:    service.RueckstandsfilterImRueckstand,
-		AuchEhemalige: true,
+		Rueckstand: service.RueckstandsfilterImRueckstand,
+		Status:     service.StatusfilterAusgetreten,
 	})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -496,10 +497,9 @@ func TestSearch_SortiertErgebnisNachDeutschenRegeln(t *testing.T) {
 	svc := neuerService(t)
 	suchbestandAnlegen(t, svc)
 
-	gefunden := suchen(t, svc, "@example.org", service.Suchfilter{AuchEhemalige: true})
-	erwartet := []string{"Berger, Anna", "Klein, Nina", "Meier-Schmidt, Jörg", "Öztürk, Mehmet", "Wagner, Paul"}
-	if !slices.Equal(gefunden, erwartet) {
-		t.Errorf("Reihenfolge = %v, erwartet %v", gefunden, erwartet)
+	gefunden := suchen(t, svc, "@example.org", service.Suchfilter{})
+	if !slices.Equal(gefunden, alleAktiven) {
+		t.Errorf("Reihenfolge = %v, erwartet %v", gefunden, alleAktiven)
 	}
 }
 
@@ -562,9 +562,9 @@ func TestSearch_MitgliedsIDRespektiertDieFilter(t *testing.T) {
 	// Die ID einer ausgetretenen Person findet sie nur, wenn die Ansicht
 	// Ehemalige einschließt.
 	if gefunden := suchen(t, svc, alsText(ehemalig), service.Suchfilter{}); len(gefunden) != 0 {
-		t.Errorf("Search(%d) = %v, erwartet kein Ergebnis ohne AuchEhemalige", ehemalig, gefunden)
+		t.Errorf("Search(%d) = %v, erwartet kein Ergebnis ohne StatusfilterAusgetreten", ehemalig, gefunden)
 	}
-	gefunden := suchen(t, svc, alsText(ehemalig), service.Suchfilter{AuchEhemalige: true})
+	gefunden := suchen(t, svc, alsText(ehemalig), service.Suchfilter{Status: service.StatusfilterAusgetreten})
 	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
 		t.Errorf("Search(%d, auch Ehemalige) = %v, erwartet [Klein, Nina]", ehemalig, gefunden)
 	}
@@ -625,7 +625,9 @@ func TestSearch_FiltertNachGeschlecht(t *testing.T) {
 		{"Mann", service.Suchfilter{Geschlecht: "Mann"}, []string{"Berger, Test"}},
 		{"Wert, den niemand hat", service.Suchfilter{Geschlecht: "divers"}, nil},
 		{"nur Leerraum grenzt nicht ein", service.Suchfilter{Geschlecht: "  "}, []string{"Adler, Test", "Berger, Test", "Claasen, Test", "Dietz, Test"}},
-		{"Ehemalige gehen mit dem Filter durch", service.Suchfilter{Geschlecht: "Frau", AuchEhemalige: true}, []string{"Adler, Test", "Claasen, Test", "Ernst, Test"}},
+		// Ausgetreten grenzt exklusiv ein: nur Ernst, nicht mehr gemischt mit
+		// Adler und Claasen (Ticket 02).
+		{"Ausgetretene gehen mit dem Filter durch", service.Suchfilter{Geschlecht: "Frau", Status: service.StatusfilterAusgetreten}, []string{"Ernst, Test"}},
 	}
 
 	for _, f := range faelle {
@@ -695,7 +697,9 @@ func TestSearch_FiltertNachTrainingstermin(t *testing.T) {
 		{"Montag", service.Suchfilter{Trainingstermin: montag.ID}, []string{"Adler, Test", "Claasen, Test"}},
 		{"Mittwoch", service.Suchfilter{Trainingstermin: mittwoch.ID}, []string{"Adler, Test"}},
 		{"Samstag", service.Suchfilter{Trainingstermin: samstag.ID}, []string{"Berger, Test"}},
-		{"Ehemalige gehen mit dem Filter durch", service.Suchfilter{Trainingstermin: montag.ID, AuchEhemalige: true}, []string{"Adler, Test", "Claasen, Test", "Ernst, Test"}},
+		// Ausgetreten grenzt exklusiv ein: nur Ernst, nicht mehr gemischt mit
+		// Adler und Claasen (Ticket 02).
+		{"Ausgetretene gehen mit dem Filter durch", service.Suchfilter{Trainingstermin: montag.ID, Status: service.StatusfilterAusgetreten}, []string{"Ernst, Test"}},
 		{"Termin, den es nicht gibt", service.Suchfilter{Trainingstermin: 9999}, nil},
 		{"Nullwert grenzt nicht ein", service.Suchfilter{}, []string{"Adler, Test", "Berger, Test", "Claasen, Test", "Dietz, Test"}},
 	}

@@ -143,6 +143,10 @@ function sortierfallbackPruefen(sichtbar) {
     if (geschlecht && geschlecht.value) parameter.set('geschlecht', geschlecht.value);
     const termin = document.getElementById('filter-termin');
     if (termin && termin.value) parameter.set('termin', termin.value);
+    const status = document.getElementById('filter-status');
+    if (status && status.value) parameter.set('status', status.value);
+    const ruhend = document.getElementById('filter-ruhend');
+    if (ruhend && ruhend.value) parameter.set('ruhend', ruhend.value);
     // sort und richtung bleiben weg: der fehlende Wert ist bereits der
     // Standard "Name, aufsteigend" (service.Sortierung-Nullwert).
 

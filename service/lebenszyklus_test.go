@@ -57,7 +57,7 @@ func TestSetKuendigung_NimmtDasMitgliedAusDerStandardansicht(t *testing.T) {
 		t.Errorf("List = %+v, erwartet leer — Ausgetretene gehören nicht in die Standardansicht", liste)
 	}
 
-	ehemalige, err := svc.Search("", service.Suchfilter{AuchEhemalige: true})
+	ehemalige, err := svc.Search("", service.Suchfilter{Status: service.StatusfilterAusgetreten})
 	if err != nil {
 		t.Fatalf("Search (auch Ehemalige): %v", err)
 	}

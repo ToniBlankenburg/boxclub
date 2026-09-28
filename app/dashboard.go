@@ -19,10 +19,15 @@ type dashboardDaten struct {
 
 	// RueckstandLink ist die Adresse der Mitgliederliste mit gesetztem
 	// Rückstandsfilter — die Zahl daneben ist nur nützlich, wenn man von ihr
-	// aus weiterarbeiten kann (Ticket 26). Sie schließt Ehemalige ein: die
-	// Rückstands-Zahl selbst zählt sie mit (ein Austritt erlässt keine
-	// Schulden, ADR-0006), und ohne den Filter zeigte die geöffnete Liste
-	// weniger Mitglieder, als die Zahl gerade versprochen hat.
+	// aus weiterarbeiten kann (Ticket 26).
+	//
+	// RueckstandAnzahl zählt Ausgetretene mit (ein Austritt erlässt keine
+	// Schulden, ADR-0006), aber seit Ticket 02 lädt der Statusfilter sie nur
+	// noch exklusiv: die aufgerufene Liste zeigt deshalb nur die aktiven
+	// Mitglieder im Rückstand und bleibt unter der Zahl, wenn zusätzlich
+	// Ausgetretene betroffen sind — dieselbe Grenze wie beim alten
+	// "ehemalige"-Parameter, der mit AuchEhemalige entfiel und hier nie
+	// nachgezogen wurde.
 	RueckstandLink string
 
 	// MoneyMoneyEigenerText ist gesetzt, wenn die Vereinsdaten einen eigenen
@@ -39,7 +44,6 @@ type dashboardDaten struct {
 func rueckstandLink() string {
 	werte := url.Values{
 		"rueckstand": {rueckstandImRueckstand},
-		"ehemalige":  {"1"},
 	}
 
 	return "/api/mitglieder?" + werte.Encode()

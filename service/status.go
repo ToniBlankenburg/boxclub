@@ -79,6 +79,41 @@ func (s Status) InKuendigungsfrist() bool { return s == StatusInKuendigungsfrist
 // die über die Standardansicht entscheidet: alles andere gilt als aktiv.
 func (s Status) Ausgetreten() bool { return s == StatusAusgetreten }
 
+// Statusfilter grenzt die Ergebnisliste nach dem Lebenszyklus-Status ein. Der
+// Nullwert ist "alle" und ersetzt damit das frühere AuchEhemalige=false: die
+// Standardansicht bleibt ohne Ausgetretene, ohne dass jemand das gesondert
+// anfordert. Nur wer ausdrücklich StatusfilterAusgetreten wählt, sieht
+// ausgetretene Mitglieder — Search lädt sie dann erst dazu (siehe
+// MemberService.eintraegeLesen).
+type Statusfilter int
+
+const (
+	// StatusfilterAlle ist der Nullwert und grenzt nicht ein — Ausgetretene
+	// bleiben trotzdem außen vor, weil sie ohne StatusfilterAusgetreten gar
+	// nicht erst geladen werden.
+	StatusfilterAlle Statusfilter = iota
+	StatusfilterNeu
+	StatusfilterAktiv
+	StatusfilterInKuendigungsfrist
+	StatusfilterAusgetreten
+)
+
+// trifft entscheidet, ob ein Status durch diesen Filter kommt.
+func (f Statusfilter) trifft(s Status) bool {
+	switch f {
+	case StatusfilterNeu:
+		return s == StatusNeu
+	case StatusfilterAktiv:
+		return s == StatusAktiv
+	case StatusfilterInKuendigungsfrist:
+		return s == StatusInKuendigungsfrist
+	case StatusfilterAusgetreten:
+		return s == StatusAusgetreten
+	default:
+		return true
+	}
+}
+
 // heute liefert den heutigen Kalendertag in ISO-Form — die Form, in der der
 // ganze Service Kalendertage vergleicht (siehe laufendeMitgliedschaftLesen).
 //

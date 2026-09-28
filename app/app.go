@@ -348,6 +348,27 @@ const (
 	terminAlle     = ""
 )
 
+// Werte des Statusfilters, wie sie über die Adresszeile laufen (Ticket 02).
+// Er ersetzt den früheren "ehemalige"-Parameter vollständig: statusAlle ist
+// weiterhin die Standardansicht ohne Ausgetretene, statusAusgetreten deren
+// einzige Tür — nicht mehr eine zusätzliche Checkbox daneben.
+const (
+	statusAlle               = ""
+	statusNeu                = "neu"
+	statusAktiv              = "aktiv"
+	statusInKuendigungsfrist = "in-kuendigungsfrist"
+	statusAusgetreten        = "ausgetreten"
+)
+
+// Werte des Ruhendfilters, wie sie über die Adresszeile laufen — eigenständig
+// zum Statusfilter, weil Ruhend laut Datenmodell kein Lebenszyklus-Zustand
+// ist, sondern eine Fahne daneben (CONTEXT.md → Ruhend).
+const (
+	ruhendAlle    = ""
+	ruhendRuhend  = "ruhend"
+	ruhendLaufend = "laufend"
+)
+
 // Werte der Sortierrichtung, wie sie über die Adresszeile laufen. Aufsteigend
 // ist der leere Wert und damit der Standard — derselbe, den ein Suchfilter{}
 // ohnehin liefert (Ticket 27).
@@ -410,6 +431,11 @@ type suchEingabe struct {
 	Frequenz   string
 	Geschlecht string
 	Termin     string
+	// Status und Ruhend sind die Rohwerte des Status-Zahnrads (Ticket 02) —
+	// zwei eigenständige Felder in einem Menü, weil Ruhend kein
+	// Lebenszyklus-Zustand ist (siehe service.Ruhendfilter).
+	Status string
+	Ruhend string
 
 	// Sortierspalte und Sortierrichtung sind die Rohwerte eines Klicks auf
 	// eine Kopfzeile (Ticket 27). Sie reisen wie die übrigen Filterwerte über
@@ -431,6 +457,8 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		Frequenz:        werte.Get("frequenz"),
 		Geschlecht:      werte.Get("geschlecht"),
 		Termin:          werte.Get("termin"),
+		Status:          werte.Get("status"),
+		Ruhend:          werte.Get("ruhend"),
 		Sortierspalte:   werte.Get("sort"),
 		Sortierrichtung: werte.Get("richtung"),
 	}
@@ -464,6 +492,24 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 		filter.Trainingstermin = id
 	}
 
+	switch e.Status {
+	case statusNeu:
+		filter.Status = service.StatusfilterNeu
+	case statusAktiv:
+		filter.Status = service.StatusfilterAktiv
+	case statusInKuendigungsfrist:
+		filter.Status = service.StatusfilterInKuendigungsfrist
+	case statusAusgetreten:
+		filter.Status = service.StatusfilterAusgetreten
+	}
+
+	switch e.Ruhend {
+	case ruhendRuhend:
+		filter.Ruhend = service.RuhendfilterRuhend
+	case ruhendLaufend:
+		filter.Ruhend = service.RuhendfilterLaufend
+	}
+
 	if spalte, ok := sortierspalten[e.Sortierspalte]; ok {
 		filter.Sortierung.Spalte = spalte
 	}
@@ -493,6 +539,31 @@ func rueckstandsoptionen(sprache i18n.Sprache) []filteroption {
 		{Wert: rueckstandAlle, Beschriftung: i18n.Text(sprache, "filter.rueckstand.alle")},
 		{Wert: rueckstandImRueckstand, Beschriftung: i18n.Text(sprache, "filter.rueckstand.offen")},
 		{Wert: rueckstandInOrdnung, Beschriftung: i18n.Text(sprache, "filter.rueckstand.ok")},
+	}
+}
+
+// statusoptionen sind die Stufen des Statusfilters in der Reihenfolge des
+// Lebenszyklus — dieselbe Reihenfolge, in der auch Search intern vom Ende her
+// prüft (statusAus), hier aber vom Anfang aus gelesen: Neu, Aktiv, In
+// Kündigungsfrist, Ausgetreten. Der erste Eintrag ist der Standard.
+func statusoptionen(sprache i18n.Sprache) []filteroption {
+	return []filteroption{
+		{Wert: statusAlle, Beschriftung: i18n.Text(sprache, "filter.status.alle")},
+		{Wert: statusNeu, Beschriftung: i18n.Text(sprache, "filter.status.neu")},
+		{Wert: statusAktiv, Beschriftung: i18n.Text(sprache, "filter.status.aktiv")},
+		{Wert: statusInKuendigungsfrist, Beschriftung: i18n.Text(sprache, "filter.status.in_kuendigungsfrist")},
+		{Wert: statusAusgetreten, Beschriftung: i18n.Text(sprache, "filter.status.ausgetreten")},
+	}
+}
+
+// ruhendoptionen sind die Stufen des Ruhendfilters — eigenständig zum
+// Statusfilter, weil Ruhend kein Lebenszyklus-Zustand ist (CONTEXT.md →
+// Ruhend).
+func ruhendoptionen(sprache i18n.Sprache) []filteroption {
+	return []filteroption{
+		{Wert: ruhendAlle, Beschriftung: i18n.Text(sprache, "filter.ruhend.alle")},
+		{Wert: ruhendRuhend, Beschriftung: i18n.Text(sprache, "filter.ruhend.ruhend")},
+		{Wert: ruhendLaufend, Beschriftung: i18n.Text(sprache, "filter.ruhend.laufend")},
 	}
 }
 
@@ -547,6 +618,13 @@ func (d listeDaten) AktivTraining() bool {
 	return d.Suche.Frequenz != frequenzAlle || d.Suche.Termin != terminAlle
 }
 func (d listeDaten) AktivGeschlecht() bool { return d.Suche.Geschlecht != geschlechtAlle }
+
+// AktivStatus fasst Status- und Ruhendfilter zusammen: ihr Zahnrad füllt sich,
+// sobald einer der beiden vom Nullwert abweicht — sie stehen im selben Menü
+// (spec.md, Story 13).
+func (d listeDaten) AktivStatus() bool {
+	return d.Suche.Status != statusAlle || d.Suche.Ruhend != ruhendAlle
+}
 
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
 // sich dann anders: "nichts gefunden" statt "noch nichts erfasst".
@@ -646,6 +724,15 @@ func (d listeDaten) Rueckstandsoptionen() []filteroption {
 // markiert.
 func (d listeDaten) Frequenzoptionen() []filteroption {
 	return gewaehlteOption(frequenzoptionenBauen(d.Sprache), d.Suche.Frequenz)
+}
+
+// Statusoptionen und Ruhendoptionen sind die Stufen der beiden Filterfelder
+// im Status-Zahnrad, die gewählte darunter markiert.
+func (d listeDaten) Statusoptionen() []filteroption {
+	return gewaehlteOption(statusoptionen(d.Sprache), d.Suche.Status)
+}
+func (d listeDaten) Ruhendoptionen() []filteroption {
+	return gewaehlteOption(ruhendoptionen(d.Sprache), d.Suche.Ruhend)
 }
 
 // Geschlechtsoptionen sind "jedes Geschlecht" und die Werte, die im Bestand

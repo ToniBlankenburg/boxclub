@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -1017,5 +1018,131 @@ func TestEintrag_LiefertAuchDieZeileEinesAusgetretenenMitglieds(t *testing.T) {
 	}
 	if len(liste) != 0 {
 		t.Errorf("List = %+v, erwartet leer — Ausgetretene gehören nicht in die Standardansicht", liste)
+	}
+}
+
+// Der Statusfilter ersetzt AuchEhemalige (Ticket 02): der Nullwert
+// (StatusfilterAlle) bleibt die heutige Standardansicht ohne Ausgetretene,
+// jeder benannte Zustand grenzt darauf ein, ohne Ausgetretene zusätzlich zu
+// laden — nur StatusfilterAusgetreten lädt sie überhaupt erst dazu und
+// liefert dann ausschließlich sie.
+func TestSearch_FiltertNachStatus(t *testing.T) {
+	svc := neuerService(t)
+
+	neuID := mitgliedAnlegenZum(t, svc, "Neu", heuteVersetzt(10))
+	aktivID := mitgliedAnlegenZum(t, svc, "Aktiv", heuteVersetzt(-10))
+
+	kuendigungID := mitgliedAnlegenZum(t, svc, "Kuendigung", heuteVersetzt(-30))
+	if err := svc.SetKuendigung(kuendigungID, austrittZum(heuteVersetzt(30))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+
+	ausgetretenID := mitgliedAnlegenZum(t, svc, "Ausgetreten", heuteVersetzt(-100))
+	if err := svc.SetKuendigung(ausgetretenID, austrittZum(heuteVersetzt(-1))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+
+	namenVon := func(id int64) string {
+		e, err := svc.Eintrag(id)
+		if err != nil {
+			t.Fatalf("Eintrag(%d): %v", id, err)
+		}
+		return e.Nachname + ", " + e.Vorname
+	}
+
+	faelle := []struct {
+		name     string
+		filter   service.Statusfilter
+		erwartet []int64
+	}{
+		// Alphabetisch: Aktiv, Kuendigung, Neu — die Standardsortierung nach
+		// Nachname, wie bei jeder anderen Suche ohne Sortierangabe.
+		{"alle: keine Ausgetretenen, sonst keine Einschränkung", service.StatusfilterAlle,
+			[]int64{aktivID, kuendigungID, neuID}},
+		{"Neu", service.StatusfilterNeu, []int64{neuID}},
+		{"Aktiv", service.StatusfilterAktiv, []int64{aktivID}},
+		{"In Kündigungsfrist", service.StatusfilterInKuendigungsfrist, []int64{kuendigungID}},
+		{"Ausgetreten lädt exklusiv dazu", service.StatusfilterAusgetreten, []int64{ausgetretenID}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			liste, err := svc.Search("", service.Suchfilter{Status: f.filter})
+			if err != nil {
+				t.Fatalf("Search: %v", err)
+			}
+
+			erwartet := make([]string, len(f.erwartet))
+			for i, id := range f.erwartet {
+				erwartet[i] = namenVon(id)
+			}
+
+			if !slices.Equal(namen(liste), erwartet) {
+				t.Errorf("Statusfilter %v = %v, erwartet %v", f.filter, namen(liste), erwartet)
+			}
+		})
+	}
+}
+
+// Der Ruhendfilter ist eigenständig zum Statusfilter, weil Ruhend laut
+// Datenmodell kein Lebenszyklus-Zustand ist, sondern eine Fahne daneben
+// (CONTEXT.md → Ruhend) — analog zu Rueckstandsfilter.
+func TestSearch_FiltertNachRuhend(t *testing.T) {
+	svc := neuerService(t)
+
+	mitgliedAnlegen(t, svc, "Lena", "Laufend")
+
+	ruhendID := mitgliedAnlegen(t, svc, "Rico", "Ruhend")
+	if err := svc.SetRuhend(ruhendID, true); err != nil {
+		t.Fatalf("SetRuhend: %v", err)
+	}
+
+	faelle := []struct {
+		name     string
+		filter   service.Ruhendfilter
+		erwartet []string
+	}{
+		{"alle", service.RuhendfilterAlle, []string{"Laufend, Lena", "Ruhend, Rico"}},
+		{"ruhend", service.RuhendfilterRuhend, []string{"Ruhend, Rico"}},
+		{"laufend", service.RuhendfilterLaufend, []string{"Laufend, Lena"}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			gefunden := suchen(t, svc, "", service.Suchfilter{Ruhend: f.filter})
+			if !slices.Equal(gefunden, f.erwartet) {
+				t.Errorf("Ruhendfilter %v = %v, erwartet %v", f.filter, gefunden, f.erwartet)
+			}
+		})
+	}
+}
+
+// Status und Ruhend wirken unabhängig voneinander und zusammen konjunktiv
+// (UND-Verknüpfung): Status=Aktiv + Ruhend=ruhend liefert nur, wer beides
+// zugleich ist — nicht das ruhende Mitglied in der Kündigungsfrist.
+func TestSearch_KombiniertStatusMitRuhend(t *testing.T) {
+	svc := neuerService(t)
+
+	aktivRuhendID := mitgliedAnlegenZum(t, svc, "AktivRuhend", heuteVersetzt(-10))
+	if err := svc.SetRuhend(aktivRuhendID, true); err != nil {
+		t.Fatalf("SetRuhend: %v", err)
+	}
+
+	mitgliedAnlegenZum(t, svc, "AktivLaufend", heuteVersetzt(-10))
+
+	kuendigungRuhendID := mitgliedAnlegenZum(t, svc, "KuendigungRuhend", heuteVersetzt(-30))
+	if err := svc.SetKuendigung(kuendigungRuhendID, austrittZum(heuteVersetzt(30))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+	if err := svc.SetRuhend(kuendigungRuhendID, true); err != nil {
+		t.Fatalf("SetRuhend: %v", err)
+	}
+
+	gefunden := suchen(t, svc, "", service.Suchfilter{
+		Status: service.StatusfilterAktiv,
+		Ruhend: service.RuhendfilterRuhend,
+	})
+	if !slices.Equal(gefunden, []string{"AktivRuhend, Test"}) {
+		t.Errorf("Status=Aktiv + Ruhend=ruhend = %v, erwartet [AktivRuhend, Test] — nicht KuendigungRuhend", gefunden)
 	}
 }

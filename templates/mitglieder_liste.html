@@ -56,7 +56,7 @@
      unabhängig von der DOM-Verschachtelung — htmx sammelt die Werte
      trotzdem vollständig ein, weil `HTMLFormElement.elements` (und damit
      `FormData`) extern verknüpfte Felder genauso einschließt wie
-     verschachtelte. Das gilt jetzt auch für die vier Filterfelder selbst,
+     verschachtelte. Das gilt jetzt auch für die sechs Filterfelder selbst,
      die im Zahnrad-Menü ihrer Spalte stehen (unten in "mitglieder-ergebnis")
      und trotzdem über dasselbe "form"-Attribut an dieses Formular
      angebunden sind. */}}
@@ -72,7 +72,7 @@
            Sortierklick auch dann erhalten, wenn direkt danach gesucht oder
            gefiltert wird (Ticket 27). */}}
       hx-include="#mitglieder-ergebnis"
-      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin">
+      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-status, change from:#filter-ruhend">
 </form>
 
 {{/* Achtung bei einem weiteren Feld hier: es braucht ein eigenes
@@ -242,18 +242,41 @@
                         </details>
                         {{template "spaltengriff" "name"}}
                     </th>
-                    {{/* Status trägt in diesem Ticket noch keinen eigenen
-                         Filter (kommt in Ticket 02) — das Zahnrad-Menü enthält
-                         bis dahin nur "Spalte ausblenden". */}}
+                    {{/* Status bündelt zwei eigenständige Auswahlfelder im
+                         selben Menü: Lebenszyklus-Status und Ruhend, weil
+                         Ruhend laut Datenmodell keiner ist, sondern eine
+                         Fahne daneben (spec.md, Story 13; CONTEXT.md →
+                         Ruhend). Status übernimmt zugleich die Funktion der
+                         alten Ehemalige-Checkbox: nur wer aktiv
+                         "Ausgetreten" wählt, sieht ausgetretene Mitglieder. */}}
                     <th class="relative w-36 px-4 py-2 font-medium" data-col="status"
                         aria-sort="{{.SpaltenkopfStatus.AriaSort}}">
                         {{template "spaltenkopf" .SpaltenkopfStatus}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.status")}}"
                                      class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
-                                {{template "zahnrad-icon" false}}
+                                {{template "zahnrad-icon" .AktivStatus}}
                             </summary>
-                            <div class="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                            <div class="absolute left-0 top-full z-20 mt-1 w-56 space-y-2 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-status">{{t "mitglieder.filter_status_aria"}}</label>
+                                    <select form="mitglieder-filter" id="filter-status" name="status" aria-label="{{t "mitglieder.filter_status_aria"}}"
+                                            class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                        {{range .Statusoptionen}}
+                                            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-ruhend">{{t "mitglieder.filter_ruhend_aria"}}</label>
+                                    <select form="mitglieder-filter" id="filter-ruhend" name="ruhend" aria-label="{{t "mitglieder.filter_ruhend_aria"}}"
+                                            class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                        {{range .Ruhendoptionen}}
+                                            <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                                <hr class="border-neutral-200">
                                 {{template "spalte-ausblenden-aktion" "status"}}
                             </div>
                         </details>
@@ -448,7 +471,7 @@
         aria-label="{{t "mitglieder.sortieren_nach" .Beschriftung}}{{if .Aktiv}}{{if eq .AriaSort "ascending"}}{{t "mitglieder.aktuell_aufsteigend"}}{{else}}{{t "mitglieder.aktuell_absteigend"}}{{end}}{{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin"
+        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-ruhend"
         hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
     {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
 </button>

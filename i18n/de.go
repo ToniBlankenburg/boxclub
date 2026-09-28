@@ -67,6 +67,19 @@ var deutsch = map[string]string{
 	"filter.geschlecht.alle":  "Jedes Geschlecht",
 	"filter.termin.alle":      "Jeder Termin",
 
+	// filter.status.* und filter.ruhend.* sind die Einträge der beiden
+	// Auswahlfelder im Status-Zahnrad (Ticket 02) — eigenständig
+	// zueinander, weil Ruhend laut Datenmodell kein Lebenszyklus-Zustand
+	// ist (CONTEXT.md → Ruhend).
+	"filter.status.neu":                 "Neu",
+	"filter.status.aktiv":               "Aktiv",
+	"filter.status.in_kuendigungsfrist": "In Kündigungsfrist",
+	"filter.status.ausgetreten":         "Ausgetreten",
+	"filter.status.alle":                "Jeder Status",
+	"filter.ruhend.alle":                "Alle Mitglieder",
+	"filter.ruhend.ruhend":              "Ruhend",
+	"filter.ruhend.laufend":             "Laufend",
+
 	// mitglieder.* ist die Listenansicht samt Filterleiste und Zeilenaktionen
 	// (Ticket 02, templates/mitglieder_liste.html).
 	"mitglieder.titel":                  "Mitglieder",
@@ -80,6 +93,8 @@ var deutsch = map[string]string{
 	"mitglieder.filter_frequenz_aria":   "Nach Trainingsfrequenz filtern",
 	"mitglieder.filter_geschlecht_aria": "Nach Geschlecht filtern",
 	"mitglieder.filter_termin_aria":     "Nach Trainingstermin filtern",
+	"mitglieder.filter_status_aria":     "Nach Status filtern",
+	"mitglieder.filter_ruhend_aria":     "Nach Ruhend filtern",
 	// spaltenmenu_aria, spalte_ausblenden_knopf und spalten_fallback_* gehören
 	// zum Zahnrad-Menü jeder Spalte und seinem Fallback-Element (ADR-0020,
 	// löst das alte Filter-/Spalten-Menü aus ADR-0015 ab).

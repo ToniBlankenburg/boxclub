@@ -351,7 +351,7 @@ func TestList_LaesstAbDemAustrittstagAus(t *testing.T) {
 		t.Errorf("List = %+v, erwartet leer — der Austritt ist heute erreicht", liste)
 	}
 
-	ehemalige, err := svc.Search("", service.Suchfilter{AuchEhemalige: true})
+	ehemalige, err := svc.Search("", service.Suchfilter{Status: service.StatusfilterAusgetreten})
 	if err != nil {
 		t.Fatalf("Search (auch Ehemalige): %v", err)
 	}

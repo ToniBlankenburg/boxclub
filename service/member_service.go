@@ -1499,6 +1499,33 @@ func (f Rueckstandsfilter) trifft(r Rueckstand) bool {
 	}
 }
 
+// Ruhendfilter grenzt die Ergebnisliste nach dem Ruhend-Merkmal ein — analog
+// zu Rueckstandsfilter, aber eigenständig zum Statusfilter: Ruhend ist laut
+// Datenmodell kein Lebenszyklus-Zustand, sondern eine Fahne daneben
+// (CONTEXT.md → Ruhend).
+type Ruhendfilter int
+
+const (
+	// RuhendfilterAlle ist der Nullwert und grenzt nicht ein.
+	RuhendfilterAlle Ruhendfilter = iota
+	// RuhendfilterRuhend: nur Mitglieder, deren maßgebliche Mitgliedschaft ruht.
+	RuhendfilterRuhend
+	// RuhendfilterLaufend: nur Mitglieder, deren maßgebliche Mitgliedschaft läuft.
+	RuhendfilterLaufend
+)
+
+// trifft entscheidet, ob das Merkmal durch diesen Filter kommt.
+func (f Ruhendfilter) trifft(ruhend bool) bool {
+	switch f {
+	case RuhendfilterRuhend:
+		return ruhend
+	case RuhendfilterLaufend:
+		return !ruhend
+	default:
+		return true
+	}
+}
+
 // Suchfilter grenzt die Mitgliederliste ein. Der Nullwert ist bewusst die
 // Standardansicht: jeder Rückstandswert, nur aktive Mitglieder. Damit ist
 // "Filter zurücksetzen" nichts anderes als ein Suchfilter{}.
@@ -1516,10 +1543,16 @@ type Suchfilter struct {
 	// zählen mit, solange die Anmeldung besteht (ADR-0008). Ein Termin, den es
 	// nicht gibt, trifft niemanden.
 	Trainingstermin int64
-	// AuchEhemalige nimmt Mitglieder ohne laufende Mitgliedschaft mit auf — also
-	// die, deren Austritt erreicht ist. Ein bevorstehender Austritt macht
-	// niemanden ehemalig; solche Zeilen stehen auch ohne dieses Kennzeichen da.
-	AuchEhemalige bool
+	// Status grenzt auf einen Lebenszyklus-Zustand ein. Der Nullwert
+	// (StatusfilterAlle) ist die Standardansicht: keine Ausgetretenen, sonst
+	// keine Einschränkung — das ersetzt das frühere AuchEhemalige=false. Nur
+	// StatusfilterAusgetreten lädt ausgetretene Mitgliedschaften überhaupt
+	// erst dazu (siehe Search) und liefert dann ausschließlich diese.
+	Status Statusfilter
+	// Ruhend grenzt unabhängig vom Status auf das Ruhend-Merkmal ein: es ist
+	// laut Datenmodell kein eigener Lebenszyklus-Zustand, sondern eine Fahne
+	// daneben (CONTEXT.md → Ruhend).
+	Ruhend Ruhendfilter
 
 	// Sortierung bestimmt Spalte und Richtung, nach der Search die Ergebnisse
 	// ordnet (Ticket 27). Der Nullwert ist "Name, aufsteigend" — dieselbe
@@ -1541,8 +1574,11 @@ type Suchfilter struct {
 func (s *MemberService) Search(query string, filter Suchfilter) ([]Listeneintrag, error) {
 	// Die Aktivität entscheidet, welche Mitgliedschaft eine Zeile überhaupt
 	// hat, und gehört deshalb in die Abfrage. Die übrigen Dimensionen sind
-	// reine Auswahl auf den gelesenen Zeilen (siehe ADR-0004).
-	zeilen, err := s.eintraegeLesen(filter.AuchEhemalige, "")
+	// reine Auswahl auf den gelesenen Zeilen (siehe ADR-0004). Ausgetretene
+	// werden dabei nur geladen, wenn der Statusfilter ausdrücklich danach
+	// fragt — jeder andere Wert (inklusive "alle") bleibt bei der heutigen
+	// Standardansicht ohne sie.
+	zeilen, err := s.eintraegeLesen(filter.Status == StatusfilterAusgetreten, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1648,6 +1684,14 @@ func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
 	}
 
 	if filter.Trainingstermin != 0 && !z.eintrag.angemeldetFuer(filter.Trainingstermin) {
+		return false
+	}
+
+	if !filter.Status.trifft(z.eintrag.Status()) {
+		return false
+	}
+
+	if !filter.Ruhend.trifft(z.eintrag.Ruhend) {
 		return false
 	}
 
