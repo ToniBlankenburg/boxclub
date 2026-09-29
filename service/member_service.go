@@ -1562,6 +1562,13 @@ type Suchfilter struct {
 	BeitragVonCents *int64
 	BeitragBisCents *int64
 
+	// EintrittVon und EintrittBis grenzen auf einen Eintrittszeitraum ein.
+	// Beide Ränder zählen einschließend (siehe CONTEXT.md → Status). nil
+	// grenzt jeweils nicht ein — unabhängig voneinander nutzbar wie bei
+	// Beitrag.
+	EintrittVon *time.Time
+	EintrittBis *time.Time
+
 	// Sortierung bestimmt Spalte und Richtung, nach der Search die Ergebnisse
 	// ordnet (Ticket 27). Der Nullwert ist "Name, aufsteigend" — dieselbe
 	// Standardsortierung, die es schon vor diesem Ticket gab; Sortierung
@@ -1707,6 +1714,13 @@ func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
 		return false
 	}
 	if filter.BeitragBisCents != nil && z.eintrag.BeitragCents > *filter.BeitragBisCents {
+		return false
+	}
+
+	if filter.EintrittVon != nil && z.eintrag.Eintritt.Before(*filter.EintrittVon) {
+		return false
+	}
+	if filter.EintrittBis != nil && z.eintrag.Eintritt.After(*filter.EintrittBis) {
 		return false
 	}
 

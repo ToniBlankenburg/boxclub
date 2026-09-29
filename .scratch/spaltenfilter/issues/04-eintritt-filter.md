@@ -11,15 +11,23 @@ Datenmodell üblich (siehe CONTEXT.md → Status).
 
 **Blocked by:** 01 (Zahnrad-Grundgerüst)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] `Suchfilter` hat neue Felder `EintrittVon`, `EintrittBis`
+- [x] `Suchfilter` hat neue Felder `EintrittVon`, `EintrittBis`
       (`*time.Time`, `nil` = unbegrenzt)
-- [ ] `Search` filtert korrekt: nur Von gesetzt, nur Bis gesetzt, beide
+- [x] `Search` filtert korrekt: nur Von gesetzt, nur Bis gesetzt, beide
       gesetzt, beide `nil`
-- [ ] Randtage (Eintritt exakt gleich Von bzw. Bis) zählen einschließend mit
-- [ ] UI: Eintritt-Zahnrad zeigt Von/Bis-Datumsfelder, Zahnrad markiert
+- [x] Randtage (Eintritt exakt gleich Von bzw. Bis) zählen einschließend mit
+- [x] UI: Eintritt-Zahnrad zeigt Von/Bis-Datumsfelder, Zahnrad markiert
       aktiv, wenn ein Wert gesetzt ist
-- [ ] Neue Unit-Tests in `service/member_service_test.go` für alle
+- [x] Neue Unit-Tests in `service/member_service_test.go` für alle
       Grenzfälle inklusive exaktem Randtag
-- [ ] `wails dev` und `wails build` laufen weiterhin auf Windows und Linux
+- [x] `wails dev` und `wails build` laufen weiterhin auf Windows und Linux
+      (`wails build` lokal auf Linux geprüft; Go-Code zusätzlich mit
+      `GOOS=windows go build ./...` cross-kompiliert)
+
+## Comments
+
+Übersetzung der neuen Zahnrad-Beschriftungen (`filter_eintritt_von_aria`,
+`filter_eintritt_bis_aria`) bleibt wie bei 02/03 vorerst Deutsch-only —
+Englisch kommt gebündelt in Ticket 05.

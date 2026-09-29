@@ -1146,3 +1146,62 @@ func TestSearch_KombiniertStatusMitRuhend(t *testing.T) {
 		t.Errorf("Status=Aktiv + Ruhend=ruhend = %v, erwartet [AktivRuhend, Test] — nicht KuendigungRuhend", gefunden)
 	}
 }
+
+// Beide Ränder des Eintritt-Filters zählen einschließend, wie an anderer
+// Stelle im Datenmodell üblich (CONTEXT.md → Status) — deshalb liegt Jan
+// bewusst genau auf der unteren, Maerz genau auf der oberen Testgrenze.
+func TestSearch_FiltertNachEintritt(t *testing.T) {
+	svc := neuerService(t)
+
+	jan := mitgliedAnlegenZum(t, svc, "Jan", datum(t, "2026-01-10"))
+	feb := mitgliedAnlegenZum(t, svc, "Feb", datum(t, "2026-02-15"))
+	maerz := mitgliedAnlegenZum(t, svc, "Maerz", datum(t, "2026-03-20"))
+
+	namenVon := func(id int64) string {
+		e, err := svc.Eintrag(id)
+		if err != nil {
+			t.Fatalf("Eintrag(%d): %v", id, err)
+		}
+		return e.Nachname + ", " + e.Vorname
+	}
+
+	von := datum(t, "2026-01-10")
+	bis := datum(t, "2026-03-20")
+	zwischenVon := datum(t, "2026-02-01")
+	zwischenBis := datum(t, "2026-02-28")
+
+	faelle := []struct {
+		name     string
+		filter   service.Suchfilter
+		erwartet []int64
+	}{
+		{"beide nil: keine Einschränkung", service.Suchfilter{}, []int64{feb, jan, maerz}},
+		{"nur Von", service.Suchfilter{EintrittVon: &zwischenVon}, []int64{feb, maerz}},
+		{"nur Bis", service.Suchfilter{EintrittBis: &zwischenBis}, []int64{feb, jan}},
+		{"beide gesetzt", service.Suchfilter{EintrittVon: &von, EintrittBis: &bis}, []int64{feb, jan, maerz}},
+		{"Von exakt gleich Eintritt zählt einschließend mit",
+			service.Suchfilter{EintrittVon: &von}, []int64{feb, jan, maerz}},
+		{"Bis exakt gleich Eintritt zählt einschließend mit",
+			service.Suchfilter{EintrittBis: &bis}, []int64{feb, jan, maerz}},
+		{"enges Fenster lässt beide Ränder außen vor",
+			service.Suchfilter{EintrittVon: &zwischenVon, EintrittBis: &zwischenBis}, []int64{feb}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			liste, err := svc.Search("", f.filter)
+			if err != nil {
+				t.Fatalf("Search: %v", err)
+			}
+
+			erwartet := make([]string, len(f.erwartet))
+			for i, id := range f.erwartet {
+				erwartet[i] = namenVon(id)
+			}
+
+			if !slices.Equal(namen(liste), erwartet) {
+				t.Errorf("Eintrittfilter %+v = %v, erwartet %v", f.filter, namen(liste), erwartet)
+			}
+		})
+	}
+}

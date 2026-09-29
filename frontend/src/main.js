@@ -154,6 +154,10 @@ function sortierfallbackPruefen(sichtbar) {
     if (beitragVon && beitragVon.value !== beitragVon.min) parameter.set('beitragVon', beitragVon.value);
     const beitragBis = document.getElementById('filter-beitrag-bis');
     if (beitragBis && beitragBis.value !== beitragBis.max) parameter.set('beitragBis', beitragBis.value);
+    const eintrittVon = document.getElementById('filter-eintritt-von');
+    if (eintrittVon && eintrittVon.value) parameter.set('eintrittVon', eintrittVon.value);
+    const eintrittBis = document.getElementById('filter-eintritt-bis');
+    if (eintrittBis && eintrittBis.value) parameter.set('eintrittBis', eintrittBis.value);
     // sort und richtung bleiben weg: der fehlende Wert ist bereits der
     // Standard "Name, aufsteigend" (service.Sortierung-Nullwert).
 

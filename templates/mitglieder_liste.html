@@ -410,17 +410,33 @@
                         </details>
                         {{template "spaltengriff" "rueckstand"}}
                     </th>
-                    {{/* Eintritt trägt in diesem Ticket noch keinen eigenen
-                         Filter (kommt in Ticket 04). */}}
+                    {{/* Von-Bis-Datumspaar, unabhängig voneinander nutzbar,
+                         beide Ränder einschließend (Ticket 04, CONTEXT.md →
+                         Status). */}}
                     <th class="relative w-56 px-4 py-2 font-medium" data-col="eintritt"
                         aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">
                         {{template "spaltenkopf" .SpaltenkopfEintritt}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.eintritt")}}"
                                      class="list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
-                                {{template "zahnrad-icon" false}}
+                                {{template "zahnrad-icon" .AktivEintritt}}
                             </summary>
-                            <div class="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                            <div class="absolute right-0 top-full z-20 mt-1 w-56 space-y-2 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-eintritt-von">{{t "mitglieder.filter_eintritt_von_aria"}}</label>
+                                    <input form="mitglieder-filter" id="filter-eintritt-von" name="eintrittVon" type="date"
+                                           aria-label="{{t "mitglieder.filter_eintritt_von_aria"}}"
+                                           value="{{.Suche.EintrittVon}}"
+                                           class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-eintritt-bis">{{t "mitglieder.filter_eintritt_bis_aria"}}</label>
+                                    <input form="mitglieder-filter" id="filter-eintritt-bis" name="eintrittBis" type="date"
+                                           aria-label="{{t "mitglieder.filter_eintritt_bis_aria"}}"
+                                           value="{{.Suche.EintrittBis}}"
+                                           class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
+                                </div>
+                                <hr class="border-neutral-200">
                                 {{template "spalte-ausblenden-aktion" "eintritt"}}
                             </div>
                         </details>

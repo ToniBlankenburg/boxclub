@@ -444,6 +444,14 @@ type suchEingabe struct {
 	BeitragVon string
 	BeitragBis string
 
+	// EintrittVon und EintrittBis sind die Rohwerte des Eintritt-Zahnrads
+	// (Ticket 04) — ISO-Datumstext wie <input type="date"> ihn liefert, nicht
+	// schon time.Time, aus demselben Grund wie bei Beitrag: ein leerer oder
+	// unlesbarer Wert soll auf "nicht eingrenzen" fallen statt einen Fehler
+	// zu melden.
+	EintrittVon string
+	EintrittBis string
+
 	// Sortierspalte und Sortierrichtung sind die Rohwerte eines Klicks auf
 	// eine Kopfzeile (Ticket 27). Sie reisen wie die übrigen Filterwerte über
 	// die Adresszeile — nicht über localStorage wie die Spaltenwahl, denn
@@ -468,6 +476,8 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		Ruhend:          werte.Get("ruhend"),
 		BeitragVon:      werte.Get("beitragVon"),
 		BeitragBis:      werte.Get("beitragBis"),
+		EintrittVon:     werte.Get("eintrittVon"),
+		EintrittBis:     werte.Get("eintrittBis"),
 		Sortierspalte:   werte.Get("sort"),
 		Sortierrichtung: werte.Get("richtung"),
 	}
@@ -530,6 +540,19 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 	if roh := strings.TrimSpace(e.BeitragBis); roh != "" {
 		if cents, err := service.BeitragAusEuro(roh); err == nil {
 			filter.BeitragBisCents = &cents
+		}
+	}
+
+	// Unlesbares (leer, kein ISO-Datum) bleibt beim Standard "nicht
+	// eingrenzen" — dasselbe Muster wie bei Beitrag.
+	if roh := strings.TrimSpace(e.EintrittVon); roh != "" {
+		if datum, err := time.Parse(isoDatum, roh); err == nil {
+			filter.EintrittVon = &datum
+		}
+	}
+	if roh := strings.TrimSpace(e.EintrittBis); roh != "" {
+		if datum, err := time.Parse(isoDatum, roh); err == nil {
+			filter.EintrittBis = &datum
 		}
 	}
 
@@ -654,6 +677,12 @@ func (d listeDaten) AktivGeschlecht() bool { return d.Suche.Geschlecht != geschl
 // beiden Regler bewegt wurde.
 func (d listeDaten) AktivBeitrag() bool {
 	return d.Suche.BeitragVon != "" || d.Suche.BeitragBis != ""
+}
+
+// AktivEintritt sagt, ob der Eintritt-Zahnrad eingrenzt — sobald Von oder Bis
+// gesetzt ist.
+func (d listeDaten) AktivEintritt() bool {
+	return d.Suche.EintrittVon != "" || d.Suche.EintrittBis != ""
 }
 
 // AktivStatus fasst Status- und Ruhendfilter zusammen: ihr Zahnrad füllt sich,
