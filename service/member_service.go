@@ -1554,6 +1554,14 @@ type Suchfilter struct {
 	// daneben (CONTEXT.md → Ruhend).
 	Ruhend Ruhendfilter
 
+	// BeitragVonCents und BeitragBisCents grenzen auf einen Beitragsbereich
+	// ein. Pointer statt Sentinel-Wert, weil 0 € ein gültiger Beitrag ist
+	// (ADR-0005) und nicht mit "kein Filter" verwechselt werden darf —
+	// dasselbe Muster wie bei den nullbaren Mitgliedschaftsfeldern. nil
+	// grenzt jeweils nicht ein.
+	BeitragVonCents *int64
+	BeitragBisCents *int64
+
 	// Sortierung bestimmt Spalte und Richtung, nach der Search die Ergebnisse
 	// ordnet (Ticket 27). Der Nullwert ist "Name, aufsteigend" — dieselbe
 	// Standardsortierung, die es schon vor diesem Ticket gab; Sortierung
@@ -1695,6 +1703,13 @@ func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
 		return false
 	}
 
+	if filter.BeitragVonCents != nil && z.eintrag.BeitragCents < *filter.BeitragVonCents {
+		return false
+	}
+	if filter.BeitragBisCents != nil && z.eintrag.BeitragCents > *filter.BeitragBisCents {
+		return false
+	}
+
 	return z.trifftBegriff(begriff)
 }
 
@@ -1816,6 +1831,25 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 	}
 
 	return zeilen, nil
+}
+
+// BeitragBereich liefert den kleinsten und größten Beitrag, der unter den
+// laufenden Mitgliedschaften vorkommt — die Grenzen des Beitrag-Schiebereglers
+// der Mitgliederliste. Sie kommen bewusst aus dem tatsächlichen Bestand statt
+// aus einem festen Rahmen: ein Verein mit lauter 20-€-Beiträgen soll keinen
+// Regler sehen, der bis 500 € leerläuft. Ohne laufende Mitgliedschaft sind
+// beide 0.
+func (s *MemberService) BeitragBereich() (min int64, max int64, err error) {
+	row := s.db.QueryRow(`
+		SELECT COALESCE(MIN(beitrag_monatlich_cents), 0), COALESCE(MAX(beitrag_monatlich_cents), 0)
+		FROM mitgliedschaft
+		WHERE `+laeuftNoch, heute())
+
+	if err := row.Scan(&min, &max); err != nil {
+		return 0, 0, fmt.Errorf("beitragbereich lesen: %w", err)
+	}
+
+	return min, max, nil
 }
 
 // Geschlechtswerte liefert die Geschlechtsangaben, die im Bestand vorkommen —

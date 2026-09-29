@@ -437,6 +437,13 @@ type suchEingabe struct {
 	Status string
 	Ruhend string
 
+	// BeitragVon und BeitragBis sind die Rohwerte des Beitrag-Schiebereglers
+	// (Ticket 03) — Zeichenketten wie ein Formularfeld, nicht schon Cents,
+	// weil ein leerer oder unlesbarer Wert wie bei jedem anderen Filter auf
+	// "nicht eingrenzen" fallen soll statt einen Fehler zu melden.
+	BeitragVon string
+	BeitragBis string
+
 	// Sortierspalte und Sortierrichtung sind die Rohwerte eines Klicks auf
 	// eine Kopfzeile (Ticket 27). Sie reisen wie die übrigen Filterwerte über
 	// die Adresszeile — nicht über localStorage wie die Spaltenwahl, denn
@@ -459,6 +466,8 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		Termin:          werte.Get("termin"),
 		Status:          werte.Get("status"),
 		Ruhend:          werte.Get("ruhend"),
+		BeitragVon:      werte.Get("beitragVon"),
+		BeitragBis:      werte.Get("beitragBis"),
 		Sortierspalte:   werte.Get("sort"),
 		Sortierrichtung: werte.Get("richtung"),
 	}
@@ -508,6 +517,20 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 		filter.Ruhend = service.RuhendfilterRuhend
 	case ruhendLaufend:
 		filter.Ruhend = service.RuhendfilterLaufend
+	}
+
+	// Unlesbares (leer, kein Zahlenformat) bleibt wie bei jedem anderen Feld
+	// beim Standard "nicht eingrenzen" — der Regler selbst schickt immer eine
+	// gültige Zahl, nur ein selbstgebauter Request könnte etwas anderes senden.
+	if roh := strings.TrimSpace(e.BeitragVon); roh != "" {
+		if cents, err := service.BeitragAusEuro(roh); err == nil {
+			filter.BeitragVonCents = &cents
+		}
+	}
+	if roh := strings.TrimSpace(e.BeitragBis); roh != "" {
+		if cents, err := service.BeitragAusEuro(roh); err == nil {
+			filter.BeitragBisCents = &cents
+		}
 	}
 
 	if spalte, ok := sortierspalten[e.Sortierspalte]; ok {
@@ -607,6 +630,14 @@ type listeDaten struct {
 	// bleibt stehen.
 	Geschlechtswerte []string
 	Termine          []service.Trainingstermin
+
+	// BeitragMin und BeitragMax sind die Grenzen des Beitrag-Schiebereglers in
+	// Cent (service.MemberService.BeitragBereich) — anders als
+	// Geschlechtswerte und Termine bei jedem Aufruf frisch geholt (siehe
+	// listeDatenLesen), weil der Regler sie als min/max-Attribute braucht und
+	// sonst nach der ersten Filteränderung auf 0/0 einbräche.
+	BeitragMin int64
+	BeitragMax int64
 }
 
 // AktivRueckstand, AktivTraining und AktivGeschlecht sagen, ob der Filter
@@ -618,6 +649,12 @@ func (d listeDaten) AktivTraining() bool {
 	return d.Suche.Frequenz != frequenzAlle || d.Suche.Termin != terminAlle
 }
 func (d listeDaten) AktivGeschlecht() bool { return d.Suche.Geschlecht != geschlechtAlle }
+
+// AktivBeitrag sagt, ob der Beitrag-Schieberegler eingrenzt — sobald einer der
+// beiden Regler bewegt wurde.
+func (d listeDaten) AktivBeitrag() bool {
+	return d.Suche.BeitragVon != "" || d.Suche.BeitragBis != ""
+}
 
 // AktivStatus fasst Status- und Ruhendfilter zusammen: ihr Zahnrad füllt sich,
 // sobald einer der beiden vom Nullwert abweicht — sie stehen im selben Menü
@@ -766,6 +803,48 @@ func (d listeDaten) Terminoptionen() []filteroption {
 	return gewaehlteOption(optionen, d.Suche.Termin)
 }
 
+// BeitragMinAttr und BeitragMaxAttr sind die Grenzen des Beitrag-Schiebereglers
+// als HTML-Attributwert — mit Punkt statt Komma, weil <input type="range">
+// unabhängig von der Anzeigesprache immer die Punktschreibweise verlangt
+// (anders als das Formularfeld, das service.BeitragAlsEuro bedient).
+func (d listeDaten) BeitragMinAttr() string { return beitragAlsAttribut(d.BeitragMin) }
+func (d listeDaten) BeitragMaxAttr() string { return beitragAlsAttribut(d.BeitragMax) }
+
+// BeitragVonWert und BeitragBisWert sind die aktuellen Reglerstände: der
+// gesetzte Filterwert, sonst die jeweilige Grenze — ungesetzt steht der Regler
+// also an seinem äußersten Ende und grenzt nichts ein.
+func (d listeDaten) BeitragVonWert() string {
+	if d.Suche.BeitragVon != "" {
+		return d.Suche.BeitragVon
+	}
+
+	return beitragAlsAttribut(d.BeitragMin)
+}
+func (d listeDaten) BeitragBisWert() string {
+	if d.Suche.BeitragBis != "" {
+		return d.Suche.BeitragBis
+	}
+
+	return beitragAlsAttribut(d.BeitragMax)
+}
+
+// BeitragVonAnzeige und BeitragBisAnzeige sind dieselben Reglerstände in der
+// gewohnten Komma-Schreibweise — die Anfangsanzeige neben jedem Regler, bevor
+// ihr eigenes hx-on:input sie beim Ziehen client-seitig nachführt (siehe
+// mitglieder_liste.html).
+func (d listeDaten) BeitragVonAnzeige() string {
+	return strings.Replace(d.BeitragVonWert(), ".", ",", 1)
+}
+func (d listeDaten) BeitragBisAnzeige() string {
+	return strings.Replace(d.BeitragBisWert(), ".", ",", 1)
+}
+
+// beitragAlsAttribut schreibt einen Cent-Betrag mit Punkt statt Komma — siehe
+// BeitragMinAttr.
+func beitragAlsAttribut(cents int64) string {
+	return fmt.Sprintf("%d.%02d", cents/100, cents%100)
+}
+
 // gewaehlteOption kopiert eine Auswahlliste und markiert darin den Eintrag zum
 // übergebenen Wert.
 //
@@ -867,12 +946,24 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		return listeDaten{}, false
 	}
 
+	// Anders als Geschlechtswerte und Termine gehört das hier in jeden Aufruf,
+	// nicht nur in die ganze Ansicht: der Regler steht im ausgetauschten
+	// Ergebnis-Fragment und bräuchte sonst nach der ersten Filteränderung
+	// Grenzen von 0/0 (siehe listeDaten.BeitragMin).
+	beitragMin, beitragMax, err := a.svc.BeitragBereich()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return listeDaten{}, false
+	}
+
 	return listeDaten{
 		Eintraege:  eintraege,
 		Meldung:    m,
 		Suche:      eingabe,
 		Navigation: a.navigation(bereichMitglieder),
 		Sprache:    a.Sprache(),
+		BeitragMin: beitragMin,
+		BeitragMax: beitragMax,
 	}, true
 }
 

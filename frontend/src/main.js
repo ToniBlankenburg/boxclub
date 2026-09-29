@@ -147,6 +147,13 @@ function sortierfallbackPruefen(sichtbar) {
     if (status && status.value) parameter.set('status', status.value);
     const ruhend = document.getElementById('filter-ruhend');
     if (ruhend && ruhend.value) parameter.set('ruhend', ruhend.value);
+    // Der Regler trägt immer einen Wert (nie leer wie ein Auswahlfeld) — an
+    // seiner eigenen Grenze steht er unbewegt, genau wie Go ihn ohne Filter
+    // rendert (listeDaten.BeitragVonWert/-BisWert), und grenzt dann nicht ein.
+    const beitragVon = document.getElementById('filter-beitrag-von');
+    if (beitragVon && beitragVon.value !== beitragVon.min) parameter.set('beitragVon', beitragVon.value);
+    const beitragBis = document.getElementById('filter-beitrag-bis');
+    if (beitragBis && beitragBis.value !== beitragBis.max) parameter.set('beitragBis', beitragBis.value);
     // sort und richtung bleiben weg: der fehlende Wert ist bereits der
     // Standard "Name, aufsteigend" (service.Sortierung-Nullwert).
 

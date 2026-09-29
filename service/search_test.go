@@ -645,6 +645,103 @@ func TestSearch_FiltertNachGeschlecht(t *testing.T) {
 	}
 }
 
+// Der Beitrag-Filter grenzt auf einen Bereich ein: nil grenzt nicht ein, 0 €
+// ist dabei ein normaler, wählbarer Wert (CONTEXT.md → Beitrag) und kein
+// Sonderfall wie bei einem Sentinel-Wert. Die Beiträge des Bestands sind
+// Berger 80 €, Öztürk 60 €, Meier-Schmidt 0 €, Wagner 135 € — und Klein
+// (ausgetreten) 45 €.
+func TestSearch_FiltertNachBeitrag(t *testing.T) {
+	svc := neuerService(t)
+	suchbestandAnlegen(t, svc)
+
+	faelle := []struct {
+		name     string
+		filter   service.Suchfilter
+		erwartet []string
+	}{
+		{"beide nil grenzen nicht ein", service.Suchfilter{}, alleAktiven},
+		{"nur Von gesetzt", service.Suchfilter{BeitragVonCents: zeiger(int64(8000))},
+			[]string{"Berger, Anna", "Wagner, Paul"}},
+		{"nur Bis gesetzt", service.Suchfilter{BeitragBisCents: zeiger(int64(6000))},
+			[]string{"Meier-Schmidt, Jörg", "Öztürk, Mehmet"}},
+		{"Von und Bis gesetzt", service.Suchfilter{
+			BeitragVonCents: zeiger(int64(6000)), BeitragBisCents: zeiger(int64(8000)),
+		}, []string{"Berger, Anna", "Öztürk, Mehmet"}},
+		{"Bereich ohne Treffer", service.Suchfilter{
+			BeitragVonCents: zeiger(int64(9000)), BeitragBisCents: zeiger(int64(13000)),
+		}, nil},
+		// Meier-Schmidt zahlt exakt 0 € — ein gültiger, kein fehlender Beitrag.
+		// Ein Von von 0 muss ihn einschließen, ein Von über 0 ihn ausschließen.
+		{"0 € ist als Von-Grenze ein gesetzter Wert, der 0 € einschließt",
+			service.Suchfilter{BeitragVonCents: zeiger(int64(0))}, alleAktiven},
+		{"0 € als Bis-Grenze schließt nur den 0-€-Beitrag ein",
+			service.Suchfilter{BeitragBisCents: zeiger(int64(0))}, []string{"Meier-Schmidt, Jörg"}},
+		{"Von über 0 schließt den 0-€-Beitrag aus",
+			service.Suchfilter{BeitragVonCents: zeiger(int64(1))},
+			[]string{"Berger, Anna", "Öztürk, Mehmet", "Wagner, Paul"}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			gefunden := suchen(t, svc, "", f.filter)
+			if !slices.Equal(gefunden, f.erwartet) {
+				t.Errorf("Beitragfilter %+v = %v, erwartet %v", f.filter, gefunden, f.erwartet)
+			}
+		})
+	}
+
+	// Ausgetretene gehen mit dem Filter durch, wie bei jeder anderen Dimension:
+	// Klein zahlt 45 € und liegt damit im Bereich.
+	gefunden := suchen(t, svc, "", service.Suchfilter{
+		BeitragVonCents: zeiger(int64(4000)), BeitragBisCents: zeiger(int64(5000)),
+		Status: service.StatusfilterAusgetreten,
+	})
+	if !slices.Equal(gefunden, []string{"Klein, Nina"}) {
+		t.Errorf("Beitragfilter mit Ausgetretenen = %v, erwartet [Klein, Nina]", gefunden)
+	}
+
+	// Kombiniert mit dem Rückstandsfilter: Wagner liegt im Bereich und ist im
+	// Rückstand, Berger liegt zwar auch im Bereich, ist aber in Ordnung.
+	gefunden = suchen(t, svc, "", service.Suchfilter{
+		BeitragVonCents: zeiger(int64(8000)), Rueckstand: service.RueckstandsfilterImRueckstand,
+	})
+	if !slices.Equal(gefunden, []string{"Wagner, Paul"}) {
+		t.Errorf("Beitragfilter + Rückstand = %v, erwartet [Wagner, Paul]", gefunden)
+	}
+}
+
+// Die Grenzen des Beitrag-Schiebereglers kommen aus dem tatsächlichen
+// Bestand — die laufenden Mitgliedschaften des suchBestand reichen von 0 €
+// (Meier-Schmidt) bis 135 € (Wagner). Eine ausgetretene Mitgliedschaft zählt
+// nicht mit: Klein zahlt 45 € und liegt innerhalb dieses Bereichs, dürfte ihn
+// also auch dann nicht verändern, wenn sie außerhalb läge.
+func TestBeitragBereich_LiefertMinUndMaxDerLaufendenMitgliedschaften(t *testing.T) {
+	svc := neuerService(t)
+	suchbestandAnlegen(t, svc)
+
+	min, max, err := svc.BeitragBereich()
+	if err != nil {
+		t.Fatalf("BeitragBereich: %v", err)
+	}
+	if min != 0 || max != 13500 {
+		t.Errorf("BeitragBereich() = (%d, %d), erwartet (0, 13500)", min, max)
+	}
+}
+
+// Ohne Mitglieder ist der Bereich (0, 0) statt eines Fehlers — der Regler
+// zeigt dann einen einzigen Punkt statt leerzulaufen.
+func TestBeitragBereich_OhneMitgliederIstNull(t *testing.T) {
+	svc := neuerService(t)
+
+	min, max, err := svc.BeitragBereich()
+	if err != nil {
+		t.Fatalf("BeitragBereich: %v", err)
+	}
+	if min != 0 || max != 0 {
+		t.Errorf("BeitragBereich() = (%d, %d), erwartet (0, 0)", min, max)
+	}
+}
+
 // Die Auswahl der Filterleiste kommt aus dem, was tatsächlich eingetragen ist:
 // wer im Formular etwas anderes als "Frau" oder "Mann" getippt hat, muss danach
 // auch filtern können.

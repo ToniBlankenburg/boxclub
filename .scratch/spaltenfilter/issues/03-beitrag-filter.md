@@ -15,18 +15,36 @@ ein. Die Euro-Eingabe des Reglers wird über das bestehende
 
 **Blocked by:** 01 (Zahnrad-Grundgerüst)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `Suchfilter` hat neue Felder `BeitragVonCents`, `BeitragBisCents`
+- [x] `Suchfilter` hat neue Felder `BeitragVonCents`, `BeitragBisCents`
       (`*int64`, `nil` = unbegrenzt)
-- [ ] `Search` filtert korrekt: nur Von gesetzt, nur Bis gesetzt, beide
+- [x] `Search` filtert korrekt: nur Von gesetzt, nur Bis gesetzt, beide
       gesetzt, beide `nil`
-- [ ] Grenzfall 0 € ist als gesetzter Wert (nicht `nil`) korrekt filterbar
+- [x] Grenzfall 0 € ist als gesetzter Wert (nicht `nil`) korrekt filterbar
       und schließt Mitglieder mit exakt 0 € Beitrag korrekt ein/aus
-- [ ] Regler-Grenzen werden serverseitig aus den tatsächlich vorkommenden
+- [x] Regler-Grenzen werden serverseitig aus den tatsächlich vorkommenden
       Beitragswerten berechnet und ans Template übergeben
-- [ ] UI: Beitrag-Zahnrad zeigt Doppel-Schieberegler, Zahnrad markiert aktiv,
+- [x] UI: Beitrag-Zahnrad zeigt Doppel-Schieberegler, Zahnrad markiert aktiv,
       wenn ein Wert vom Nullwert abweicht
-- [ ] Neue Unit-Tests in `service/member_service_test.go` für alle
-      Grenzfälle
-- [ ] `wails dev` und `wails build` laufen weiterhin auf Windows und Linux
+- [x] Neue Unit-Tests in `service/search_test.go` für alle Grenzfälle (dort
+      liegen die übrigen Suchfilter-Tests desselben Bestands, siehe
+      `suchbestandAnlegen`)
+- [x] `wails dev` und `wails build` laufen weiterhin auf Windows und Linux
+
+## Comments
+
+Die Regler-Grenzen kommen aus einer neuen `MemberService.BeitragBereich()` —
+sie werden nicht nur beim ersten Laden der Seite geholt, sondern bei jedem
+Aufruf von `listeDatenLesen` (also auch bei jedem Such-/Filter-Fragment):
+sonst bräche der Regler nach der ersten anderen Filteränderung auf
+Grenzen 0/0 ein, weil das Ergebnis-Fragment (in dem der Regler jetzt steckt,
+ADR-0020) sonst keine frischen Grenzen bekäme.
+
+Als "Doppel-Schieberegler" dienen zwei unabhängige `<input type="range">`
+(Von/Bis) statt eines echten Zwei-Griff-Reglers — letzterer bräuchte eigenes
+JS/CSS, das dieser Vanille-Stack sonst nirgends hat.
+
+`frontend/src/main.js` (`sortierfallbackPruefen`) musste um die beiden neuen
+Parameter ergänzt werden, sonst ginge der Beitragsfilter verloren, sobald die
+Beitrag-Spalte während aktiver Beitragssortierung ausgeblendet wird.

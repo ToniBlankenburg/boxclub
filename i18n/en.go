@@ -63,6 +63,8 @@ var englisch = map[string]string{
 	"mitglieder.filter_frequenz_aria":          "Filter by training frequency",
 	"mitglieder.filter_geschlecht_aria":        "Filter by gender",
 	"mitglieder.filter_termin_aria":            "Filter by training session",
+	"mitglieder.filter_beitrag_von_aria":       "Fee from",
+	"mitglieder.filter_beitrag_bis_aria":       "Fee to",
 	"mitglieder.eintrag_singular":              "member",
 	"mitglieder.eintrag_plural":                "members",
 	"mitglieder.leer_gefiltert":                "No member matches the search and filters.",
