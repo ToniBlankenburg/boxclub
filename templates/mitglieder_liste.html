@@ -151,6 +151,14 @@
         <table class="w-max min-w-full table-fixed text-left">
             <thead>
                 <tr class="border-b border-neutral-200 text-sm text-neutral-600">
+                    {{/* Jede Kopfzelle bekommt einzeln sticky top-0 statt der
+                         Zeile — beim Scrollen der Liste (die ganze Seite scrollt,
+                         siehe frontend/index.html, kein eigener Scrollbereich)
+                         bleibt die Kopfzeile so stehen, Zahnräder und das
+                         "+"-Menü für ausgeblendete Spalten eingeschlossen. z-10
+                         hebt sie über die Zeilen darunter (sonst malt table-
+                         Layout spätere Zeilen ohne eigenes z-index über die
+                         sticky Zelle), bg-white deckt sie ab. */}}
                     {{/* Die Mitglieds-ID steht als eigene, schmale Spalte vor dem
                          Namen. Sie ist dreistellig und bekommt eine kleine feste
                          Breite (table-fixed wächst Spalten nicht mehr am Inhalt,
@@ -207,7 +215,7 @@
                          Kästchen in der Kopfzelle wählt alle sichtbaren Zeilen
                          auf einmal; main.js hält es rein clientseitig, ohne
                          Server-Aufruf, wie die Spaltenwahl (spaltenAnwenden). */}}
-                    <th class="w-9 p-0">
+                    <th class="sticky top-0 z-10 w-9 bg-white p-0">
                         <label class="flex h-full w-full cursor-pointer items-center justify-center py-2"
                                hx-on:click="event.stopPropagation()">
                             <input type="checkbox" data-mitglied-alle-auswaehlen
@@ -215,15 +223,16 @@
                                    aria-label="{{t "mitglieder.alle_auswaehlen_aria"}}">
                         </label>
                     </th>
-                    <th class="w-16 px-4 py-2 font-medium" title="{{t "mitglieder.mitglieds_id_titel"}}"
+                    <th class="sticky top-0 z-10 w-16 bg-white px-4 py-2 font-medium" title="{{t "mitglieder.mitglieds_id_titel"}}"
                         aria-sort="{{.SpaltenkopfNr.AriaSort}}">{{template "spaltenkopf" .SpaltenkopfNr}}</th>
                     {{/* Name ist nicht ausblendbar und bekommt deshalb keine
                          "Spalte ausblenden"-Aktion — ihr Zahnrad trägt trotzdem
                          den Geschlecht-Filter, weil Geschlecht keine eigene
                          Spalte hat (ADR-0020, Auflösung des Widerspruchs
                          zwischen Story 9 und Story 20 aus spec.md). */}}
-                    <th class="relative min-w-[7rem] px-4 py-2 font-medium" data-col="name"
+                    <th class="sticky top-0 z-10 min-w-[7rem] bg-white px-4 py-2 font-medium" data-col="name"
                         aria-sort="{{.SpaltenkopfName.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfName}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.name")}}"
@@ -240,6 +249,7 @@
                                 </select>
                             </div>
                         </details>
+                        </div>
                         {{template "spaltengriff" "name"}}
                     </th>
                     {{/* Status bündelt zwei eigenständige Auswahlfelder im
@@ -249,8 +259,9 @@
                          Ruhend). Status übernimmt zugleich die Funktion der
                          alten Ehemalige-Checkbox: nur wer aktiv
                          "Ausgetreten" wählt, sieht ausgetretene Mitglieder. */}}
-                    <th class="relative w-36 px-4 py-2 font-medium" data-col="status"
+                    <th class="sticky top-0 z-10 w-36 bg-white px-4 py-2 font-medium" data-col="status"
                         aria-sort="{{.SpaltenkopfStatus.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfStatus}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.status")}}"
@@ -280,13 +291,15 @@
                                 {{template "spalte-ausblenden-aktion" "status"}}
                             </div>
                         </details>
+                        </div>
                         {{template "spaltengriff" "status"}}
                     </th>
                     {{/* Anschrift bekommt bewusst nie einen Filter (spec.md,
                          Out of Scope) — ihr Zahnrad-Menü enthält dauerhaft nur
                          "Spalte ausblenden". */}}
-                    <th class="relative w-56 px-4 py-2 font-medium" data-col="anschrift"
+                    <th class="sticky top-0 z-10 w-56 bg-white px-4 py-2 font-medium" data-col="anschrift"
                         aria-sort="{{.SpaltenkopfAnschrift.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfAnschrift}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.anschrift")}}"
@@ -297,13 +310,15 @@
                                 {{template "spalte-ausblenden-aktion" "anschrift"}}
                             </div>
                         </details>
+                        </div>
                         {{template "spaltengriff" "anschrift"}}
                     </th>
                     {{/* Training bündelt Frequenz- und Termin-Filter im selben
                          Menü, weil beide dieselbe Spalte betreffen (spec.md,
                          Story 8). */}}
-                    <th class="relative w-48 px-4 py-2 font-medium" data-col="training"
+                    <th class="sticky top-0 z-10 w-48 bg-white px-4 py-2 font-medium" data-col="training"
                         aria-sort="{{.SpaltenkopfTraining.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfTraining}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.training")}}"
@@ -333,6 +348,7 @@
                                 {{template "spalte-ausblenden-aktion" "training"}}
                             </div>
                         </details>
+                        </div>
                         {{template "spaltengriff" "training"}}
                     </th>
                     {{/* Der Doppel-Schieberegler grenzt auf einen Beitragsbereich
@@ -349,8 +365,9 @@
                          client-seitig (hx-on:input); der eigentliche Wert
                          reist wie bei jedem anderen Filter erst bei "change"
                          zum Server. */}}
-                    <th class="relative w-24 px-4 py-2 text-right font-medium" data-col="beitrag"
+                    <th class="sticky top-0 z-10 w-24 bg-white px-4 py-2 text-right font-medium" data-col="beitrag"
                         aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfBeitrag}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.beitrag")}}"
@@ -386,10 +403,12 @@
                                 {{template "spalte-ausblenden-aktion" "beitrag"}}
                             </div>
                         </details>
+                        </div>
                         {{template "spaltengriff" "beitrag"}}
                     </th>
-                    <th class="relative w-48 px-4 py-2 font-medium" data-col="rueckstand"
+                    <th class="sticky top-0 z-10 w-48 bg-white px-4 py-2 font-medium" data-col="rueckstand"
                         aria-sort="{{.SpaltenkopfRueckstand.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfRueckstand}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.rueckstand")}}"
@@ -408,13 +427,15 @@
                                 {{template "spalte-ausblenden-aktion" "rueckstand"}}
                             </div>
                         </details>
+                        </div>
                         {{template "spaltengriff" "rueckstand"}}
                     </th>
                     {{/* Von-Bis-Datumspaar, unabhängig voneinander nutzbar,
                          beide Ränder einschließend (Ticket 04, CONTEXT.md →
                          Status). */}}
-                    <th class="relative w-56 px-4 py-2 font-medium" data-col="eintritt"
+                    <th class="sticky top-0 z-10 w-56 bg-white px-4 py-2 font-medium" data-col="eintritt"
                         aria-sort="{{.SpaltenkopfEintritt.AriaSort}}">
+                        <div class="flex items-center justify-between gap-1">
                         {{template "spaltenkopf" .SpaltenkopfEintritt}}
                         <details class="relative inline-block align-middle" data-spaltenmenu>
                             <summary aria-label="{{t "mitglieder.spaltenmenu_aria" (t "spalte.eintritt")}}"
@@ -440,7 +461,7 @@
                                 {{template "spalte-ausblenden-aktion" "eintritt"}}
                             </div>
                         </details>
-                        {{template "spaltengriff" "eintritt"}}
+                        </div>
                     </th>
                     {{template "spalten-fallback" .}}
                 </tr>
@@ -474,7 +495,7 @@
      tatsächlichen Auswahl abgleicht: sichtbar bleibt nur, was gerade
      versteckt ist. Die Daten sind listeDaten. */}}
 {{define "spalten-fallback"}}
-<th class="w-10 px-2 py-2 text-right font-medium">
+<th class="sticky top-0 z-10 w-10 bg-white px-2 py-2 text-right font-medium">
     <details class="relative inline-block" data-spalten-fallback>
         <summary aria-label="{{t "mitglieder.spalten_fallback_aria"}}"
                  class="relative inline-flex list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
