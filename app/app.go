@@ -669,6 +669,11 @@ type listeDaten struct {
 	// braucht und sonst nach der ersten Filteränderung auf 0/0 einbräche.
 	BeitragMin int64
 	BeitragMax int64
+
+	// HatLogo sagt, ob die Vereinsdaten ein Logo tragen — dann steht es neben
+	// dem Titel der Liste (CONTEXT.md → Vereinslogo). Das Logo ist freiwillig,
+	// ohne eines bleibt der Titel allein.
+	HatLogo bool
 }
 
 // AktivRueckstand, AktivTraining und AktivGeschlecht sagen, ob der Filter
@@ -866,8 +871,8 @@ func (d listeDaten) BeitragBisWert() string {
 }
 
 // BeitragVonAnzeige und BeitragBisAnzeige sind dieselben Reglerstände in der
-// gewohnten Komma-Schreibweise — die Anfangsanzeige neben jedem Regler, bevor
-// ihr eigenes hx-on:input sie beim Ziehen client-seitig nachführt (siehe
+// gewohnten Komma-Schreibweise — die Anfangsanzeige über dem Regler, bevor
+// beitragsbereich.js sie beim Ziehen client-seitig nachführt (siehe
 // mitglieder_liste.html).
 func (d listeDaten) BeitragVonAnzeige() string {
 	return strings.Replace(d.BeitragVonWert(), ".", ",", 1)
@@ -993,7 +998,14 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		return listeDaten{}, false
 	}
 
+	verein, err := a.svc.GetVereinsdaten()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return listeDaten{}, false
+	}
+
 	return listeDaten{
+		HatLogo:          len(verein.Logo) > 0,
 		Eintraege:        eintraege,
 		Meldung:          m,
 		Suche:            eingabe,

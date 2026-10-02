@@ -3,7 +3,10 @@
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
     <div class="mb-5 flex items-center justify-between gap-4">
-        <h2 class="text-base font-semibold">{{t "mitglieder.titel"}}</h2>
+        <div class="flex items-center gap-3">
+            {{if .HatLogo}}<img src="/api/verein/logo" alt="{{t "verein.logo_alt"}}" class="h-8 w-auto max-w-[8rem] object-contain">{{end}}
+            <h2 class="text-base font-semibold">{{t "mitglieder.titel"}}</h2>
+        </div>
         <div class="flex gap-2">
             {{/* Serienmail nimmt die angekreuzten Zeilen des Ergebnisses mit
                  (siehe die Kontrollkästchen in "mitglied-zeile" unten) —
@@ -351,20 +354,17 @@
                         </div>
                         {{template "spaltengriff" "training"}}
                     </th>
-                    {{/* Der Doppel-Schieberegler grenzt auf einen Beitragsbereich
-                         ein: zwei eigenständige Regler statt eines echten
-                         Zwei-Griff-Reglers, den <input type="range"> nicht
-                         kennt — ein zweiter Griff bräuchte eigenes JS und
-                         eigenes CSS, das dieser Stack (Vanille-HTML/htmx,
-                         siehe CLAUDE.md) sonst nirgends braucht. Ihre Grenzen
-                         (min/max) kommen serverseitig aus den tatsächlich
-                         vorkommenden Beitragswerten (listeDaten.BeitragMin/
-                         -Max, spec.md Story 15) — 0 € ist dabei ein normaler
-                         Wert, kein Sonderfall (CONTEXT.md → Beitrag). Die
-                         Live-Anzeige neben jedem Regler ist rein
-                         client-seitig (hx-on:input); der eigentliche Wert
-                         reist wie bei jedem anderen Filter erst bei "change"
-                         zum Server. */}}
+                    {{/* Der Beitragsbereich ist ein Zwei-Griff-Regler: zwei übereinander
+                         gelegte <input type="range"> (beide behalten Id, Name und
+                         Wert für Formular und main.js), die nur an ihren Griffen
+                         Mausereignisse annehmen. Die Klemmung (von <= bis), die
+                         Füllung zwischen den Griffen und die Live-Anzeige liegen
+                         client-seitig in beitragsbereich.js; der Wert reist wie
+                         bei jedem anderen Filter erst bei "change" zum Server.
+                         Die Grenzen (min/max) kommen serverseitig aus den
+                         tatsächlich vorkommenden Beitragswerten (listeDaten.
+                         BeitragMin/-Max, spec.md Story 15) — 0 € ist dabei ein
+                         normaler Wert, kein Sonderfall (CONTEXT.md → Beitrag). */}}
                     <th class="sticky top-0 z-10 w-24 bg-white px-4 py-2 text-right font-medium" data-col="beitrag"
                         aria-sort="{{.SpaltenkopfBeitrag.AriaSort}}">
                         <div class="flex items-center justify-between gap-1">
@@ -375,29 +375,22 @@
                                 {{template "zahnrad-icon" .AktivBeitrag}}
                             </summary>
                             <div class="absolute right-0 top-full z-20 mt-1 w-56 space-y-2 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
-                                <div>
+                                <div class="beitragsbereich" data-beitragsbereich>
                                     <div class="mb-1 flex items-center justify-between text-xs font-medium text-neutral-500">
-                                        <label for="filter-beitrag-von">{{t "mitglieder.filter_beitrag_von_aria"}}</label>
-                                        <output class="tabular-nums">{{.BeitragVonAnzeige}} €</output>
+                                        <span>{{t "spalte.beitrag"}}</span>
+                                        <output class="tabular-nums">{{.BeitragVonAnzeige}} – {{.BeitragBisAnzeige}} €</output>
                                     </div>
-                                    <input form="mitglieder-filter" id="filter-beitrag-von" name="beitragVon" type="range"
-                                           aria-label="{{t "mitglieder.filter_beitrag_von_aria"}}"
-                                           min="{{.BeitragMinAttr}}" max="{{.BeitragMaxAttr}}" step="0.01"
-                                           value="{{.BeitragVonWert}}"
-                                           hx-on:input="this.previousElementSibling.querySelector('output').textContent = this.value.replace('.', ',') + ' €'"
-                                           class="w-full accent-[var(--akzent)]">
-                                </div>
-                                <div>
-                                    <div class="mb-1 flex items-center justify-between text-xs font-medium text-neutral-500">
-                                        <label for="filter-beitrag-bis">{{t "mitglieder.filter_beitrag_bis_aria"}}</label>
-                                        <output class="tabular-nums">{{.BeitragBisAnzeige}} €</output>
+                                    <div class="beitragsbereich-regler">
+                                        <span class="beitragsbereich-spur"><span class="beitragsbereich-fuellung"></span></span>
+                                        <input form="mitglieder-filter" id="filter-beitrag-von" name="beitragVon" type="range"
+                                               aria-label="{{t "mitglieder.filter_beitrag_von_aria"}}"
+                                               min="{{.BeitragMinAttr}}" max="{{.BeitragMaxAttr}}" step="0.01"
+                                               value="{{.BeitragVonWert}}">
+                                        <input form="mitglieder-filter" id="filter-beitrag-bis" name="beitragBis" type="range"
+                                               aria-label="{{t "mitglieder.filter_beitrag_bis_aria"}}"
+                                               min="{{.BeitragMinAttr}}" max="{{.BeitragMaxAttr}}" step="0.01"
+                                               value="{{.BeitragBisWert}}">
                                     </div>
-                                    <input form="mitglieder-filter" id="filter-beitrag-bis" name="beitragBis" type="range"
-                                           aria-label="{{t "mitglieder.filter_beitrag_bis_aria"}}"
-                                           min="{{.BeitragMinAttr}}" max="{{.BeitragMaxAttr}}" step="0.01"
-                                           value="{{.BeitragBisWert}}"
-                                           hx-on:input="this.previousElementSibling.querySelector('output').textContent = this.value.replace('.', ',') + ' €'"
-                                           class="w-full accent-[var(--akzent)]">
                                 </div>
                                 <hr class="border-neutral-200">
                                 {{template "spalte-ausblenden-aktion" "beitrag"}}

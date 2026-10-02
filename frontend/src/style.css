@@ -23,3 +23,71 @@
     --akzent-ring-40: rgb(47 95 120 / 0.4);
     --akzent-ring-15: rgb(47 95 120 / 0.15);
 }
+
+/* Zwei-Griff-Regler des Beitragsfilters (beitragsbereich.js): die Eingaben
+   liegen übereinander, nehmen Mausereignisse nur an den Griffen an, und die
+   Füllung zwischen den Griffen steuern --von/--bis (Anteile 0..1). Die 16px
+   sind der Griffdurchmesser — der Griffmittelpunkt wandert nur zwischen
+   8px und Breite-8px. */
+.beitragsbereich-regler {
+    position: relative;
+    height: 1.25rem;
+}
+.beitragsbereich-spur {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 4px;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: #d4d4d4;
+}
+.beitragsbereich-fuellung {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--von, 0) * (100% - 16px) + 8px);
+    right: calc((1 - var(--bis, 1)) * (100% - 16px) + 8px);
+    background: var(--akzent);
+}
+.beitragsbereich-regler input[type="range"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    pointer-events: none;
+    appearance: none;
+}
+.beitragsbereich-regler input[type="range"]::-webkit-slider-runnable-track {
+    background: transparent;
+    height: 100%;
+}
+.beitragsbereich-regler input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    margin-top: calc((1.25rem - 16px) / 2);
+    border-radius: 9999px;
+    border: 2px solid var(--akzent);
+    background: #fff;
+    cursor: pointer;
+}
+.beitragsbereich-regler input[type="range"]::-moz-range-track {
+    background: transparent;
+}
+.beitragsbereich-regler input[type="range"]::-moz-range-thumb {
+    pointer-events: auto;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    border: 2px solid var(--akzent);
+    background: #fff;
+    cursor: pointer;
+}
+.beitragsbereich-regler input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--akzent-ring-40);
+}

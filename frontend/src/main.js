@@ -33,6 +33,7 @@ import './style.css';
 import './registerkarten.js';
 import './tastenkuerzel.js';
 import './spaltenbreite.js';
+import './beitragsbereich.js';
 
 // spaltenAusblendbar sind die Schlüssel der Spalten, die sich ausblenden
 // lassen — dieselben, die app.spaltenAusblendbar in Go kennt (Status,
