@@ -72,7 +72,7 @@
            Sortierklick auch dann erhalten, wenn direkt danach gesucht oder
            gefiltert wird (Ticket 27). */}}
       hx-include="#mitglieder-ergebnis"
-      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-status, change from:#filter-ruhend, change from:#filter-beitrag-von, change from:#filter-beitrag-bis">
+      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-status, change from:#filter-ruhend, change from:#filter-beitrag-von, change from:#filter-beitrag-bis, change from:#filter-eintritt-von, change from:#filter-eintritt-bis">
 </form>
 
 {{/* Achtung bei einem weiteren Feld hier: es braucht ein eigenes
@@ -545,7 +545,7 @@
         aria-label="{{t "mitglieder.sortieren_nach" .Beschriftung}}{{if .Aktiv}}{{if eq .AriaSort "ascending"}}{{t "mitglieder.aktuell_aufsteigend"}}{{else}}{{t "mitglieder.aktuell_absteigend"}}{{end}}{{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-ruhend, #filter-beitrag-von, #filter-beitrag-bis"
+        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-ruhend, #filter-beitrag-von, #filter-beitrag-bis, #filter-eintritt-von, #filter-eintritt-bis"
         hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
     {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
 </button>

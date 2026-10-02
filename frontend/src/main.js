@@ -21,7 +21,14 @@
 // Ansicht wird schwarz. Wails' Laufzeit-Funktion BrowserOpenURL reicht die
 // Adresse stattdessen an das Betriebssystem weiter, wie ein Klick in einem
 // gewöhnlichen Browser das täte.
-import 'htmx.org';
+// Der ESM-Build von htmx.org hängt sich anders als die früher genutzte
+// UMD/CDN-Variante nicht selbst an "window" — ein reiner Seiteneffekt-Import
+// ("import 'htmx.org'") lässt window.htmx deshalb undefined. Die hx-*-
+// Attribute im HTML verarbeitet htmx trotzdem automatisch (eigene
+// DOMContentLoaded-Initialisierung im Modul), aber der explizite JS-Zugriff
+// unten (window.htmx.ajax, window.htmx.process) braucht die Zuweisung hier.
+import htmx from 'htmx.org';
+window.htmx = htmx;
 import './style.css';
 import './registerkarten.js';
 import './tastenkuerzel.js';
@@ -173,6 +180,25 @@ function sortierfallbackPruefen(sichtbar) {
 // Inline-Formular ersetzt.
 document.body.addEventListener('htmx:afterSwap', spaltenAnwenden);
 
+// Das äußere, nie ausgetauschte <form id="mitglieder-filter"> löst die
+// Filter über "hx-trigger=... change from:#filter-x" aus (siehe
+// "mitglieder-werkzeugleiste" in mitglieder_liste.html). htmx bindet diese
+// "from:"-Ziele beim Verarbeiten des Formulars einmalig an die dort gerade
+// vorhandenen Knoten — die Filterfelder selbst liegen aber innerhalb von
+// #mitglieder-ergebnis und werden bei jedem Such-/Filter-Austausch durch
+// frische Knoten ersetzt. Ohne das hier bliebe die Bindung am alten,
+// entfernten Knoten hängen: die erste Filteränderung funktioniert noch
+// (Erstverarbeitung beim Laden der Seite), jede weitere Änderung an
+// irgendeinem Filterfeld danach löst dagegen stillschweigend keinen Request
+// mehr aus. htmx.process() bindet die "from:"-Ziele des Formulars neu an
+// die gerade aktuellen Knoten.
+document.body.addEventListener('htmx:afterSwap', () => {
+    const formular = document.getElementById('mitglieder-filter');
+    if (formular) {
+        window.htmx.process(formular);
+    }
+});
+
 // "Spalte ausblenden" im Zahnrad-Menü einer Spalte (ADR-0020): sie fliegt aus
 // der sichtbaren Auswahl, ihr eigenes Zahnrad verschwindet damit gleich mit —
 // wiederzufinden ist sie über das Fallback-Element am Ende der Kopfzeile.
@@ -219,6 +245,77 @@ document.body.addEventListener('toggle', (ereignis) => {
     document.querySelectorAll('details[data-spaltenmenu][open]').forEach((andere) => {
         if (andere !== details) andere.open = false;
     });
+}, true);
+
+// Der Tabellen-Wrapper braucht overflow-x-auto (waagerechtes Scrollen bei
+// vielen Spalten); das zwingt den Browser aber auch die Y-Achse auf "auto"
+// mit (Overflow-Achsen lassen sich nicht einzeln auf "visible" lassen) und
+// schneidet ein `position: absolute`-Popup ab, sobald die Tabelle kürzer
+// ist als das Popup — ganz gleich, ob es nach oben oder unten aufklappt,
+// beide Richtungen liegen innerhalb desselben geclippten Wrappers.
+// `position: fixed` entkommt dem Clipping eines overflow-Vorfahren
+// (Standardtrick gegen "overflow: hidden schneidet mein Dropdown ab"),
+// solange kein Vorfahre transform/filter/contain setzt — hier keiner.
+// Deshalb wird das offene Popup fix relativ zum Fenster positioniert statt
+// relativ zum <details>, mit von Hand berechneten Koordinaten.
+function popupFixPositionieren(details) {
+    const popup = details.querySelector(':scope > div.absolute');
+    const summary = details.querySelector(':scope > summary');
+    if (!popup || !summary) {
+        return;
+    }
+
+    const alignRechts = popup.classList.contains('right-0');
+    popup.style.position = 'fixed';
+    popup.style.margin = '0';
+    popup.style.top = 'auto';
+    popup.style.bottom = 'auto';
+    popup.style.left = 'auto';
+    popup.style.right = 'auto';
+
+    const summaryReck = summary.getBoundingClientRect();
+    const popupReck = popup.getBoundingClientRect();
+
+    let oben = summaryReck.bottom + 4;
+    if (oben + popupReck.height > window.innerHeight) {
+        oben = Math.max(4, summaryReck.top - popupReck.height - 4);
+    }
+
+    let links = alignRechts ? summaryReck.right - popupReck.width : summaryReck.left;
+    links = Math.max(4, Math.min(links, window.innerWidth - popupReck.width - 4));
+
+    popup.style.top = `${oben}px`;
+    popup.style.left = `${links}px`;
+}
+
+// Beim Schließen (egal ob per eigenem Klick, "nur ein Menü offen" oder
+// Klick daneben) wieder auf die ursprüngliche, klassenbasierte Position
+// zurücksetzen — sonst hinge das nächste Öffnen an der zuletzt berechneten
+// Fenster-Koordinate, bevor main.js sie neu ausrechnet.
+function popupFixZuruecksetzen(details) {
+    const popup = details.querySelector(':scope > div.absolute');
+    if (!popup) {
+        return;
+    }
+    popup.style.position = '';
+    popup.style.margin = '';
+    popup.style.top = '';
+    popup.style.bottom = '';
+    popup.style.left = '';
+    popup.style.right = '';
+}
+
+document.body.addEventListener('toggle', (ereignis) => {
+    const details = ereignis.target;
+    if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-spaltenmenu], [data-spalten-fallback]')) {
+        return;
+    }
+
+    if (details.open) {
+        popupFixPositionieren(details);
+    } else {
+        popupFixZuruecksetzen(details);
+    }
 }, true);
 
 // Das Kästchen in der Kopfzelle der Auswahlspalte (Serienmail) setzt alle

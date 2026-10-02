@@ -648,17 +648,21 @@ type listeDaten struct {
 	Sprache i18n.Sprache
 
 	// Geschlechtswerte und Termine speisen die beiden Auswahllisten, die aus dem
-	// Bestand entstehen. Nur die ganze Ansicht trägt sie: das Ergebnis allein
-	// wird bei jedem Tastendruck neu gerendert, und die Filterleiste darüber
-	// bleibt stehen.
+	// Bestand entstehen. Seit ADR-0020 stehen die zugehörigen Filterfelder
+	// selbst im ausgetauschten Ergebnis-Fragment (an den Zahnrädern der
+	// Kopfzeile) und nicht mehr in der stehenbleibenden Filterleiste darüber —
+	// beide werden deshalb wie BeitragMin/BeitragMax bei jedem Aufruf frisch
+	// geholt (siehe listeDatenLesen). Andernfalls käme nach der ersten
+	// Filteränderung ein Auswahlfeld ohne Optionen außer dem Platzhalter
+	// zurück, und ein zuvor gesetzter Geschlecht- oder Termin-Filter ginge
+	// dabei stillschweigend verloren.
 	Geschlechtswerte []string
 	Termine          []service.Trainingstermin
 
 	// BeitragMin und BeitragMax sind die Grenzen des Beitrag-Schiebereglers in
-	// Cent (service.MemberService.BeitragBereich) — anders als
-	// Geschlechtswerte und Termine bei jedem Aufruf frisch geholt (siehe
-	// listeDatenLesen), weil der Regler sie als min/max-Attribute braucht und
-	// sonst nach der ersten Filteränderung auf 0/0 einbräche.
+	// Cent (service.MemberService.BeitragBereich) — bei jedem Aufruf frisch
+	// geholt (siehe listeDatenLesen), weil der Regler sie als min/max-Attribute
+	// braucht und sonst nach der ersten Filteränderung auf 0/0 einbräche.
 	BeitragMin int64
 	BeitragMax int64
 }
@@ -951,18 +955,6 @@ func (a *App) listeMitFilterRendern(w http.ResponseWriter, eingabe suchEingabe, 
 		return
 	}
 
-	// Die Auswahllisten aus dem Bestand gehören nur zur ganzen Ansicht, siehe
-	// listeDaten.
-	var err error
-	if daten.Geschlechtswerte, err = a.svc.Geschlechtswerte(); err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-	if daten.Termine, err = a.svc.ListTrainingstermine(true); err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
 	a.rendern(w, "mitglieder-liste", daten)
 }
 
@@ -975,24 +967,38 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		return listeDaten{}, false
 	}
 
-	// Anders als Geschlechtswerte und Termine gehört das hier in jeden Aufruf,
-	// nicht nur in die ganze Ansicht: der Regler steht im ausgetauschten
-	// Ergebnis-Fragment und bräuchte sonst nach der ersten Filteränderung
-	// Grenzen von 0/0 (siehe listeDaten.BeitragMin).
+	// Bei jedem Aufruf frisch geholt, nicht nur beim vollen Seitenaufbau: der
+	// Regler und die Auswahllisten stehen im ausgetauschten Ergebnis-Fragment
+	// und bräuchten sonst nach der ersten Filteränderung Grenzen von 0/0 bzw.
+	// nur noch den Platzhalter ohne echte Optionen (siehe listeDaten).
 	beitragMin, beitragMax, err := a.svc.BeitragBereich()
 	if err != nil {
 		fehlerAntwort(w, err)
 		return listeDaten{}, false
 	}
 
+	geschlechtswerte, err := a.svc.Geschlechtswerte()
+	if err != nil {
+		fehlerAntwort(w, err)
+		return listeDaten{}, false
+	}
+
+	termine, err := a.svc.ListTrainingstermine(true)
+	if err != nil {
+		fehlerAntwort(w, err)
+		return listeDaten{}, false
+	}
+
 	return listeDaten{
-		Eintraege:  eintraege,
-		Meldung:    m,
-		Suche:      eingabe,
-		Navigation: a.navigation(bereichMitglieder),
-		Sprache:    a.Sprache(),
-		BeitragMin: beitragMin,
-		BeitragMax: beitragMax,
+		Eintraege:        eintraege,
+		Meldung:          m,
+		Suche:            eingabe,
+		Navigation:       a.navigation(bereichMitglieder),
+		Sprache:          a.Sprache(),
+		BeitragMin:       beitragMin,
+		BeitragMax:       beitragMax,
+		Geschlechtswerte: geschlechtswerte,
+		Termine:          termine,
 	}, true
 }
 
