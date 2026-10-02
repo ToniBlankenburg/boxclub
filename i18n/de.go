@@ -283,6 +283,8 @@ var deutsch = map[string]string{
 		"Mitglieder werden aktualisiert, nicht doppelt angelegt. Was sich nicht zuordnen lässt, steht " +
 		"danach zeilenweise im Bericht.",
 	"import.datei_aria":        "Excel-Datei auswählen",
+	"import.blatt_name_hinweis": "Das Blatt mit den Mitgliederdaten muss „Verwaltung“ heißen — sonst " +
+		"wird ersatzweise das erste Blatt der Datei gelesen.",
 	"import.importieren_knopf": "Importieren",
 	"import.wird_gelesen":      "Wird gelesen …",
 
@@ -320,7 +322,6 @@ var deutsch = map[string]string{
 	// brauchen die Sprache vom Aufrufer, weil importer/ selbst keine kennt
 	// (Ticket 05).
 	"import.fehler.datei_nicht_lesbar": "die Datei ließ sich nicht als .xlsx öffnen",
-	"import.fehler.blatt_fehlt":        "das Blatt „%s“ fehlt in der Datei",
 	"import.fehler.blatt_nicht_lesbar": "das Blatt „%s“ ließ sich nicht lesen",
 	"import.fehler.keine_kopfzeile":    "das Blatt „%s“ hat keine Kopfzeile",
 	"import.fehler.spalte_fehlt": "im Blatt „%s“ fehlt die Spalte „%s“ — die Datei passt nicht zur " +

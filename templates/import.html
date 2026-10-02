@@ -8,8 +8,11 @@
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
     <h2 class="mb-1 text-base font-semibold">{{t "import.titel"}}</h2>
-    <p class="mb-5 max-w-2xl text-sm text-neutral-600">
+    <p class="mb-3 max-w-2xl text-sm text-neutral-600">
         {{t "import.beschreibung_vor"}}<code>.xlsx</code>{{t "import.beschreibung_nach"}}
+    </p>
+    <p class="mb-5 max-w-2xl rounded-md border border-amber-600 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        {{t "import.blatt_name_hinweis"}}
     </p>
 
     {{with .Meldung}}

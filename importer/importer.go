@@ -111,23 +111,26 @@ func (ExcelImporter) Lesen(r io.Reader, plan Stundenplan, sprache i18n.Sprache) 
 	}
 	defer f.Close()
 
+	// Steht kein Blatt „Verwaltung" in der Datei, wird das erste Blatt
+	// genommen statt abzubrechen: der Verein benennt sein Blatt nicht immer
+	// gleich, und ein Export ohne das erwartete Blatt ist trotzdem meist
+	// genau die eine Tabelle, die importiert werden soll. Im Dialog steht
+	// deshalb ein Hinweis, wie das Blatt heißen muss, damit es sicher
+	// gefunden wird (import.hinweis.blatt_name in import.html).
+	sheet := blatt
+	if index, err := f.GetSheetIndex(blatt); err != nil || index == -1 {
+		sheet = f.GetSheetList()[0]
+	}
+
 	// RawCellValue liefert die Zellen so, wie sie gespeichert sind: ein
 	// Datum als Seriennummer statt in der Formatierung, die der Rechner des
 	// Vereins gerade anzeigt. Gedeutet wird hier und nicht von Excelize.
-	// Erst nachsehen, ob es das Blatt gibt, und dann lesen: sonst bekäme jeder
-	// Lesefehler die Auskunft „das Blatt fehlt", auch wenn das Blatt da ist und
-	// etwas ganz anderes klemmt.
-	index, err := f.GetSheetIndex(blatt)
-	if err != nil || index == -1 {
-		return Ergebnis{}, errors.New(i18n.Text(sprache, "import.fehler.blatt_fehlt", blatt))
-	}
-
-	zeilen, err := f.GetRows(blatt, excelize.Options{RawCellValue: true})
+	zeilen, err := f.GetRows(sheet, excelize.Options{RawCellValue: true})
 	if err != nil {
-		return Ergebnis{}, fmt.Errorf("%s: %w", i18n.Text(sprache, "import.fehler.blatt_nicht_lesbar", blatt), err)
+		return Ergebnis{}, fmt.Errorf("%s: %w", i18n.Text(sprache, "import.fehler.blatt_nicht_lesbar", sheet), err)
 	}
 	if len(zeilen) < kopfzeile {
-		return Ergebnis{}, errors.New(i18n.Text(sprache, "import.fehler.keine_kopfzeile", blatt))
+		return Ergebnis{}, errors.New(i18n.Text(sprache, "import.fehler.keine_kopfzeile", sheet))
 	}
 
 	kopf, err := kopfLesen(zeilen[kopfzeile-1], sprache)

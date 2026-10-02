@@ -404,9 +404,9 @@ func TestLesen_DateifehlerFolgtDerUebergebenenSprache(t *testing.T) {
 
 	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan(), i18n.Englisch)
 	if err == nil {
-		t.Fatal("Lesen ohne Blatt „Verwaltung“ lief durch, erwartet Abbruch")
+		t.Fatal("Lesen der leeren Mappe lief durch, erwartet Abbruch")
 	}
-	if !strings.Contains(err.Error(), "missing from the file") {
+	if !strings.Contains(err.Error(), "has no header row") {
 		t.Errorf("Meldung = %q, erwartet englischen Text", err)
 	}
 }
@@ -836,21 +836,51 @@ func TestLesen_BrichtBeiFehlenderSpalteAb(t *testing.T) {
 	}
 }
 
-func TestLesen_BrichtOhneBlattVerwaltungAb(t *testing.T) {
+// TestLesen_FaelltOhneBlattVerwaltungAufErstesBlattZurueck belegt den
+// Fallback: der Verein benennt sein Blatt nicht immer „Verwaltung“, und ein
+// Export mit nur einem Blatt soll trotzdem lesbar sein, statt mit „das Blatt
+// fehlt“ abzubrechen. Der Dialog weist per Tooltip auf den erwarteten Namen
+// hin (import.html); wer ihn nicht einhält, bekommt hier trotzdem sein Blatt
+// gelesen.
+func TestLesen_FaelltOhneBlattVerwaltungAufErstesBlattZurueck(t *testing.T) {
 	f := excelize.NewFile()
 	defer f.Close()
+
+	if err := f.SetSheetName("Sheet1", "Mitgliederliste"); err != nil {
+		t.Fatalf("Blatt umbenennen: %v", err)
+	}
+
+	zeile := musterzeile()
+	setzen := func(nr int, werte func(spalte string) (any, bool)) {
+		for i, spalte := range spalten {
+			wert, ok := werte(spalte)
+			if !ok {
+				continue
+			}
+			zelle, err := excelize.CoordinatesToCellName(i+1, nr)
+			if err != nil {
+				t.Fatalf("Zelle bestimmen: %v", err)
+			}
+			if err := f.SetCellValue("Mitgliederliste", zelle, wert); err != nil {
+				t.Fatalf("Zelle %s setzen: %v", zelle, err)
+			}
+		}
+	}
+	setzen(1, func(spalte string) (any, bool) { return spalte, true })
+	setzen(2, func(spalte string) (any, bool) { wert, ok := zeile[spalte]; return wert, ok })
 
 	var puffer bytes.Buffer
 	if err := f.Write(&puffer); err != nil {
 		t.Fatalf("Mappe schreiben: %v", err)
 	}
 
-	_, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan(), i18n.Deutsch)
-	if err == nil {
-		t.Fatal("Lesen ohne Blatt „Verwaltung“ lief durch, erwartet Abbruch")
+	ergebnis, err := importer.ExcelImporter{}.Lesen(bytes.NewReader(puffer.Bytes()), stundenplan(), i18n.Deutsch)
+	if err != nil {
+		t.Fatalf("Lesen: %v", err)
 	}
-	if !strings.Contains(err.Error(), "Verwaltung") {
-		t.Errorf("Meldung = %q, erwartet einen Hinweis auf das fehlende Blatt", err)
+	if len(ergebnis.Saetze) != 1 {
+		t.Fatalf("%d Sätze, erwartet 1 — das einzige Blatt sollte als Fallback gelesen werden:\n%s",
+			len(ergebnis.Saetze), gruende(ergebnis))
 	}
 }
 

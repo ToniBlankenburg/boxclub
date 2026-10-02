@@ -226,6 +226,8 @@ var englisch = map[string]string{
 		"members are updated, not duplicated. Anything that cannot be matched is then listed row by row " +
 		"in the report.",
 	"import.datei_aria":        "Choose Excel file",
+	"import.blatt_name_hinweis": "The sheet with the member data must be named \"Verwaltung\" — " +
+		"otherwise the first sheet in the file is read instead.",
 	"import.importieren_knopf": "Import",
 	"import.wird_gelesen":      "Reading …",
 
@@ -258,7 +260,6 @@ var englisch = map[string]string{
 	"import.stundenplan_leer_knopf": "Manage schedule",
 
 	"import.fehler.datei_nicht_lesbar": "the file could not be opened as .xlsx",
-	"import.fehler.blatt_fehlt":        "the sheet \"%s\" is missing from the file",
 	"import.fehler.blatt_nicht_lesbar": "the sheet \"%s\" could not be read",
 	"import.fehler.keine_kopfzeile":    "the sheet \"%s\" has no header row",
 	"import.fehler.spalte_fehlt": "the sheet \"%s\" is missing the column \"%s\" — the file does not " +
