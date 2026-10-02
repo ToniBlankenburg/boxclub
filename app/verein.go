@@ -134,10 +134,31 @@ func (a *App) vereinSpeichern(w http.ResponseWriter, r *http.Request) {
 }
 
 // datenbankLoeschen leert die gesamte Datenbank — ausschließlich zu
-// Testzwecken (service.MemberService.DatenbankZuruecksetzen). Eine
-// Rückfrage im Browser sichert das schon ab (siehe verein.html, hx-confirm);
-// hier gibt es deshalb keine zweite.
+// Testzwecken (service.MemberService.DatenbankZuruecksetzen). Bestätigt wird
+// über den nativen Dialog (Rueckfrage), nicht über hx-confirm: das
+// macOS-WebView von Wails beantwortet window.confirm nie mit "Ja".
 func (a *App) datenbankLoeschen(w http.ResponseWriter, r *http.Request) {
+	sprache := a.Sprache()
+	if a.rueckfrage == nil {
+		a.vereinRendern(w, meldung{
+			Text:    "Der Bestätigungsdialog steht nicht zur Verfügung — die Datenbank wurde nicht gelöscht.",
+			Warnung: true,
+		}, nil)
+		return
+	}
+
+	knopf := i18n.Text(sprache, "verein.datenbank_loeschen_knopf")
+	ja, err := a.rueckfrage(knopf, i18n.Text(sprache, "verein.datenbank_loeschen_bestaetigung"),
+		knopf, i18n.Text(sprache, "allgemein.abbrechen"))
+	if err != nil {
+		fehlerAntwort(w, err)
+		return
+	}
+	if !ja {
+		a.vereinRendern(w, meldung{}, nil)
+		return
+	}
+
 	if err := a.svc.DatenbankZuruecksetzen(); err != nil {
 		fehlerAntwort(w, err)
 		return

@@ -36,6 +36,10 @@ type App struct {
 	// alles außer dem Export.
 	speicherziel Speicherziel
 
+	// rueckfrage ist der native Bestätigungsdialog, den main.go einsetzt
+	// (siehe RueckfrageSetzen und datenbankLoeschen).
+	rueckfrage Rueckfrage
+
 	// sprache ist die aktuelle Anzeigesprache der Oberfläche (ADR-0017).
 	// spracheMu schützt sie, weil der Assetserver Anfragen aus mehreren
 	// Goroutinen bedient. einstellungenPfad ist der Ort, an dem ein

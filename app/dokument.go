@@ -65,6 +65,20 @@ func (a *App) SpeicherzielSetzen(ziel Speicherziel) {
 	a.speicherziel = ziel
 }
 
+// Rueckfrage stellt dem Benutzer eine Ja/Nein-Frage in einem nativen Dialog.
+//
+// Sie ersetzt window.confirm (htmx: hx-confirm): Wails v2.15 implementiert auf
+// macOS keinen JavaScript-Confirm-Handler im WKWebView, der Browser-Dialog
+// antwortet dort stillschweigend mit "Nein", und der Klick bleibt folgenlos.
+// ja und nein sind die Beschriftungen der beiden Knöpfe.
+type Rueckfrage func(titel, text, ja, nein string) (bool, error)
+
+// RueckfrageSetzen hinterlegt den Bestätigungsdialog, analog zu
+// SpeicherzielSetzen (erst ab OnStartup verfügbar).
+func (a *App) RueckfrageSetzen(f Rueckfrage) {
+	a.rueckfrage = f
+}
+
 // vertragDaten speisen den Vertragsblock eines Zeitraums: der Zeitraum selbst,
 // an dem der Vertrag hängt, und was zuletzt mit ihm passiert ist.
 type vertragDaten struct {

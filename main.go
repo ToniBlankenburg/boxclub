@@ -80,6 +80,17 @@ func main() {
 		// Assetserver ist kein solcher Weg — das WebView von Wails behandelt
 		// keine.
 		OnStartup: func(ctx context.Context) {
+			anwendung.RueckfrageSetzen(func(titel, text, ja, nein string) (bool, error) {
+				antwort, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+					Type:          runtime.QuestionDialog,
+					Title:         titel,
+					Message:       text,
+					Buttons:       []string{ja, nein},
+					DefaultButton: nein,
+					CancelButton:  nein,
+				})
+				return antwort == ja, err
+			})
 			anwendung.SpeicherzielSetzen(func(vorschlag, filterBeschriftung, filterMuster string) (string, error) {
 				return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{
 					Title:                "Datei speichern",
