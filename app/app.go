@@ -277,6 +277,11 @@ func terminIDsAlsText(termine []service.Trainingstermin) []string {
 type terminauswahl struct {
 	service.Trainingstermin
 	Gewaehlt bool
+
+	// Verborgen: ein Termin nur für Frauen, den dieses Formular (noch) nicht
+	// zeigt — das Geschlecht ist nicht „Frau“ und er ist nicht angekreuzt. Er
+	// bleibt im Dokument, damit das Tippen des Geschlechts ihn einblenden kann.
+	Verborgen bool
 }
 
 // formularDaten speist das Formular-Template. Bearbeiten unterscheidet die
@@ -1208,6 +1213,8 @@ func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe)
 		auswahl = append(auswahl, terminauswahl{
 			Trainingstermin: termin,
 			Gewaehlt:        slices.Contains(gewaehlt, termin.ID),
+			Verborgen: termin.NurFrauen && !service.IstFrau(eingabe.Geschlecht) &&
+				!slices.Contains(gewaehlt, termin.ID),
 		})
 	}
 

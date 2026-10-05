@@ -123,6 +123,12 @@ type Trainingstermin struct {
 	// nie (ADR-0008). Er verschwindet aus Liste und Auswahl, bestehende
 	// Anmeldungen bleiben lesbar und zählen weiter zur Trainingsfrequenz.
 	Archiviert bool
+
+	// NurFrauen heißt: zu diesem Termin werden nur Mitglieder angemeldet, deren
+	// Geschlecht „Frau“ ist (istFrau). Geprüft wird beim Anmelden; wer schon
+	// angemeldet ist, bleibt es auch, wenn sich die Angabe später ändert —
+	// dieselbe Haltung wie beim archivierten Termin.
+	NurFrauen bool
 }
 
 // KurzeAnzeige ist der Termin auf seine beiden Pflichtangaben verkürzt:
@@ -166,6 +172,7 @@ type Trainingsterminangabe struct {
 	Beginn      string
 	Ende        string
 	Bezeichnung string
+	NurFrauen   bool
 }
 
 // Die Meldungen zu den Regeln, die ein Termin kennt.
@@ -191,6 +198,7 @@ func (a Trainingsterminangabe) pruefen() (Trainingstermin, error) {
 	termin := Trainingstermin{
 		Wochentag:   a.Wochentag,
 		Bezeichnung: strings.TrimSpace(a.Bezeichnung),
+		NurFrauen:   a.NurFrauen,
 	}
 
 	var meldungen []Meldung
@@ -242,9 +250,10 @@ func (s *MemberService) CreateTrainingstermin(a Trainingsterminangabe) (int64, e
 	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO trainingstermin (wochentag, beginn, ende, bezeichnung, archiviert)
-		 VALUES (?, ?, ?, ?, 0)`,
-		int(termin.Wochentag), string(termin.Beginn), alsUhrzeitText(termin.Ende), termin.Bezeichnung)
+		`INSERT INTO trainingstermin (wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen)
+		 VALUES (?, ?, ?, ?, 0, ?)`,
+		int(termin.Wochentag), string(termin.Beginn), alsUhrzeitText(termin.Ende), termin.Bezeichnung,
+		termin.NurFrauen)
 	if err != nil {
 		return 0, fmt.Errorf("trainingstermin anlegen: %w", err)
 	}
@@ -257,7 +266,7 @@ func (s *MemberService) CreateTrainingstermin(a Trainingsterminangabe) (int64, e
 	return id, nil
 }
 
-// UpdateTrainingstermin ersetzt alle vier Angaben eines Termins. Das Formular
+// UpdateTrainingstermin ersetzt alle Angaben eines Termins. Das Formular
 // schickt sie immer vollständig; ein geleertes Ende heißt deshalb "es ist
 // keines mehr erfasst" und nicht "unverändert".
 //
@@ -274,8 +283,9 @@ func (s *MemberService) UpdateTrainingstermin(id int64, a Trainingsterminangabe)
 	}
 
 	res, err := s.db.Exec(
-		`UPDATE trainingstermin SET wochentag = ?, beginn = ?, ende = ?, bezeichnung = ? WHERE id = ?`,
-		int(termin.Wochentag), string(termin.Beginn), alsUhrzeitText(termin.Ende), termin.Bezeichnung, id)
+		`UPDATE trainingstermin SET wochentag = ?, beginn = ?, ende = ?, bezeichnung = ?, nur_frauen = ? WHERE id = ?`,
+		int(termin.Wochentag), string(termin.Beginn), alsUhrzeitText(termin.Ende), termin.Bezeichnung,
+		termin.NurFrauen, id)
 	if err != nil {
 		return fmt.Errorf("trainingstermin %d ändern: %w", id, err)
 	}
@@ -304,7 +314,7 @@ func (s *MemberService) SetTrainingsterminArchiviert(id int64, archiviert bool) 
 // kann.
 func (s *MemberService) GetTrainingstermin(id int64) (Trainingstermin, error) {
 	termin, err := trainingsterminLesen(s.db.QueryRow(
-		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert
+		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen
 		 FROM trainingstermin WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Trainingstermin{}, fmt.Errorf("trainingstermin %d: %w", id, ErrNichtGefunden)
@@ -332,7 +342,7 @@ func (s *MemberService) ListTrainingstermine(auchArchivierte bool) ([]Trainingst
 	}
 
 	zeilen, err := s.db.Query(fmt.Sprintf(
-		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert
+		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen
 		 FROM trainingstermin %s
 		 ORDER BY wochentag, beginn, bezeichnung, id`, bedingung))
 	if err != nil {
@@ -366,7 +376,7 @@ func trainingsterminLesen(zeile interface{ Scan(...any) error }) (Trainingstermi
 	)
 
 	if err := zeile.Scan(&termin.ID, &termin.Wochentag, &termin.Beginn, &ende,
-		&termin.Bezeichnung, &termin.Archiviert); err != nil {
+		&termin.Bezeichnung, &termin.Archiviert, &termin.NurFrauen); err != nil {
 		return Trainingstermin{}, err
 	}
 
@@ -411,6 +421,9 @@ func betroffenPruefen(res sql.Result, id int64) error {
 // die vereinbart ist. Er steht deshalb an seinem Platz in der Woche mit da,
 // angekreuzt und als archiviert erkennbar: abwählen lässt er sich, neu vergeben
 // nicht (trainingstermineSchreiben).
+//
+// Termine nur für Frauen sind immer dabei: ob das Formular sie zeigt, hängt am
+// getippten Geschlecht und entscheidet die Oberfläche (IstFrau).
 //
 // zugeordnet sind die Termine, die derzeit angekreuzt sind. Unbekannte IDs
 // darin gehen ins Leere statt einen Fehler zu ergeben — welche Auswahl gültig

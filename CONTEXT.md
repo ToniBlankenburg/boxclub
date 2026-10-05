@@ -42,6 +42,8 @@ Er ist **kein einzelnes Datum**. Der Termin am 15.09. um 10:30 ist keine eigene 
 
 Eine **Mitgliedschaft** ist für null bis drei Termine angemeldet — nicht die Person, denn welche Zeiten gelten, ist Teil der Vereinbarung eines Zeitraums. Bei einem Wiedereintritt wird deshalb neu ausgewählt: die neue Mitgliedschaft beginnt ohne Termine, die der alten bleiben als Historie stehen. Die Anmeldung selbst hat keinen eigenen Namen; man sagt, eine Mitgliedschaft ist für einen Termin angemeldet.
 
+Ein Termin kann **nur für Frauen** sein. Dann werden nur Mitglieder angemeldet, deren Geschlecht „Frau“ lautet (ohne Rücksicht auf Groß-/Kleinschreibung); jede andere Angabe, auch eine leere, wird beim Anmelden abgewiesen. Das Geschlecht bleibt Freitext — geprüft wird gegen den einen Wert „Frau“, nicht gegen eine Werteliste. Wer schon angemeldet ist, bleibt es, auch wenn sich die Angabe später ändert oder der Termin erst danach auf „nur Frauen“ gestellt wird: dieselbe Haltung wie beim archivierten Termin, die Vereinbarung wird nicht still geändert.
+
 Ein Termin, den es nicht mehr gibt, wird **archiviert**: er verschwindet aus der Auswahl, bestehende Anmeldungen bleiben lesbar. Gelöscht wird er nicht — das nähme jeder daran angemeldeten Mitgliedschaft still ihre Trainingsfrequenz.
 
 **Nicht zu verwechseln mit:** der Trainingsfrequenz — das ist die Anzahl. _Vermeiden:_ Trainingseinheit; das klingt nach der einzelnen Stunde am einzelnen Tag.
@@ -148,7 +150,7 @@ Der **Empfänger** ist frei eintragbar und wird aus dem Mitglied vorbelegt: ein 
 
 ## Vereinsdaten
 
-Name, Anschrift, Bankverbindung, Fußzeile, *Vereinslogo* und ein eigener Verwendungszweck-Text für den *MoneyMoney-Export* — alles, was auf einer Rechnung über dem Inhalt steht oder den monatlichen Lastschriftlauf betrifft. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
+Name, Anschrift, Steuernummer, Bankverbindung, Fußzeile, *Vereinslogo* und ein eigener Verwendungszweck-Text für den *MoneyMoney-Export* — alles, was auf einer Rechnung über dem Inhalt steht oder den monatlichen Lastschriftlauf betrifft. Die einzigen Daten der App, die kein Mitglied betreffen; sie werden einmal von Hand gepflegt und nicht importiert.
 
 ## Vereinslogo
 

@@ -88,26 +88,28 @@
            aria-label="{{t "mitglieder.suche_aria"}}"
            class="min-w-56 max-w-md flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
-    {{/* Setzt alle Spaltenfilter zurück, lässt die Suche aber unangetastet —
-         anders als das alte Zurücksetzen vor ADR-0020, das die ganze Ansicht
-         auf ihren Standard zurückwarf. hx-include zählt hier bewusst nur
-         Suchfeld und Sortierung auf statt des ganzen #mitglieder-ergebnis:
-         alles andere sind Filter, die verschwinden sollen. */}}
-    <button type="button" title="{{t "mitglieder.zuruecksetzen_titel"}}" aria-label="{{t "mitglieder.zuruecksetzen_aria"}}"
-            class="shrink-0 rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-            hx-get="/api/mitglieder/ergebnis"
-            hx-include="#suchfeld, [name='sort'], [name='richtung']"
-            hx-target="#mitglieder-ergebnis" hx-swap="innerHTML">
-        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
-        </svg>
-    </button>
+    <div class="flex shrink-0 items-center gap-2">
+        {{/* Setzt alle Spaltenfilter zurück, lässt die Suche aber unangetastet —
+             anders als das alte Zurücksetzen vor ADR-0020, das die ganze Ansicht
+             auf ihren Standard zurückwarf. hx-include zählt hier bewusst nur
+             Suchfeld und Sortierung auf statt des ganzen #mitglieder-ergebnis:
+             alles andere sind Filter, die verschwinden sollen. */}}
+        <button type="button" title="{{t "mitglieder.zuruecksetzen_titel"}}" aria-label="{{t "mitglieder.zuruecksetzen_aria"}}"
+                class="shrink-0 rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                hx-get="/api/mitglieder/ergebnis"
+                hx-include="#suchfeld, [name='sort'], [name='richtung']"
+                hx-target="#mitglieder-ergebnis" hx-swap="innerHTML">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+            </svg>
+        </button>
+        {{template "spalten-menue" .}}
+    </div>
 </div>
 {{end}}
 
 {{/* zaehler-badge-klasse ist die Optik des kleinen Zähler-Kreises am
-     Fallback-Element für ausgeblendete Spalten (siehe "spalten-fallback"
-     unten). */}}
+     Spalten-Knopf der Kopfzeile (siehe "spalten-menue" unten). */}}
 {{define "zaehler-badge-klasse"}}inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--akzent)] px-1 text-[10px] font-semibold text-white{{end}}
 
 {{/* zahnrad-icon ist das Symbol jedes Spalten-Zahnrads: umrissen im
@@ -119,19 +121,6 @@
     <circle cx="12" cy="12" r="3"></circle>
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
 </svg>
-{{end}}
-
-{{/* spalte-ausblenden-aktion ist die "Spalte ausblenden"-Zeile am Ende
-     jedes Zahnrad-Menüs, das eine ausblendbare Spalte hat — data-spalten-
-     verstecken löst kein Server-Aufruf aus, main.js entfernt die Spalte
-     rein client-seitig aus der localStorage-Auswahl (wie bisher das
-     "Spalten"-Menü, jetzt aber verteilt statt an einer Stelle gesammelt).
-     Die Daten sind der Spaltenschlüssel als Zeichenkette, z. B. "training". */}}
-{{define "spalte-ausblenden-aktion"}}
-<button type="button" data-spalten-verstecken="{{.}}"
-        class="w-full rounded px-2 py-1.5 text-left text-sm text-neutral-600 hover:bg-neutral-50">
-    {{t "mitglieder.spalte_ausblenden_knopf" (t (printf "spalte.%s" .))}}
-</button>
 {{end}}
 
 {{/* mitglieder-ergebnis ist der Teil, den Suche und Filter austauschen. Die
@@ -290,8 +279,6 @@
                                         {{end}}
                                     </select>
                                 </div>
-                                <hr class="border-neutral-200">
-                                {{template "spalte-ausblenden-aktion" "status"}}
                             </div>
                         </details>
                         </div>
@@ -310,7 +297,6 @@
                                 {{template "zahnrad-icon" false}}
                             </summary>
                             <div class="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
-                                {{template "spalte-ausblenden-aktion" "anschrift"}}
                             </div>
                         </details>
                         </div>
@@ -347,8 +333,6 @@
                                         {{end}}
                                     </select>
                                 </div>
-                                <hr class="border-neutral-200">
-                                {{template "spalte-ausblenden-aktion" "training"}}
                             </div>
                         </details>
                         </div>
@@ -392,8 +376,6 @@
                                                value="{{.BeitragBisWert}}">
                                     </div>
                                 </div>
-                                <hr class="border-neutral-200">
-                                {{template "spalte-ausblenden-aktion" "beitrag"}}
                             </div>
                         </details>
                         </div>
@@ -417,7 +399,6 @@
                                     {{end}}
                                 </select>
                                 <hr class="my-2 border-neutral-200">
-                                {{template "spalte-ausblenden-aktion" "rueckstand"}}
                             </div>
                         </details>
                         </div>
@@ -450,13 +431,10 @@
                                            value="{{.Suche.EintrittBis}}"
                                            class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
                                 </div>
-                                <hr class="border-neutral-200">
-                                {{template "spalte-ausblenden-aktion" "eintritt"}}
                             </div>
                         </details>
                         </div>
                     </th>
-                    {{template "spalten-fallback" .}}
                 </tr>
             </thead>
             <tbody>
@@ -478,37 +456,33 @@
 {{end}}
 {{end}}
 
-{{/* spalten-fallback ist das permanent sichtbare "+"-Element am Ende der
-     Kopfzeile (ADR-0020): eine ausgeblendete Spalte verliert ihr eigenes
-     Zahnrad mit sich selbst, hier lässt sie sich wiederfinden. Läuft wie die
-     Spaltensichtbarkeit selbst vollständig client-seitig über localStorage
-     (frontend/src/main.js) — Go rendert alle sechs ausblendbaren Spalten
-     als Einträge, hidden ist hier nur der Anfangszustand vor dem ersten
-     Rendern durch main.js (spaltenAnwenden), die ihn sofort danach mit der
-     tatsächlichen Auswahl abgleicht: sichtbar bleibt nur, was gerade
-     versteckt ist. Die Daten sind listeDaten. */}}
-{{define "spalten-fallback"}}
-<th class="sticky top-0 z-10 w-10 bg-white px-2 py-2 text-right font-medium">
-    <details class="relative inline-block" data-spalten-fallback>
-        <summary aria-label="{{t "mitglieder.spalten_fallback_aria"}}"
-                 class="relative inline-flex list-none cursor-pointer rounded p-1 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14"/>
-            </svg>
-            <span data-spalten-fallback-badge hidden class="absolute -right-2 -top-2 {{template "zaehler-badge-klasse"}}">0</span>
-        </summary>
-        <div class="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
-            <p class="mb-1 px-2 text-xs font-medium text-neutral-500">{{t "mitglieder.spalten_fallback_titel"}}</p>
-            {{range .AusblendbareSpalten}}
-                <button type="button" data-spalten-zeigen="{{.Schluessel}}" hidden
-                        class="w-full rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-50">
-                    {{.Beschriftung}}
-                </button>
-            {{end}}
-            <p data-spalten-fallback-leer class="px-2 text-sm text-neutral-400">{{t "mitglieder.spalten_fallback_leer"}}</p>
-        </div>
-    </details>
-</th>
+{{/* spalten-menue ist der "Spalten"-Knopf in der Kopfzeile der Ansicht, über
+     der Werkzeugleiste: hier und nur hier werden Spalten aus- und wieder
+     eingeblendet — die Zahnrad-Menüs der Tabellenköpfe kennen das nicht mehr.
+     Läuft vollständig client-seitig über localStorage (frontend/src/main.js):
+     Go rendert alle sechs ausblendbaren Spalten als Kästchen, "checked" und
+     der Zähler am Knopf (wie viele versteckt sind) kommen sofort danach aus
+     spaltenAnwenden. Die Daten sind listeDaten. */}}
+{{define "spalten-menue"}}
+<details class="relative" data-spalten-menue>
+    <summary aria-label="{{t "mitglieder.spalten_menue_aria"}}"
+             class="relative flex list-none cursor-pointer items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--akzent-ring-40)] [&::-webkit-details-marker]:hidden">
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>
+        </svg>
+        {{t "mitglieder.spalten_menue_knopf"}}
+        <span data-spalten-badge hidden class="absolute -right-2 -top-2 {{template "zaehler-badge-klasse"}}">0</span>
+    </summary>
+    <div class="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-neutral-200 bg-white p-2 shadow-lg">
+        <p class="mb-1 px-2 text-xs font-medium text-neutral-500">{{t "mitglieder.spalten_menue_titel"}}</p>
+        {{range .AusblendbareSpalten}}
+            <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
+                <input type="checkbox" checked data-spalte-umschalten="{{.Schluessel}}" class="accent-[var(--akzent)]">
+                {{.Beschriftung}}
+            </label>
+        {{end}}
+    </div>
+</details>
 {{end}}
 
 {{/* spaltenkopf rendert die klickbare Kopfzeile einer sortierbaren Spalte:
@@ -674,10 +648,6 @@
     <td class="px-4 py-2 tabular-nums" data-col="eintritt">
         {{datum .Eintritt}}
     </td>
-    {{/* Passt die Zeile an die zusätzliche Kopfzelle des Fallback-Elements
-         an (siehe "spalten-fallback") — ohne eigenen Inhalt, sie identifiziert
-         keine Spalte und trägt deshalb kein data-col. */}}
-    <td class="p-0"></td>
 </tr>
 {{end}}
 

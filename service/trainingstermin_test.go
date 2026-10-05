@@ -22,6 +22,16 @@ func terminangabe(tag service.Wochentag, beginn, ende, bezeichnung string) servi
 	}
 }
 
+// frauentermin ist ein Termin nur für Frauen.
+func frauentermin(t *testing.T, svc *service.MemberService) service.Trainingstermin {
+	t.Helper()
+
+	a := terminangabe(service.Dienstag, "19:00", "", "Frauen")
+	a.NurFrauen = true
+
+	return angelegterTermin(t, svc, a)
+}
+
 // angelegterTermin legt einen Termin an und liefert ihn zurückgelesen — der
 // Weg, den fast jeder Test hier zuerst geht.
 func angelegterTermin(t *testing.T, svc *service.MemberService, a service.Trainingsterminangabe) service.Trainingstermin {

@@ -41,9 +41,9 @@
         </form>
     </div>
 
-    {{if .Termine}}
+    {{if or .Termine .Frauentermine}}
         <p class="mb-3 text-sm text-neutral-500" role="status" aria-live="polite">
-            {{len .Termine}} {{if eq (len .Termine) 1}}{{t "trainingstermine.eintrag_singular"}}{{else}}{{t "trainingstermine.eintrag_plural"}}{{end}}
+            {{.Gesamt}} {{if eq .Gesamt 1}}{{t "trainingstermine.eintrag_singular"}}{{else}}{{t "trainingstermine.eintrag_plural"}}{{end}}
         </p>
         {{/* Jeder Termin ist ein <details>, dessen <summary> die ganze Zeile
              ist: ein Klick auf den Termin klappt die Teilnehmer auf, per
@@ -56,104 +56,14 @@
 
              $ ist die Ansicht: die Knöpfe brauchen daraus den Stand der
              Einblendung, damit eine Aktion in dieselbe Ansicht zurückführt. */}}
-        <ul class="divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-            {{range .Termine}}
-                <li class="relative">
-                    <details class="group">
-                        {{/* pr-96 statt der früheren pr-72: die dritte
-                             Schaltfläche (Serienmail) braucht mehr Platz in
-                             der Reserve rechts, sonst überlappt sie die
-                             Kürzel-Zeile der Zusammenfassung. */}}
-                        <summary class="flex min-h-16 cursor-pointer list-none items-center gap-4 py-4 pr-96 pl-6 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)] [&::-webkit-details-marker]:hidden">
-                            <svg class="size-5 shrink-0 text-neutral-400 transition-transform group-open:rotate-90"
-                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                <path d="M9 6l6 6-6 6"/>
-                            </svg>
-                            {{/* Die Schreibweise des Termins entsteht im Service
-                                 (Trainingstermin.Anzeige), damit Stundenplan,
-                                 Meldung und die spätere Auswahl an der
-                                 Mitgliedschaft dieselbe zeigen. */}}
-                            <span class="{{if .Archiviert}}text-neutral-500{{end}}">{{.Anzeige}}</span>
-                            {{if .Archiviert}}
-                                <span class="inline-flex items-center rounded-full border border-neutral-300 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600"
-                                      title="{{t "trainingstermine.archiviert_titel"}}">
-                                    {{t "trainingstermine.archiviert_abzeichen"}}
-                                </span>
-                            {{end}}
-                            {{/* Die Anzahl (CONTEXT.md → Teilnehmerliste): wer für
-                                 den Termin angemeldet ist, nicht wer da war. Ohne
-                                 Obergrenze und ohne Warnung. */}}
-                            <span class="inline-flex items-center rounded-full bg-[var(--akzent-hell)] px-3 py-1 text-xs font-medium text-[var(--akzent-dunkel)]">
-                                {{t "trainingstermine.angemeldet_anzahl" .Anzahl}}
-                            </span>
-                        </summary>
-
-                        <div class="border-t border-neutral-100 bg-neutral-50/60 py-5 pr-6 pl-15">
-                            {{if .Teilnehmer}}
-                                <ul class="flex flex-wrap gap-x-3 gap-y-3">
-                                    {{range .Teilnehmer}}
-                                        <li>
-                                            {{/* Der Name führt ins Mitglied. Die Initialen
-                                                 sind ein Kürzel zum Wiederfinden, kein
-                                                 Bild; vorgelesen werden sie nicht. */}}
-                                            <a href="#"
-                                               class="inline-flex items-center gap-3 rounded-full border border-neutral-200 bg-white py-1.5 pr-4 pl-1.5 text-sm text-neutral-800 hover:border-[var(--akzent)] hover:bg-[var(--akzent-hell)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                                               hx-get="/api/mitglied/{{.MitgliedID}}/formular"
-                                               hx-target="#inhalt" hx-swap="innerHTML">
-                                                <span class="inline-flex size-7 items-center justify-center rounded-full bg-[var(--akzent-hell)] text-[0.65rem] font-semibold text-[var(--akzent-dunkel)]"
-                                                      aria-hidden="true">{{.Initialen}}</span>
-                                                {{.Vorname}} {{.Nachname}}
-                                            </a>
-                                        </li>
-                                    {{end}}
-                                </ul>
-                            {{else}}
-                                <p class="text-sm text-neutral-500">{{t "trainingstermine.niemand_angemeldet"}}</p>
-                            {{end}}
-                        </div>
-                    </details>
-
-                    <div class="absolute top-0 right-6 flex h-16 items-center gap-3">
-                        {{/* Serienmail an alle, die gerade für den Termin
-                             angemeldet sind (CONTEXT.md → Teilnehmerliste) —
-                             keine eigene Auswahl wie in der Mitgliederliste,
-                             die Teilnehmerliste selbst ist die Auswahl.
-                             Das Ergebnis landet oben in der Ansicht, nicht in
-                             der aufklappbaren Zeile: es betrifft den ganzen
-                             Termin und nicht nur die geöffnete Ansicht seiner
-                             Teilnehmer. */}}
-                        <button type="button"
-                                class="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                                aria-label="{{t "trainingstermine.serienmail_aria" .Anzeige}}"
-                                hx-post="/api/trainingstermin/{{.ID}}/serienmail"
-                                hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
-                            {{template "icon-serienmail"}}
-                            {{t "trainingstermine.serienmail_knopf"}}
-                        </button>
-                        {{/* Bearbeiten öffnet das Formular des Termins; der Stand
-                             der Einblendung fährt mit, damit Speichern und
-                             Abbrechen in dieselbe Ansicht zurückführen. */}}
-                        <button type="button"
-                                class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                                aria-label="{{t "trainingstermine.bearbeiten_aria" .Anzeige}}"
-                                hx-get="/api/trainingstermin/{{.ID}}/formular{{$.Anhaengsel}}"
-                                hx-target="#inhalt" hx-swap="innerHTML">
-                            {{t "trainingstermine.bearbeiten_knopf"}}
-                        </button>
-                        {{/* Die Adresse trägt den gewünschten Zustand und den
-                             Stand der Einblendung; gebaut wird sie in Go
-                             (terminzeilen). */}}
-                        <button type="button"
-                                class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                                aria-label="{{if .Archiviert}}{{t "trainingstermine.zurueckholen_aria" .Anzeige}}{{else}}{{t "trainingstermine.archivieren_aria" .Anzeige}}{{end}}"
-                                hx-post="{{.ArchivPfad}}"
-                                hx-target="#inhalt" hx-swap="innerHTML">
-                            {{if .Archiviert}}{{t "trainingstermine.zurueckholen_knopf"}}{{else}}{{t "trainingstermine.archivieren_knopf"}}{{end}}
-                        </button>
-                    </div>
-                </li>
-            {{end}}
-        </ul>
+        {{template "termin-liste" .Termine}}
+        {{if .Frauentermine}}
+            <h3 class="mt-8 mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--akzent-dunkel)]">
+                {{t "trainingstermine.bereich_frauen"}}
+                <span class="text-xs font-normal text-neutral-500">{{len .Frauentermine}}</span>
+            </h3>
+            {{template "termin-liste" .Frauentermine}}
+        {{end}}
     {{else}}
         <p class="rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-neutral-500"
            role="status" aria-live="polite">
@@ -169,6 +79,118 @@
         </p>
     {{end}}
 </div>
+{{end}}
+
+{{/* termin-liste ist eine Liste von Terminzeilen ([]terminzeile). Der Stundenplan
+     zeigt sie zweimal: die allgemeinen Boxeinheiten und darunter, in einem
+     eigenen Bereich, die nur für Frauen. */}}
+{{define "termin-liste"}}
+{{if .}}
+<ul class="divide-y divide-neutral-100 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+    {{range .}}
+        <li class="relative">
+    <details class="group">
+        {{/* pr-96 statt der früheren pr-72: die dritte
+             Schaltfläche (Serienmail) braucht mehr Platz in
+             der Reserve rechts, sonst überlappt sie die
+             Kürzel-Zeile der Zusammenfassung. */}}
+        <summary class="flex min-h-16 cursor-pointer list-none items-center gap-4 py-4 pr-96 pl-6 hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-2 focus:-outline-offset-2 focus:outline-[var(--akzent)] [&::-webkit-details-marker]:hidden">
+            <svg class="size-5 shrink-0 text-neutral-400 transition-transform group-open:rotate-90"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 6l6 6-6 6"/>
+            </svg>
+            {{/* Die Schreibweise des Termins entsteht im Service
+                 (Trainingstermin.Anzeige), damit Stundenplan,
+                 Meldung und die spätere Auswahl an der
+                 Mitgliedschaft dieselbe zeigen. */}}
+            <span class="{{if .Archiviert}}text-neutral-500{{end}}">{{.Anzeige}}</span>
+            {{if .NurFrauen}}
+                <span class="inline-flex items-center rounded-full border border-[var(--akzent)] px-3 py-1 text-xs font-medium text-[var(--akzent-dunkel)]">
+                    {{t "trainingstermine.nur_frauen_abzeichen"}}
+                </span>
+            {{end}}
+            {{if .Archiviert}}
+                <span class="inline-flex items-center rounded-full border border-neutral-300 bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600"
+                      title="{{t "trainingstermine.archiviert_titel"}}">
+                    {{t "trainingstermine.archiviert_abzeichen"}}
+                </span>
+            {{end}}
+            {{/* Die Anzahl (CONTEXT.md → Teilnehmerliste): wer für
+                 den Termin angemeldet ist, nicht wer da war. Ohne
+                 Obergrenze und ohne Warnung. */}}
+            <span class="inline-flex items-center rounded-full bg-[var(--akzent-hell)] px-3 py-1 text-xs font-medium text-[var(--akzent-dunkel)]">
+                {{t "trainingstermine.angemeldet_anzahl" .Anzahl}}
+            </span>
+        </summary>
+
+        <div class="border-t border-neutral-100 bg-neutral-50/60 py-5 pr-6 pl-15">
+            {{if .Teilnehmer}}
+                <ul class="flex flex-wrap gap-x-3 gap-y-3">
+                    {{range .Teilnehmer}}
+                        <li>
+                            {{/* Der Name führt ins Mitglied. Die Initialen
+                                 sind ein Kürzel zum Wiederfinden, kein
+                                 Bild; vorgelesen werden sie nicht. */}}
+                            <a href="#"
+                               class="inline-flex items-center gap-3 rounded-full border border-neutral-200 bg-white py-1.5 pr-4 pl-1.5 text-sm text-neutral-800 hover:border-[var(--akzent)] hover:bg-[var(--akzent-hell)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                               hx-get="/api/mitglied/{{.MitgliedID}}/formular"
+                               hx-target="#inhalt" hx-swap="innerHTML">
+                                <span class="inline-flex size-7 items-center justify-center rounded-full bg-[var(--akzent-hell)] text-[0.65rem] font-semibold text-[var(--akzent-dunkel)]"
+                                      aria-hidden="true">{{.Initialen}}</span>
+                                {{.Vorname}} {{.Nachname}}
+                            </a>
+                        </li>
+
+                            {{end}}
+                        </ul>
+                {{else}}
+                    <p class="text-sm text-neutral-500">{{t "trainingstermine.niemand_angemeldet"}}</p>
+                {{end}}
+            </div>
+        </details>
+
+        <div class="absolute top-0 right-6 flex h-16 items-center gap-3">
+            {{/* Serienmail an alle, die gerade für den Termin
+                 angemeldet sind (CONTEXT.md → Teilnehmerliste) —
+                 keine eigene Auswahl wie in der Mitgliederliste,
+                 die Teilnehmerliste selbst ist die Auswahl.
+                 Das Ergebnis landet oben in der Ansicht, nicht in
+                 der aufklappbaren Zeile: es betrifft den ganzen
+                 Termin und nicht nur die geöffnete Ansicht seiner
+                 Teilnehmer. */}}
+            <button type="button"
+                    class="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    aria-label="{{t "trainingstermine.serienmail_aria" .Anzeige}}"
+                    hx-post="/api/trainingstermin/{{.ID}}/serienmail"
+                    hx-target="#serienmail-ergebnis" hx-swap="innerHTML">
+                {{template "icon-serienmail"}}
+                {{t "trainingstermine.serienmail_knopf"}}
+            </button>
+            {{/* Bearbeiten öffnet das Formular des Termins; der Stand
+                 der Einblendung fährt mit, damit Speichern und
+                 Abbrechen in dieselbe Ansicht zurückführen. */}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    aria-label="{{t "trainingstermine.bearbeiten_aria" .Anzeige}}"
+                    hx-get="/api/trainingstermin/{{.ID}}/formular{{.Anhaengsel}}"
+                    hx-target="#inhalt" hx-swap="innerHTML">
+                {{t "trainingstermine.bearbeiten_knopf"}}
+            </button>
+            {{/* Die Adresse trägt den gewünschten Zustand und den
+                 Stand der Einblendung; gebaut wird sie in Go
+                 (terminzeilen). */}}
+            <button type="button"
+                    class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    aria-label="{{if .Archiviert}}{{t "trainingstermine.zurueckholen_aria" .Anzeige}}{{else}}{{t "trainingstermine.archivieren_aria" .Anzeige}}{{end}}"
+                    hx-post="{{.ArchivPfad}}"
+                    hx-target="#inhalt" hx-swap="innerHTML">
+                {{if .Archiviert}}{{t "trainingstermine.zurueckholen_knopf"}}{{else}}{{t "trainingstermine.archivieren_knopf"}}{{end}}
+            </button>
+        </div>
+</li>
+    {{end}}
+</ul>
+{{end}}
 {{end}}
 
 {{/* trainingstermin-formular legt einen Termin an oder ändert einen
@@ -228,6 +250,16 @@
                  bewusst nicht als eigene Felder daneben, sondern passen hier
                  hinein, solange es eine Halle gibt (ADR-0008). */}}
             {{template "feld" feld (t "feld.bezeichnung") "bezeichnung" "text" .Eingabe.Bezeichnung false true}}
+            {{/* Termin nur für Frauen: die Prüfung beim Anmelden liegt im
+                 Service (Trainingstermin.NurFrauen), nicht hier. */}}
+            <label class="flex flex-col gap-1 sm:col-span-2">
+                <span class="flex items-center gap-2 text-sm text-neutral-700">
+                    <input name="nur_frauen" type="checkbox" value="1" {{if .Eingabe.NurFrauen}}checked{{end}}
+                           class="size-4 rounded border-neutral-300 text-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
+                    {{t "trainingstermine.nur_frauen_feld"}}
+                </span>
+                <span class="text-xs text-neutral-500">{{t "trainingstermine.nur_frauen_hinweis"}}</span>
+            </label>
         </div>
     </div>
 

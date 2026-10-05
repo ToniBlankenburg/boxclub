@@ -51,6 +51,7 @@ type rechnungEingabe struct {
 	Nummer         string
 	Rechnungsdatum string
 	Zahlungsziel   string
+	Leistungsdatum string
 	Steuersatz     string
 
 	Positionen []rechnungPositionEingabe
@@ -86,6 +87,7 @@ func rechnungEingabeLesen(r *http.Request) rechnungEingabe {
 		Nummer:         r.FormValue("nummer"),
 		Rechnungsdatum: r.FormValue("rechnungsdatum"),
 		Zahlungsziel:   r.FormValue("zahlungsziel"),
+		Leistungsdatum: r.FormValue("leistungsdatum"),
 		Steuersatz:     r.FormValue("steuersatz"),
 		Positionen:     positionen,
 	}
@@ -122,6 +124,15 @@ func (e rechnungEingabe) alsRechnungEingabe(sprache i18n.Sprache) (service.Rechn
 			fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_zahlungsziel"))
 		} else {
 			rechnung.Zahlungsziel = d
+		}
+	}
+
+	if e.Leistungsdatum != "" {
+		d, err := time.Parse(isoDatum, e.Leistungsdatum)
+		if err != nil {
+			fehler = append(fehler, i18n.Text(sprache, "rechnung.fehler_leistungsdatum"))
+		} else {
+			rechnung.Leistungsdatum = d
 		}
 	}
 
@@ -251,6 +262,11 @@ func rechnungBeschriftungen(sprache i18n.Sprache) service.RechnungBeschriftungen
 		RechnungsnummerPraefix: i18n.Text(sprache, "rechnung.pdf.rechnungsnummer_praefix"),
 		RechnungsdatumPraefix:  i18n.Text(sprache, "rechnung.pdf.rechnungsdatum_praefix"),
 		ZahlungszielPraefix:    i18n.Text(sprache, "rechnung.pdf.zahlungsziel_praefix"),
+		LeistungsdatumPraefix:  i18n.Text(sprache, "rechnung.pdf.leistungsdatum_praefix"),
+		LeistungsdatumGleich:   i18n.Text(sprache, "rechnung.pdf.leistungsdatum_gleich"),
+		SteuernummerPraefix:    i18n.Text(sprache, "rechnung.pdf.steuernummer_praefix"),
+		RechnungAn:             i18n.Text(sprache, "rechnung.pdf.rechnung_an"),
+		ZahlungshinweisVorlage: i18n.Text(sprache, "rechnung.pdf.zahlungshinweis_vorlage"),
 		TitelPraefix:           i18n.Text(sprache, "rechnung.pdf.titel_praefix"),
 		SpalteBezeichnung:      i18n.Text(sprache, "feld.position_bezeichnung"),
 		SpalteMenge:            i18n.Text(sprache, "feld.menge"),

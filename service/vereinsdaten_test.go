@@ -22,6 +22,7 @@ func vereinsdatenImTest() service.Vereinsdaten {
 		BIC:                        "BYLADEM1001",
 		Kreditinstitut:             "Musterbank",
 		Fusszeile:                  "Kein Ausweis von Umsatzsteuer\ngemäß § 19 UStG.",
+		Steuernummer:               "12/345/67890",
 		MoneyMoneyVerwendungszweck: "Nachzahlung Turnier",
 	}
 }

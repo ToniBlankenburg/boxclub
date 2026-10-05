@@ -354,7 +354,8 @@ CREATE TABLE IF NOT EXISTS trainingstermin (
 	beginn      TEXT    NOT NULL,
 	ende        TEXT,
 	bezeichnung TEXT    NOT NULL DEFAULT '',
-	archiviert  INTEGER NOT NULL DEFAULT 0
+	archiviert  INTEGER NOT NULL DEFAULT 0,
+	nur_frauen  INTEGER NOT NULL DEFAULT 0
 );
 
 -- Wofür eine Mitgliedschaft angemeldet ist (ADR-0008). Der Schlüssel aus beiden
@@ -429,6 +430,7 @@ CREATE TABLE IF NOT EXISTS vereinsdaten (
 	bic            TEXT NOT NULL DEFAULT '',
 	kreditinstitut TEXT NOT NULL DEFAULT '',
 	fusszeile      TEXT NOT NULL DEFAULT '',
+	steuernummer   TEXT NOT NULL DEFAULT '',
 	logo           BLOB,
 	logo_mime      TEXT NOT NULL DEFAULT '',
 	-- moneymoney_verwendungszweck überschreibt, wenn gesetzt, den
@@ -511,9 +513,14 @@ var spaltenNachtraege = []struct {
 	{"mitgliedschaft", "ruhend", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitgliedschaft", "anmeldegebuehr_eingezogen", "INTEGER NOT NULL DEFAULT 0"},
 
+	// trainingstermin: ein Termin, zu dem nur Frauen angemeldet werden. Der
+	// Default 0 ist genau der Stand davor: jeder bestehende Termin stand allen offen.
+	{"trainingstermin", "nur_frauen", "INTEGER NOT NULL DEFAULT 0"},
+
 	// vereinsdaten: Logo (ADR-0012) und eigener MoneyMoney-Verwendungszweck
 	// (ADR-0016) kamen zuletzt dazu — der ursprüngliche Auslöser dieses Fixes
 	// (GetVereinsdaten scheiterte an "no such column: logo").
+	{"vereinsdaten", "steuernummer", "TEXT NOT NULL DEFAULT ''"},
 	{"vereinsdaten", "logo", "BLOB"},
 	{"vereinsdaten", "logo_mime", "TEXT NOT NULL DEFAULT ''"},
 	{"vereinsdaten", "moneymoney_verwendungszweck", "TEXT NOT NULL DEFAULT ''"},

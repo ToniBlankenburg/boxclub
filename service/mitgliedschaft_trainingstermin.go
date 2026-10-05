@@ -39,6 +39,21 @@ func archivierterTermin(t Trainingstermin) Meldung {
 	return meldung("validierung.termin.archiviert", t.Anzeige())
 }
 
+// nurFrauenTermin sagt, warum ein Termin nur für Frauen dem Mitglied nicht
+// zugewiesen werden kann. Er wird beim Namen genannt, wie der archivierte.
+func nurFrauenTermin(t Trainingstermin) Meldung {
+	return meldung("validierung.termin.nur_frauen", t.Anzeige())
+}
+
+// IstFrau sagt, ob die Geschlechtsangabe eines Mitglieds „Frau“ ist — der Wert
+// aus den Eintipphilfen (GeschlechtVorschlaege). Das Feld ist Freitext, deshalb
+// gilt Groß- und Kleinschreibung nicht und umschließender Leerraum fällt weg;
+// jede andere Angabe, auch eine leere, ist keine Frau und kommt nicht in einen
+// Termin nur für Frauen.
+func IstFrau(geschlecht string) bool {
+	return strings.EqualFold(strings.TrimSpace(geschlecht), geschlechtVorschlaege[0])
+}
+
 // Trainingsfrequenz ist, wie oft pro Woche ein Mitglied trainiert. Sie wird
 // nirgends gespeichert, sondern ist die Anzahl der Termine, für die seine
 // Mitgliedschaft angemeldet ist — dadurch können Frequenz und Termine gar nicht
@@ -138,8 +153,9 @@ func trainingsterminIDsPruefen(ids []int64) []Meldung {
 // ihren beiden Verweisen nichts, woran sich eine einzelne wiedererkennen ließe
 // — ein Abgleich Zeile für Zeile wäre deshalb aufwendiger und nicht genauer.
 //
-// Zwei Regeln prüft erst diese Stelle, weil beide die Datenbank brauchen: es
-// muss den Termin geben, und ein archivierter lässt sich nicht neu vergeben.
+// Drei Regeln prüft erst diese Stelle, weil alle die Datenbank brauchen: es
+// muss den Termin geben, ein archivierter lässt sich nicht neu vergeben, und ein
+// Termin nur für Frauen nimmt nur Frauen neu auf.
 // Bereits zugeordnet bleibt er dagegen erlaubt — sonst wäre eine beliebige
 // Änderung am Mitglied nicht mehr speicherbar, solange ein alter Termin
 // angekreuzt ist, und das Aufräumen des Stundenplans risse Löcher in Formulare,
@@ -155,7 +171,7 @@ func trainingstermineSchreiben(tx *sql.Tx, mitgliedschaftID int64, ids []int64) 
 		return err
 	}
 
-	if err := terminzuordnungPruefen(tx, ids, bisher); err != nil {
+	if err := terminzuordnungPruefen(tx, mitgliedschaftID, ids, bisher); err != nil {
 		return err
 	}
 
@@ -182,13 +198,26 @@ func trainingstermineSchreiben(tx *sql.Tx, mitgliedschaftID int64, ids []int64) 
 // nacheinander erfahren.
 //
 // bisher sind die Termine, für die die Mitgliedschaft schon angemeldet ist. Nur
-// sie dürfen archiviert sein.
-func terminzuordnungPruefen(tx *sql.Tx, ids []int64, bisher []int64) error {
+// sie dürfen archiviert sein oder nur für Frauen, obwohl das Mitglied keine ist
+// (die Angabe kann sich nachträglich geändert haben).
+//
+// Das Geschlecht wird hier aus der Transaktion gelesen und nicht vom Aufrufer
+// übergeben: Anlegen und Ändern schreiben es in derselben Transaktion vorher,
+// geprüft wird also immer der Stand, der gleich gespeichert wird.
+func terminzuordnungPruefen(tx *sql.Tx, mitgliedschaftID int64, ids []int64, bisher []int64) error {
 	var meldungen []Meldung
+
+	var geschlecht string
+	if err := tx.QueryRow(
+		`SELECT m.geschlecht FROM mitglied m
+		 JOIN mitgliedschaft ms ON ms.mitglied_id = m.id
+		 WHERE ms.id = ?`, mitgliedschaftID).Scan(&geschlecht); err != nil {
+		return fmt.Errorf("geschlecht zu mitgliedschaft %d lesen: %w", mitgliedschaftID, err)
+	}
 
 	for _, id := range ids {
 		termin, err := trainingsterminLesen(tx.QueryRow(
-			`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert
+			`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen
 			 FROM trainingstermin WHERE id = ?`, id))
 		if errors.Is(err, sql.ErrNoRows) {
 			meldungen = append(meldungen, unbekannterTermin)
@@ -201,6 +230,10 @@ func terminzuordnungPruefen(tx *sql.Tx, ids []int64, bisher []int64) error {
 
 		if termin.Archiviert && !slices.Contains(bisher, id) {
 			meldungen = append(meldungen, archivierterTermin(termin))
+		}
+
+		if termin.NurFrauen && !IstFrau(geschlecht) && !slices.Contains(bisher, id) {
+			meldungen = append(meldungen, nurFrauenTermin(termin))
 		}
 	}
 

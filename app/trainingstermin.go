@@ -31,6 +31,9 @@ type terminEingabe struct {
 	Beginn      string
 	Ende        string
 	Bezeichnung string
+
+	// NurFrauen ist das Kontrollkästchen: nur gesetzt wird es mitgeschickt.
+	NurFrauen bool
 }
 
 // terminEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
@@ -40,6 +43,7 @@ func terminEingabeLesen(r *http.Request) terminEingabe {
 		Beginn:      r.FormValue("beginn"),
 		Ende:        r.FormValue("ende"),
 		Bezeichnung: r.FormValue("bezeichnung"),
+		NurFrauen:   r.FormValue("nur_frauen") != "",
 	}
 }
 
@@ -54,6 +58,7 @@ func (e terminEingabe) alsAngabe() service.Trainingsterminangabe {
 		Beginn:      e.Beginn,
 		Ende:        e.Ende,
 		Bezeichnung: e.Bezeichnung,
+		NurFrauen:   e.NurFrauen,
 	}
 }
 
@@ -64,6 +69,7 @@ func terminEingabeAus(t service.Trainingstermin) terminEingabe {
 		Beginn:      string(t.Beginn),
 		Ende:        string(t.Ende),
 		Bezeichnung: t.Bezeichnung,
+		NurFrauen:   t.NurFrauen,
 	}
 }
 
@@ -127,6 +133,7 @@ func (d terminformularDaten) Wochentagsoptionen() []filteroption {
 // optional eine Rückmeldung.
 type trainingstermineDaten struct {
 	Termine         []terminzeile
+	Frauentermine   []terminzeile
 	AuchArchivierte bool
 	Meldung         meldung
 	Navigation      []navigationseintrag
@@ -142,6 +149,9 @@ type terminzeile struct {
 	service.Trainingstermin
 	Teilnehmer []teilnehmerchip
 	ArchivPfad string
+
+	// Anhaengsel trägt die Einblendung der Archivierten in die Adressen der Zeile.
+	Anhaengsel string
 }
 
 // teilnehmerchip ist ein Teilnehmer, wie die Liste ihn zeigt: der Name und die
@@ -170,6 +180,25 @@ func initialenAus(vorname, nachname string) string {
 // trägt.
 func (z terminzeile) Anzahl() int {
 	return len(z.Teilnehmer)
+}
+
+// Gesamt ist die Zahl aller Termine beider Bereiche.
+func (d trainingstermineDaten) Gesamt() int {
+	return len(d.Termine) + len(d.Frauentermine)
+}
+
+// terminzeilenTeilen trennt die Termine nur für Frauen von den übrigen; die
+// Wochenreihenfolge bleibt in beiden erhalten.
+func terminzeilenTeilen(zeilen []terminzeile) (allgemein, frauen []terminzeile) {
+	for _, z := range zeilen {
+		if z.NurFrauen {
+			frauen = append(frauen, z)
+		} else {
+			allgemein = append(allgemein, z)
+		}
+	}
+
+	return allgemein, frauen
 }
 
 // terminzeilen ergänzt jeden Termin um seine Teilnehmer und seine Archiv-Adresse.
@@ -204,7 +233,7 @@ func terminzeilen(listen []service.Teilnehmerliste, auchArchivierte bool) []term
 			})
 		}
 
-		zeilen = append(zeilen, terminzeile{Trainingstermin: t, Teilnehmer: chips, ArchivPfad: pfad})
+		zeilen = append(zeilen, terminzeile{Trainingstermin: t, Teilnehmer: chips, ArchivPfad: pfad, Anhaengsel: anhaengsel(auchArchivierte)})
 	}
 
 	return zeilen
@@ -263,8 +292,11 @@ func (a *App) trainingstermineRendern(w http.ResponseWriter, auchArchivierte boo
 		return
 	}
 
+	allgemein, frauen := terminzeilenTeilen(terminzeilen(listen, auchArchivierte))
+
 	a.rendern(w, "trainingstermine", trainingstermineDaten{
-		Termine:         terminzeilen(listen, auchArchivierte),
+		Termine:         allgemein,
+		Frauentermine:   frauen,
 		AuchArchivierte: auchArchivierte,
 		Meldung:         m,
 		Navigation:      a.navigation(bereichTrainingstermine),

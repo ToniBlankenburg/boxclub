@@ -99,23 +99,16 @@ function spaltenAnwenden() {
         zelle.colSpan = Math.max(1, sichtbar.length);
     });
 
-    // Das Fallback-Element am Ende der Kopfzeile (ADR-0020) zeigt je einen
-    // Knopf zum Wiedereinblenden — aber nur für Spalten, die gerade
-    // tatsächlich versteckt sind; die übrigen bleiben hier verborgen.
-    document.querySelectorAll('[data-spalten-zeigen]').forEach((knopf) => {
-        knopf.hidden = sichtbar.includes(knopf.getAttribute('data-spalten-zeigen'));
+    // Das Spalten-Menü der Kopfzeile: Kästchen spiegeln die Auswahl, der
+    // Zähler am Knopf zeigt, wie viele der ausblendbaren Spalten gerade
+    // versteckt sind — Go kennt diesen Wert nie, er lebt ausschließlich hier.
+    document.querySelectorAll('[data-spalte-umschalten]').forEach((kaestchen) => {
+        kaestchen.checked = sichtbar.includes(kaestchen.getAttribute('data-spalte-umschalten'));
     });
-
-    // Der Zähler am Fallback-Element zeigt, wie viele der sechs ausblendbaren
-    // Spalten gerade versteckt sind — Go kennt diesen Wert nie, er lebt
-    // ausschließlich hier.
     const versteckt = spaltenAusblendbar.length - sichtbar.length;
-    document.querySelectorAll('[data-spalten-fallback-badge]').forEach((badge) => {
+    document.querySelectorAll('[data-spalten-badge]').forEach((badge) => {
         badge.textContent = versteckt;
         badge.hidden = versteckt === 0;
-    });
-    document.querySelectorAll('[data-spalten-fallback-leer]').forEach((hinweis) => {
-        hinweis.hidden = versteckt !== 0;
     });
 
     sortierfallbackPruefen(sichtbar);
@@ -200,36 +193,22 @@ document.body.addEventListener('htmx:afterSwap', () => {
     }
 });
 
-// "Spalte ausblenden" im Zahnrad-Menü einer Spalte (ADR-0020): sie fliegt aus
-// der sichtbaren Auswahl, ihr eigenes Zahnrad verschwindet damit gleich mit —
-// wiederzufinden ist sie über das Fallback-Element am Ende der Kopfzeile.
-document.body.addEventListener('click', (ereignis) => {
-    const knopf = ereignis.target.closest('[data-spalten-verstecken]');
-    if (!knopf) {
+// Die Kästchen im Spalten-Menü der Kopfzeile blenden ihre Spalte aus oder
+// wieder ein. In der Reihenfolge von spaltenAusblendbar abgelegt, statt ans
+// Ende zu hängen — dieselbe Reihenfolge, in der main.js die Spalten überall
+// sonst aufzählt.
+document.body.addEventListener('change', (ereignis) => {
+    const kaestchen = ereignis.target.closest && ereignis.target.closest('[data-spalte-umschalten]');
+    if (!kaestchen) {
         return;
     }
 
-    const spalte = knopf.getAttribute('data-spalten-verstecken');
+    const spalte = kaestchen.getAttribute('data-spalte-umschalten');
     const sichtbar = sichtbareSpaltenLesen().filter((s) => s !== spalte);
-    sichtbareSpaltenSchreiben(sichtbar);
-    spaltenAnwenden();
-});
-
-// Ein Knopf im Fallback-Element blendet seine Spalte wieder ein.
-document.body.addEventListener('click', (ereignis) => {
-    const knopf = ereignis.target.closest('[data-spalten-zeigen]');
-    if (!knopf) {
-        return;
+    if (kaestchen.checked) {
+        sichtbar.push(spalte);
     }
-
-    const spalte = knopf.getAttribute('data-spalten-zeigen');
-    const sichtbar = sichtbareSpaltenLesen();
-    if (!sichtbar.includes(spalte)) {
-        // In der Reihenfolge von spaltenAusblendbar wieder einsetzen, statt
-        // ans Ende zu hängen — dieselbe Reihenfolge, in der main.js die
-        // Spalten überall sonst aufzählt.
-        sichtbareSpaltenSchreiben(spaltenAusblendbar.filter((s) => sichtbar.includes(s) || s === spalte));
-    }
+    sichtbareSpaltenSchreiben(spaltenAusblendbar.filter((s) => sichtbar.includes(s)));
     spaltenAnwenden();
 });
 
@@ -308,7 +287,7 @@ function popupFixZuruecksetzen(details) {
 
 document.body.addEventListener('toggle', (ereignis) => {
     const details = ereignis.target;
-    if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-spaltenmenu], [data-spalten-fallback]')) {
+    if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-spaltenmenu]')) {
         return;
     }
 
@@ -348,4 +327,29 @@ document.body.addEventListener('click', (ereignis) => {
 
     ereignis.preventDefault();
     window.runtime.BrowserOpenURL(link.href);
+});
+
+// Termine nur für Frauen sind im Mitgliedsformular nur sichtbar, solange das
+// Geschlecht „Frau“ lautet — oder der Termin schon angekreuzt ist (dann bleibt
+// er, bis man ihn abwählt). Der Service prüft dasselbe beim Speichern; das hier
+// ist nur das Mitgehen beim Tippen (istFrau in service/).
+function frauentermineAnwenden(formular) {
+    const feld = formular.querySelector('[name="geschlecht"]');
+    if (!feld) {
+        return;
+    }
+
+    const istFrau = feld.value.trim().toLowerCase() === 'frau';
+    formular.querySelectorAll('[data-nur-frauen]').forEach((zeile) => {
+        const kaestchen = zeile.querySelector('input[type="checkbox"]');
+        const sichtbar = istFrau || kaestchen.checked;
+        zeile.hidden = !sichtbar;
+        kaestchen.disabled = !sichtbar;
+    });
+}
+
+document.body.addEventListener('input', (ereignis) => {
+    if (ereignis.target.name === 'geschlecht' && ereignis.target.form) {
+        frauentermineAnwenden(ereignis.target.form);
+    }
 });

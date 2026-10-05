@@ -99,14 +99,13 @@ var deutsch = map[string]string{
 	"mitglieder.filter_beitrag_bis_aria":  "Beitrag bis",
 	"mitglieder.filter_eintritt_von_aria": "Eintritt von",
 	"mitglieder.filter_eintritt_bis_aria": "Eintritt bis",
-	// spaltenmenu_aria, spalte_ausblenden_knopf und spalten_fallback_* gehören
-	// zum Zahnrad-Menü jeder Spalte und seinem Fallback-Element (ADR-0020,
-	// löst das alte Filter-/Spalten-Menü aus ADR-0015 ab).
+	// spaltenmenu_aria gehört zum Zahnrad-Menü jeder Spalte, spalten_menue_*
+	// zum Spalten-Knopf der Kopfzeile (ADR-0020, löst das alte Filter-/
+	// Spalten-Menü aus ADR-0015 ab).
 	"mitglieder.spaltenmenu_aria":              "Filter für Spalte %s",
-	"mitglieder.spalte_ausblenden_knopf":       "%s ausblenden",
-	"mitglieder.spalten_fallback_aria":         "Ausgeblendete Spalten wieder einblenden",
-	"mitglieder.spalten_fallback_titel":        "Ausgeblendete Spalten",
-	"mitglieder.spalten_fallback_leer":         "Keine Spalte ausgeblendet",
+	"mitglieder.spalten_menue_aria":            "Spalten ein- und ausblenden",
+	"mitglieder.spalten_menue_knopf":           "Spalten",
+	"mitglieder.spalten_menue_titel":           "Sichtbare Spalten",
 	"mitglieder.eintrag_singular":              "Mitglied",
 	"mitglieder.eintrag_plural":                "Mitglieder",
 	"mitglieder.leer_gefiltert":                "Kein Mitglied passt zu Suche und Filter.",
@@ -216,6 +215,10 @@ var deutsch = map[string]string{
 	"trainingstermine.eintrag_singular":          "Termin",
 	"trainingstermine.eintrag_plural":            "Termine",
 	"trainingstermine.archiviert_abzeichen":      "archiviert",
+	"trainingstermine.nur_frauen_abzeichen":      "nur Frauen",
+	"trainingstermine.bereich_frauen":            "Frauen-Boxeinheiten",
+	"trainingstermine.nur_frauen_feld":           "Nur für Frauen",
+	"trainingstermine.nur_frauen_hinweis":        "Angemeldet werden dann nur Mitglieder mit dem Geschlecht „Frau“. Wer schon angemeldet ist, bleibt es.",
 	"trainingstermine.archiviert_titel":          "Archiviert — nicht mehr im Stundenplan und in keiner Auswahl. Bestehende Anmeldungen bleiben bestehen.",
 	"trainingstermine.angemeldet_anzahl":         "%d angemeldet",
 	"trainingstermine.niemand_angemeldet":        "niemand angemeldet",
@@ -282,7 +285,7 @@ var deutsch = map[string]string{
 	"import.beschreibung_nach": "-Datei. Der Import lässt sich beliebig oft wiederholen: bestehende " +
 		"Mitglieder werden aktualisiert, nicht doppelt angelegt. Was sich nicht zuordnen lässt, steht " +
 		"danach zeilenweise im Bericht.",
-	"import.datei_aria":        "Excel-Datei auswählen",
+	"import.datei_aria": "Excel-Datei auswählen",
 	"import.blatt_name_hinweis": "Das Blatt mit den Mitgliederdaten muss „Verwaltung“ heißen — sonst " +
 		"wird ersatzweise das erste Blatt der Datei gelesen.",
 	"import.importieren_knopf": "Importieren",
@@ -398,10 +401,19 @@ var deutsch = map[string]string{
 	"rechnung.pdf.rechnungsnummer_praefix": "Rechnungsnummer: ",
 	"rechnung.pdf.rechnungsdatum_praefix":  "Rechnungsdatum: ",
 	"rechnung.pdf.zahlungsziel_praefix":    "Zahlungsziel: ",
+	"rechnung.pdf.leistungsdatum_praefix":  "Leistungsdatum: ",
+	"rechnung.pdf.leistungsdatum_gleich":   "wie Rechnungsdatum",
+	"rechnung.pdf.steuernummer_praefix":    "Steuernummer: ",
+	"rechnung.pdf.rechnung_an":             "Rechnung an",
+	"rechnung.pdf.zahlungshinweis_vorlage": "Bitte überweisen Sie den Gesamtbetrag bis zum %s unter Angabe der Rechnungsnummer auf das unten genannte Konto.",
+	"rechnung.fehler_leistungsdatum":       "Leistungsdatum ist kein gültiges Datum.",
+	"feld.leistungsdatum":                  "Leistungsdatum (leer = wie Rechnungsdatum)",
+	"verein.steuernummer_feld":             "Steuernummer / USt-IdNr.",
+	"verein.steuernummer_hinweis":          "Pflichtangabe auf jeder Rechnung (§ 14 UStG). Sie steht im Briefkopf des PDFs.",
 	"rechnung.pdf.titel_praefix":           "Rechnung ",
 	"rechnung.pdf.spalte_summe":            "Summe (netto)",
 	"rechnung.pdf.netto_praefix":           "Netto: ",
-	"rechnung.pdf.steuer_vorlage":          "zzgl. %s %% USt: %s",
+	"rechnung.pdf.steuer_vorlage":          "zzgl. %s %% USt",
 	"rechnung.pdf.gesamtbetrag_praefix":    "Gesamtbetrag: ",
 	"rechnung.pdf.iban_praefix":            "IBAN: ",
 	"rechnung.pdf.bic_praefix":             "BIC: ",
@@ -490,6 +502,7 @@ var deutsch = map[string]string{
 	"validierung.termin.zu_viele":   "Es sind höchstens %d Trainingstermine möglich.",
 	"validierung.termin.unbekannt":  "Einen ausgewählten Trainingstermin gibt es nicht.",
 	"validierung.termin.archiviert": "»%s« ist archiviert und kann nicht neu vergeben werden.",
+	"validierung.termin.nur_frauen": "»%s« ist nur für Frauen. Das Geschlecht des Mitglieds muss „Frau“ sein.",
 
 	"validierung.kuendigung.fehlendes_datum":       "Bitte ein Kündigungsdatum oder ein Austrittsdatum angeben.",
 	"validierung.kuendigung.austritt_vor_eintritt": "Das Austrittsdatum darf nicht vor dem Eintrittsdatum liegen.",

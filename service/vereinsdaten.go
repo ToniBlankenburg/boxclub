@@ -46,6 +46,11 @@ type Vereinsdaten struct {
 	// niemand danach fragt, bleibt es bei Text (Ticket 23).
 	Fusszeile string
 
+	// Steuernummer ist die Steuernummer oder USt-IdNr. des Vereins — eine der
+	// Pflichtangaben einer Rechnung (§ 14 Abs. 4 Nr. 2 UStG). Freitext wie die
+	// IBAN: die App prüft nichts daran, steht aber im Briefkopf des PDF.
+	Steuernummer string
+
 	// Logo ist das Bild des Vereins (CONTEXT.md → Vereinslogo) — nil, wenn
 	// keines hinterlegt ist. Anders als die übrigen Felder kommt es nie direkt
 	// aus dem Formular: Prüfung und die etwaige SVG-Rasterisierung passieren
@@ -84,12 +89,12 @@ func (s *MemberService) GetVereinsdaten() (Vereinsdaten, error) {
 
 	err := s.db.QueryRow(
 		`SELECT name, adresse, postleitzahl, ort, email, telefon,
-		 	iban, bic, kreditinstitut, fusszeile, logo, logo_mime,
+		 	iban, bic, kreditinstitut, fusszeile, steuernummer, logo, logo_mime,
 		 	moneymoney_verwendungszweck
 		 FROM vereinsdaten WHERE id = ?`, vereinsdatenID).Scan(
 		&daten.Name, &daten.Anschrift.Adresse, &daten.Anschrift.Postleitzahl,
 		&daten.Anschrift.Ort, &daten.Email, &daten.Telefon,
-		&daten.IBAN, &daten.BIC, &daten.Kreditinstitut, &daten.Fusszeile,
+		&daten.IBAN, &daten.BIC, &daten.Kreditinstitut, &daten.Fusszeile, &daten.Steuernummer,
 		&daten.Logo, &daten.LogoMime, &daten.MoneyMoneyVerwendungszweck)
 	if err != nil {
 		return Vereinsdaten{}, fmt.Errorf("vereinsdaten lesen: %w", err)
@@ -117,9 +122,9 @@ func (s *MemberService) SetVereinsdaten(daten Vereinsdaten) error {
 	if _, err := s.db.Exec(
 		`INSERT INTO vereinsdaten
 		 	(id, name, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, bic, kreditinstitut, fusszeile, logo, logo_mime,
+		 	 iban, bic, kreditinstitut, fusszeile, steuernummer, logo, logo_mime,
 		 	 moneymoney_verwendungszweck)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		 	name = excluded.name,
 		 	adresse = excluded.adresse,
@@ -131,13 +136,14 @@ func (s *MemberService) SetVereinsdaten(daten Vereinsdaten) error {
 		 	bic = excluded.bic,
 		 	kreditinstitut = excluded.kreditinstitut,
 		 	fusszeile = excluded.fusszeile,
+		 	steuernummer = excluded.steuernummer,
 		 	logo = excluded.logo,
 		 	logo_mime = excluded.logo_mime,
 		 	moneymoney_verwendungszweck = excluded.moneymoney_verwendungszweck`,
 		vereinsdatenID, daten.Name,
 		daten.Anschrift.Adresse, daten.Anschrift.Postleitzahl, daten.Anschrift.Ort,
 		daten.Email, daten.Telefon,
-		daten.IBAN, daten.BIC, daten.Kreditinstitut, daten.Fusszeile,
+		daten.IBAN, daten.BIC, daten.Kreditinstitut, daten.Fusszeile, daten.Steuernummer,
 		daten.Logo, daten.LogoMime, daten.MoneyMoneyVerwendungszweck); err != nil {
 		return fmt.Errorf("vereinsdaten speichern: %w", err)
 	}
@@ -165,6 +171,7 @@ func (v Vereinsdaten) bereinigt() Vereinsdaten {
 		BIC:                        strings.TrimSpace(v.BIC),
 		Kreditinstitut:             strings.TrimSpace(v.Kreditinstitut),
 		Fusszeile:                  strings.TrimSpace(v.Fusszeile),
+		Steuernummer:               strings.TrimSpace(v.Steuernummer),
 		Logo:                       v.Logo,
 		LogoMime:                   v.LogoMime,
 		MoneyMoneyVerwendungszweck: strings.TrimSpace(v.MoneyMoneyVerwendungszweck),

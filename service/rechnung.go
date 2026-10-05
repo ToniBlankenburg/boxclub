@@ -74,6 +74,11 @@ type RechnungEingabe struct {
 	Rechnungsdatum time.Time
 	Zahlungsziel   time.Time
 
+	// Leistungsdatum ist der Zeitpunkt der Leistung (§ 14 Abs. 4 Nr. 6 UStG).
+	// Null heißt „wie das Rechnungsdatum": das Gesetz erlaubt, dann nur diesen
+	// Hinweis zu drucken, und es ist der häufige Fall beim Einzeltraining.
+	Leistungsdatum time.Time
+
 	// SteuersatzProzent gilt für die ganze Rechnung. Vorgabe StandardSteuersatz,
 	// änderbar bis 0; geprüft wird nur, dass die Zahl nicht negativ ist — welche
 	// steuerliche Regel gilt, weiß die App nicht.

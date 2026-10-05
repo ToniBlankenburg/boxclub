@@ -54,6 +54,7 @@ func vereinsdatenLesen(r *http.Request) service.Vereinsdaten {
 		BIC:                        r.FormValue("bic"),
 		Kreditinstitut:             r.FormValue("kreditinstitut"),
 		Fusszeile:                  r.FormValue("fusszeile"),
+		Steuernummer:               r.FormValue("steuernummer"),
 		MoneyMoneyVerwendungszweck: r.FormValue("moneymoney_verwendungszweck"),
 	}
 }

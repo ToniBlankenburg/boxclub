@@ -60,14 +60,25 @@ type RechnungBeschriftungen struct {
 	RechnungsnummerPraefix string
 	RechnungsdatumPraefix  string
 	ZahlungszielPraefix    string
+	LeistungsdatumPraefix  string
+	// LeistungsdatumGleich steht statt eines Datums, wenn keines angegeben ist:
+	// der Zeitpunkt der Leistung entspricht dem Rechnungsdatum (§ 14 Abs. 4
+	// Nr. 6 UStG erlaubt diesen Hinweis).
+	LeistungsdatumGleich string
+	SteuernummerPraefix  string
+	// RechnungAn steht als kleine Zeile über dem Empfänger.
+	RechnungAn string
+	// ZahlungshinweisVorlage hat einen %s für das Zahlungsziel. Leer heißt:
+	// kein Hinweis unter den Summen.
+	ZahlungshinweisVorlage string
 	TitelPraefix           string
 	SpalteBezeichnung      string
 	SpalteMenge            string
 	SpalteEinzelpreis      string
 	SpalteSumme            string
 	NettoPraefix           string
-	// SteuerVorlage ist ein fmt.Sprintf-Format mit zwei Platzhaltern
-	// (Steuersatz als Text, Steuerbetrag) — siehe zeichner.summen.
+	// SteuerVorlage ist ein fmt.Sprintf-Format mit einem Platzhalter (Steuersatz
+	// als Text) — der Betrag steht rechts daneben, siehe zeichner.summen.
 	SteuerVorlage       string
 	GesamtbetragPraefix string
 	IBANPraefix         string
@@ -84,13 +95,18 @@ var RechnungBeschriftungenDeutsch = RechnungBeschriftungen{
 	RechnungsnummerPraefix: "Rechnungsnummer: ",
 	RechnungsdatumPraefix:  "Rechnungsdatum: ",
 	ZahlungszielPraefix:    "Zahlungsziel: ",
+	LeistungsdatumPraefix:  "Leistungsdatum: ",
+	LeistungsdatumGleich:   "wie Rechnungsdatum",
+	SteuernummerPraefix:    "Steuernummer: ",
+	RechnungAn:             "Rechnung an",
+	ZahlungshinweisVorlage: "Bitte überweisen Sie den Gesamtbetrag bis zum %s unter Angabe der Rechnungsnummer auf das unten genannte Konto.",
 	TitelPraefix:           "Rechnung ",
 	SpalteBezeichnung:      "Bezeichnung",
 	SpalteMenge:            "Menge",
 	SpalteEinzelpreis:      "Einzelpreis (netto)",
 	SpalteSumme:            "Summe (netto)",
 	NettoPraefix:           "Netto: ",
-	SteuerVorlage:          "zzgl. %s %% USt: %s",
+	SteuerVorlage:          "zzgl. %s %% USt",
 	GesamtbetragPraefix:    "Gesamtbetrag: ",
 	IBANPraefix:            "IBAN: ",
 	BICPraefix:             "BIC: ",
@@ -118,10 +134,11 @@ func rechnungPDF(verein Vereinsdaten, eingabe RechnungEingabe, beschriftungen Re
 	z := &zeichner{pdf: pdf, beschriftungen: beschriftungen}
 
 	z.briefkopf(verein)
-	z.empfaengerUndKopf(eingabe)
+	z.empfaengerUndKopf(verein, eingabe)
 	z.titel(eingabe)
 	tabellenEnde := z.positionstabelle(eingabe.Positionen)
-	z.summen(betraege, eingabe.SteuersatzProzent, tabellenEnde)
+	summenEnde := z.summen(betraege, eingabe.SteuersatzProzent, tabellenEnde)
+	z.zahlungshinweis(eingabe, summenEnde)
 	z.fusszeile(verein)
 
 	if z.err != nil {
@@ -178,6 +195,31 @@ func (z *zeichner) schreibenRechts(schriftart string, groesse, xRechts, y, breit
 	}
 }
 
+// Farben der Rechnung: dunkles Grau statt Schwarz für den Haupttext wirkt
+// ruhiger; Nebensächliches (Kontakt, Rechnungsdaten, Fußzeile) steht gedämpft.
+var (
+	farbeText        = gopdf.RGBColor{R: 30, G: 30, B: 30}
+	farbeGedaempft   = gopdf.RGBColor{R: 115, G: 115, B: 115}
+	farbeLinie       = gopdf.RGBColor{R: 215, G: 215, B: 215}
+	farbeLinieDunkel = gopdf.RGBColor{R: 60, G: 60, B: 60}
+)
+
+// textfarbe setzt die Farbe für alle folgenden Schreibaufrufe.
+func (z *zeichner) textfarbe(f gopdf.RGBColor) {
+	z.pdf.SetTextColor(f.R, f.G, f.B)
+}
+
+// linie zieht eine waagerechte Linie von x1 bis x2 auf Höhe y.
+func (z *zeichner) linie(x1, x2, y, breite float64, f gopdf.RGBColor) {
+	if z.err != nil {
+		return
+	}
+
+	z.pdf.SetStrokeColor(f.R, f.G, f.B)
+	z.pdf.SetLineWidth(breite)
+	z.pdf.Line(x1, y, x2, y)
+}
+
 // logoMaxMM ist die längste Kante der Bounding-Box, in die das Vereinslogo im
 // Briefkopf gesetzt wird — Seitenverhältnis erhalten (ADR-0012).
 const logoMaxMM = 30.0
@@ -197,13 +239,16 @@ func (z *zeichner) briefkopf(verein Vereinsdaten) {
 		x += breite + logoAbstand
 	}
 
-	z.schreiben(schriftFett, 14, x, 18, verein.Name)
+	z.textfarbe(farbeText)
+	z.schreiben(schriftFett, 15, x, 18, verein.Name)
 
+	z.textfarbe(farbeGedaempft)
 	y := 25.0
 	for _, zeile := range vereinKontaktzeilen(verein, z.beschriftungen) {
 		z.schreiben(schriftRegulaer, 9, x, y, zeile)
 		y += 4.5
 	}
+	z.textfarbe(farbeText)
 }
 
 // logo zeichnet das Vereinslogo oben links in eine Bounding-Box von
@@ -277,50 +322,80 @@ func vereinKontaktzeilen(verein Vereinsdaten, b RechnungBeschriftungen) []string
 	return zeilen
 }
 
-// empfaengerUndKopf setzt den Empfänger links und Rechnungsnummer, -datum und
-// Zahlungsziel rechtsbündig daneben.
-func (z *zeichner) empfaengerUndKopf(eingabe RechnungEingabe) {
-	const startY = 50.0
+// empfaengerUndKopf setzt links den Empfänger unter der kleinen Zeile „Rechnung
+// an“ und rechts die Rechnungsdaten als Block aus Bezeichnung und Wert. Beide
+// Spalten beginnen auf derselben Höhe wie das Anschriftfeld nach DIN 5008.
+//
+// Zur Rechnung gehören nach § 14 Abs. 4 UStG außer Nummer und Datum der
+// Zeitpunkt der Leistung und die Steuernummer des Vereins — beide stehen hier.
+func (z *zeichner) empfaengerUndKopf(verein Vereinsdaten, eingabe RechnungEingabe) {
+	const (
+		startY = 58.0
+		zeile  = 5.5
+	)
 
-	y := startY
-	z.schreiben(schriftRegulaer, 11, rand, y, eingabe.Empfaenger.Name)
-	y += 5
+	z.textfarbe(farbeGedaempft)
+	z.schreiben(schriftRegulaer, 8, rand, startY, z.beschriftungen.RechnungAn)
+
+	z.textfarbe(farbeText)
+	y := startY + 6
+	z.schreiben(schriftFett, 11, rand, y, eingabe.Empfaenger.Name)
+	y += zeile
 	if !eingabe.Empfaenger.Anschrift.Leer() {
 		if eingabe.Empfaenger.Anschrift.Adresse != "" {
 			z.schreiben(schriftRegulaer, 11, rand, y, eingabe.Empfaenger.Anschrift.Adresse)
-			y += 5
+			y += zeile
 		}
 		if ort := eingabe.Empfaenger.Anschrift.OrtZeile(); ort != "" {
 			z.schreiben(schriftRegulaer, 11, rand, y, ort)
 		}
 	}
 
-	const breiteKopf = 80.0
+	leistung := z.beschriftungen.LeistungsdatumGleich
+	if !eingabe.Leistungsdatum.IsZero() {
+		leistung = eingabe.Leistungsdatum.Format(deutschesDatum)
+	}
+
+	angaben := [][2]string{
+		{z.beschriftungen.RechnungsnummerPraefix, eingabe.Nummer},
+		{z.beschriftungen.RechnungsdatumPraefix, eingabe.Rechnungsdatum.Format(deutschesDatum)},
+		{z.beschriftungen.LeistungsdatumPraefix, leistung},
+		{z.beschriftungen.ZahlungszielPraefix, eingabe.Zahlungsziel.Format(deutschesDatum)},
+	}
+	if verein.Steuernummer != "" {
+		angaben = append(angaben, [2]string{z.beschriftungen.SteuernummerPraefix, verein.Steuernummer})
+	}
+
+	const blockLinks = 120.0
 	xRechts := rand + inhaltsbreite
 
-	kopfzeilen := []string{
-		z.beschriftungen.RechnungsnummerPraefix + eingabe.Nummer,
-		z.beschriftungen.RechnungsdatumPraefix + eingabe.Rechnungsdatum.Format(deutschesDatum),
-		z.beschriftungen.ZahlungszielPraefix + eingabe.Zahlungsziel.Format(deutschesDatum),
+	y = startY + 6
+	for _, angabe := range angaben {
+		z.textfarbe(farbeGedaempft)
+		z.schreiben(schriftRegulaer, 9, blockLinks, y, etikett(angabe[0]))
+		z.textfarbe(farbeText)
+		z.schreibenRechts(schriftRegulaer, 9, xRechts, y, xRechts-blockLinks-30, angabe[1])
+		y += zeile
 	}
-	y = startY
-	for _, zeile := range kopfzeilen {
-		z.schreibenRechts(schriftRegulaer, 10, xRechts, y, breiteKopf, zeile)
-		y += 5
-	}
+}
+
+// etikett macht aus einem Präfix wie „Rechnungsnummer: “ die Bezeichnung ohne
+// Doppelpunkt — im Block steht der Wert in einer eigenen Spalte daneben.
+func etikett(praefix string) string {
+	return strings.TrimSuffix(strings.TrimSpace(praefix), ":")
 }
 
 // titel setzt die Überschrift über der Positionstabelle.
 func (z *zeichner) titel(eingabe RechnungEingabe) {
-	z.schreiben(schriftFett, 13, rand, 78, z.beschriftungen.TitelPraefix+eingabe.Nummer)
+	z.schreiben(schriftFett, 18, rand, 100, strings.TrimSpace(z.beschriftungen.TitelPraefix)+" "+eingabe.Nummer)
 }
 
 // positionsTabelleStartY und -zeilenhoehe legen fest, wo die Tabelle beginnt
 // und wie hoch jede ihrer Zeilen ist — beide werden auch für die Berechnung des
 // Endpunkts gebraucht, an dem die Summenzeilen weitergehen.
 const (
-	positionsTabelleStartY = 85.0
-	positionsZeilenhoehe   = 8.0
+	positionsTabelleStartY = 116.0
+	positionsZeilenhoehe   = 10.0
 )
 
 // positionstabelle zeichnet die Positionen als Tabelle mit Kopfzeile und
@@ -331,22 +406,35 @@ func (z *zeichner) positionstabelle(positionen []Rechnungsposition) float64 {
 		return ende
 	}
 
-	rahmen := gopdf.BorderStyle{
-		Top: true, Left: true, Right: true, Bottom: true,
-		Width: 0.2, RGBColor: gopdf.RGBColor{R: 120, G: 120, B: 120},
-	}
+	// Kein Gitter: unter jeder Zeile eine feine Linie, unter der Kopfzeile eine
+	// kräftigere. Das hält die Tabelle ruhig und lässt die Zahlen die Arbeit tun.
+	trennlinie := gopdf.BorderStyle{Bottom: true, Width: 0.2, RGBColor: farbeLinie}
+	kopflinie := gopdf.BorderStyle{Bottom: true, Width: 0.4, RGBColor: farbeLinieDunkel}
 
 	tabelle := z.pdf.NewTableLayout(rand, positionsTabelleStartY, positionsZeilenhoehe, len(positionen))
-	tabelle.AddColumn(z.beschriftungen.SpalteBezeichnung, inhaltsbreite*0.46, "left")
-	tabelle.AddColumn(z.beschriftungen.SpalteMenge, inhaltsbreite*0.14, "right")
-	tabelle.AddColumn(z.beschriftungen.SpalteEinzelpreis, inhaltsbreite*0.2, "right")
-	tabelle.AddColumn(z.beschriftungen.SpalteSumme, inhaltsbreite*0.2, "right")
+	// Die Köpfe setzt gopdf immer zentriert; deshalb bleiben sie in der Tabelle
+	// leer (nur die Linie darunter kommt von dort) und stehen unten ausgerichtet
+	// wie ihre Spalten.
+	breiten := [4]float64{inhaltsbreite * 0.40, inhaltsbreite * 0.12, inhaltsbreite * 0.26, inhaltsbreite * 0.22}
+	ausrichtung := [4]string{"left", "right", "right", "right"}
+	for i := range breiten {
+		tabelle.AddColumn("", breiten[i], ausrichtung[i])
+	}
+	tabelle.SetTableStyle(gopdf.CellStyle{})
 
 	tabelle.SetHeaderStyle(gopdf.CellStyle{
-		BorderStyle: rahmen, FillColor: gopdf.RGBColor{R: 235, G: 235, B: 235},
-		Font: schriftFett, FontSize: 10,
+		BorderStyle: kopflinie, TextColor: farbeText,
+		Font: schriftFett, FontSize: 9,
 	})
-	tabelle.SetCellStyle(gopdf.CellStyle{BorderStyle: rahmen, Font: schriftRegulaer, FontSize: 10})
+	tabelle.SetCellStyle(gopdf.CellStyle{
+		BorderStyle: trennlinie, TextColor: farbeText,
+		Font: schriftRegulaer, FontSize: 10,
+	})
+
+	z.tabellenkopf([4]string{
+		z.beschriftungen.SpalteBezeichnung, z.beschriftungen.SpalteMenge,
+		z.beschriftungen.SpalteEinzelpreis, z.beschriftungen.SpalteSumme,
+	}, breiten)
 
 	for _, p := range positionen {
 		tabelle.AddRow([]string{
@@ -364,31 +452,110 @@ func (z *zeichner) positionstabelle(positionen []Rechnungsposition) float64 {
 	return ende
 }
 
-// summen setzt Netto, Steuer und Brutto unter die Tabelle, rechtsbündig. Bei
-// 0 % entfällt die Steuerzeile — es gäbe nichts anzuzeigen, was Netto und Brutto
-// nicht schon zeigen (siehe Ticket 25, AC).
-func (z *zeichner) summen(betraege Rechnungsbetraege, steuersatzProzent, y float64) {
-	const breite = 80.0
-	xRechts := rand + inhaltsbreite
+// tabellenkopf setzt die Spaltenköpfe in die Kopfzeile der Positionstabelle:
+// die erste Spalte linksbündig, die Zahlenspalten rechtsbündig. 2 mm Abstand
+// zum Zellrand entsprechen dem Innenabstand von gopdf.
+func (z *zeichner) tabellenkopf(koepfe [4]string, breiten [4]float64) {
+	const innen = 2.0
+	y := positionsTabelleStartY + (positionsZeilenhoehe-3.2)/2 - 0.3
 
-	y += 4
-	z.schreibenRechts(schriftRegulaer, 10, xRechts, y, breite, z.beschriftungen.NettoPraefix+euroAnzeige(betraege.NettoCents))
-	y += 5
-
-	if steuersatzProzent > 0 {
-		beschriftung := fmt.Sprintf(z.beschriftungen.SteuerVorlage, SteuersatzAlsText(steuersatzProzent), euroAnzeige(betraege.SteuerCents))
-		z.schreibenRechts(schriftRegulaer, 10, xRechts, y, breite, beschriftung)
-		y += 5
+	z.textfarbe(farbeText)
+	x := rand
+	for i, kopf := range koepfe {
+		if i == 0 {
+			z.schreiben(schriftFett, 9, x+innen, y, kopf)
+		} else {
+			z.schreibenRechts(schriftFett, 9, x+breiten[i]-innen, y, breiten[i]-2*innen, kopf)
+		}
+		x += breiten[i]
 	}
-
-	z.schreibenRechts(schriftFett, 11, xRechts, y, breite, z.beschriftungen.GesamtbetragPraefix+euroAnzeige(betraege.BruttoCents))
 }
 
-// fusszeile setzt Bankverbindung und die frei getippte Fußzeile unten auf die
-// Seite. Beide sind freiwillig (Ticket 23) und fehlen einfach, wenn sie nicht
-// gepflegt sind.
+// summen setzt Netto, Steuer und Brutto unter die Tabelle: rechts ein Block
+// aus Bezeichnung links und Betrag rechts. Bei 0 % entfällt die Steuerzeile —
+// es gäbe nichts anzuzeigen, was Netto und Brutto nicht schon zeigen (siehe
+// Ticket 25, AC); der Grund dafür steht dann in der Fußzeile (§ 19 UStG). Die
+// Rückgabe ist die y-Koordinate unter dem Block.
+func (z *zeichner) summen(betraege Rechnungsbetraege, steuersatzProzent, y float64) float64 {
+	const breite = 80.0
+	xRechts := rand + inhaltsbreite
+	xLinks := xRechts - breite
+
+	zeile := func(schriftart string, groesse float64, farbe gopdf.RGBColor, bezeichnung, betrag string) {
+		z.textfarbe(farbe)
+		z.schreiben(schriftart, groesse, xLinks, y, bezeichnung)
+		z.schreibenRechts(schriftart, groesse, xRechts, y, 35, betrag)
+	}
+
+	y += 8
+	zeile(schriftRegulaer, 10, farbeGedaempft, etikett(z.beschriftungen.NettoPraefix), euroAnzeige(betraege.NettoCents))
+	y += 6
+
+	if steuersatzProzent > 0 {
+		zeile(schriftRegulaer, 10, farbeGedaempft,
+			fmt.Sprintf(z.beschriftungen.SteuerVorlage, SteuersatzAlsText(steuersatzProzent)),
+			euroAnzeige(betraege.SteuerCents))
+		y += 6
+	}
+
+	// Die Linie trennt die Summe von den Zwischenbeträgen; der Gesamtbetrag ist
+	// das Einzige, was fett und groß steht.
+	y += 1
+	z.linie(xLinks, xRechts, y, 0.4, farbeLinieDunkel)
+	y += 4
+	zeile(schriftFett, 12, farbeText, etikett(z.beschriftungen.GesamtbetragPraefix), euroAnzeige(betraege.BruttoCents))
+
+	return y + 8
+}
+
+// zahlungshinweis setzt den Satz mit dem Zahlungsziel unter die Summen, über die
+// ganze Breite. Er wiederholt, was oben im Block steht, aber in einem Satz, den
+// man beim Überweisen liest.
+func (z *zeichner) zahlungshinweis(eingabe RechnungEingabe, y float64) {
+	if z.err != nil || z.beschriftungen.ZahlungshinweisVorlage == "" {
+		return
+	}
+
+	text := fmt.Sprintf(z.beschriftungen.ZahlungshinweisVorlage, eingabe.Zahlungsziel.Format(deutschesDatum))
+	z.absatz(schriftRegulaer, 9, farbeGedaempft, rand, y+6, inhaltsbreite, text)
+}
+
+// absatz setzt Text mit Zeilenumbruch in einer Spalte der gegebenen Breite.
+func (z *zeichner) absatz(schriftart string, groesse float64, farbe gopdf.RGBColor, x, y, breite float64, text string) {
+	if z.err != nil || text == "" {
+		return
+	}
+
+	if err := z.pdf.SetFont(schriftart, "", groesse); err != nil {
+		z.err = fmt.Errorf("schriftart setzen: %w", err)
+		return
+	}
+
+	z.textfarbe(farbe)
+	z.pdf.SetXY(x, y)
+	if err := z.pdf.MultiCellWithOption(&gopdf.Rect{W: breite, H: groesse * 0.6},
+		text, gopdf.CellOption{
+			Align: gopdf.Left | gopdf.Top,
+			// An Leerzeichen umbrechen und nicht mitten im Wort.
+			BreakOption: &gopdf.BreakOption{Mode: gopdf.BreakModeIndicatorSensitive, BreakIndicator: ' '},
+		}); err != nil {
+		z.err = fmt.Errorf("absatz schreiben: %w", err)
+	}
+}
+
+// fusszeile setzt unter eine feine Linie links die Bankverbindung und rechts die
+// frei getippte Fußzeile. Beide sind freiwillig (Ticket 23) und fehlen einfach,
+// wenn sie nicht gepflegt sind. Die Fußzeile bricht in ihrer Spalte um, statt
+// über den Rand zu laufen.
 func (z *zeichner) fusszeile(verein Vereinsdaten) {
-	const startY = 255.0
+	const (
+		linieY = 256.0
+		startY = 260.0
+		spalte = 105.0
+	)
+
+	z.linie(rand, rand+inhaltsbreite, linieY, 0.2, farbeLinie)
+	z.textfarbe(farbeGedaempft)
 
 	y := startY
 	for _, zeile := range bankverbindungKontaktzeilen(verein, z.beschriftungen) {
@@ -400,11 +567,7 @@ func (z *zeichner) fusszeile(verein Vereinsdaten) {
 		return
 	}
 
-	y += 2
-	for _, zeile := range strings.Split(verein.Fusszeile, "\n") {
-		z.schreiben(schriftRegulaer, 8, rand, y, zeile)
-		y += 4
-	}
+	z.absatz(schriftRegulaer, 8, farbeGedaempft, spalte, startY, rand+inhaltsbreite-spalte, verein.Fusszeile)
 }
 
 // bankverbindungKontaktzeilen sind IBAN, BIC und Kreditinstitut als einzelne
