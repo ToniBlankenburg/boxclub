@@ -1084,6 +1084,47 @@ func TestSearch_FiltertNachStatus(t *testing.T) {
 	}
 }
 
+// AuchEhemalige lädt die Ausgetretenen zu den übrigen dazu, ohne etwas
+// einzugrenzen; ein gewählter Status sortiert sie danach wieder aus.
+func TestSearch_AuchEhemaligeZeigtAlleZusammen(t *testing.T) {
+	svc := neuerService(t)
+
+	mitgliedAnlegenZum(t, svc, "Aktiv", heuteVersetzt(-10))
+
+	ausgetretenID := mitgliedAnlegenZum(t, svc, "Ausgetreten", heuteVersetzt(-100))
+	if err := svc.SetKuendigung(ausgetretenID, austrittZum(heuteVersetzt(-1))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+
+	faelle := []struct {
+		name     string
+		filter   service.Suchfilter
+		erwartet []string
+	}{
+		{"ohne Schalter nur aktive", service.Suchfilter{}, []string{"Aktiv"}},
+		{"mit Schalter alle", service.Suchfilter{AuchEhemalige: true}, []string{"Aktiv", "Ausgetreten"}},
+		{"Schalter und Status aktiv", service.Suchfilter{AuchEhemalige: true, Status: service.StatusfilterAktiv}, []string{"Aktiv"}},
+		{"Schalter und Status ausgetreten", service.Suchfilter{AuchEhemalige: true, Status: service.StatusfilterAusgetreten}, []string{"Ausgetreten"}},
+	}
+
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			liste, err := svc.Search("", f.filter)
+			if err != nil {
+				t.Fatalf("Search: %v", err)
+			}
+
+			var nachnamen []string
+			for _, e := range liste {
+				nachnamen = append(nachnamen, e.Nachname)
+			}
+			if !slices.Equal(nachnamen, f.erwartet) {
+				t.Errorf("Nachnamen = %v, erwartet %v", nachnamen, f.erwartet)
+			}
+		})
+	}
+}
+
 // Der Ruhendfilter ist eigenständig zum Statusfilter, weil Ruhend laut
 // Datenmodell kein Lebenszyklus-Zustand ist, sondern eine Fahne daneben
 // (CONTEXT.md → Ruhend) — analog zu Rueckstandsfilter.

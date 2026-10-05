@@ -446,6 +446,10 @@ type suchEingabe struct {
 	Status string
 	Ruhend string
 
+	// Ehemalige ist der Schalter in der Werkzeugleiste: Ausgetretene zusätzlich
+	// zu den übrigen anzeigen.
+	Ehemalige bool
+
 	// BeitragVon und BeitragBis sind die Rohwerte des Beitrag-Schiebereglers
 	// (Ticket 03) — Zeichenketten wie ein Formularfeld, nicht schon Cents,
 	// weil ein leerer oder unlesbarer Wert wie bei jedem anderen Filter auf
@@ -483,6 +487,7 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		Termin:          werte.Get("termin"),
 		Status:          werte.Get("status"),
 		Ruhend:          werte.Get("ruhend"),
+		Ehemalige:       werte.Get("ehemalige") != "",
 		BeitragVon:      werte.Get("beitragVon"),
 		BeitragBis:      werte.Get("beitragBis"),
 		EintrittVon:     werte.Get("eintrittVon"),
@@ -519,6 +524,8 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 	if id, err := strconv.ParseInt(e.Termin, 10, 64); err == nil && id > 0 {
 		filter.Trainingstermin = id
 	}
+
+	filter.AuchEhemalige = e.Ehemalige
 
 	switch e.Status {
 	case statusNeu:

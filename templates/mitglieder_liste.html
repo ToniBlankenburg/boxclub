@@ -75,7 +75,7 @@
            Sortierklick auch dann erhalten, wenn direkt danach gesucht oder
            gefiltert wird (Ticket 27). */}}
       hx-include="#mitglieder-ergebnis"
-      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-status, change from:#filter-ruhend, change from:#filter-beitrag-von, change from:#filter-beitrag-bis, change from:#filter-eintritt-von, change from:#filter-eintritt-bis">
+      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-status, change from:#filter-ruhend, change from:#filter-ehemalige, change from:#filter-beitrag-von, change from:#filter-beitrag-bis, change from:#filter-eintritt-von, change from:#filter-eintritt-bis">
 </form>
 
 {{/* Achtung bei einem weiteren Feld hier: es braucht ein eigenes
@@ -88,7 +88,18 @@
            aria-label="{{t "mitglieder.suche_aria"}}"
            class="min-w-56 max-w-md flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
 
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center gap-3">
+        {{/* Ehemalige einblenden: Ausgetretene stehen dann zusammen mit den
+             übrigen in der Liste (Suchfilter.AuchEhemalige). Das Zurücksetzen
+             lässt den Schalter bewusst stehen — er ist kein Spaltenfilter,
+             sondern entscheidet, wer überhaupt in der Liste ist. */}}
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700 select-none">
+            <input form="mitglieder-filter" id="filter-ehemalige" name="ehemalige" type="checkbox" value="1" role="switch"
+                   {{if .Suche.Ehemalige}}checked{{end}} class="peer sr-only">
+            <span class="relative h-5 w-9 rounded-full bg-neutral-300 transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-[var(--akzent)] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--akzent-ring-40)]"
+                  aria-hidden="true"></span>
+            {{t "mitglieder.ehemalige_schalter"}}
+        </label>
         {{/* Setzt alle Spaltenfilter zurück, lässt die Suche aber unangetastet —
              anders als das alte Zurücksetzen vor ADR-0020, das die ganze Ansicht
              auf ihren Standard zurückwarf. hx-include zählt hier bewusst nur
@@ -97,7 +108,7 @@
         <button type="button" title="{{t "mitglieder.zuruecksetzen_titel"}}" aria-label="{{t "mitglieder.zuruecksetzen_aria"}}"
                 class="shrink-0 rounded-md border border-neutral-300 bg-white p-2 text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="/api/mitglieder/ergebnis"
-                hx-include="#suchfeld, [name='sort'], [name='richtung']"
+                hx-include="#suchfeld, #filter-ehemalige, [name='sort'], [name='richtung']"
                 hx-target="#mitglieder-ergebnis" hx-swap="innerHTML">
             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
@@ -512,7 +523,7 @@
         aria-label="{{t "mitglieder.sortieren_nach" .Beschriftung}}{{if .Aktiv}}{{if eq .AriaSort "ascending"}}{{t "mitglieder.aktuell_aufsteigend"}}{{else}}{{t "mitglieder.aktuell_absteigend"}}{{end}}{{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-        hx-include="#suchfeld, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-ruhend, #filter-beitrag-von, #filter-beitrag-bis, #filter-eintritt-von, #filter-eintritt-bis"
+        hx-include="#suchfeld, #filter-ehemalige, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-ruhend, #filter-beitrag-von, #filter-beitrag-bis, #filter-eintritt-von, #filter-eintritt-bis"
         hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
     {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
 </button>

@@ -66,6 +66,7 @@ var englisch = map[string]string{
 	"mitglieder.neu_knopf":                     "New member",
 	"mitglieder.suche_platzhalter":             "Name, email, phone or member ID",
 	"mitglieder.suche_aria":                    "Search members",
+	"mitglieder.ehemalige_schalter":            "Show former members",
 	"mitglieder.zuruecksetzen_titel":           "Reset filters",
 	"mitglieder.zuruecksetzen_aria":            "Reset all column filters",
 	"mitglieder.filter_rueckstand_aria":        "Filter by arrears",

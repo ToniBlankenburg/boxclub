@@ -87,6 +87,7 @@ var deutsch = map[string]string{
 	"mitglieder.neu_knopf":                "Neues Mitglied",
 	"mitglieder.suche_platzhalter":        "Name, E-Mail, Telefon oder Mitglieds-ID",
 	"mitglieder.suche_aria":               "Mitglieder durchsuchen",
+	"mitglieder.ehemalige_schalter":       "Ehemalige anzeigen",
 	"mitglieder.zuruecksetzen_titel":      "Filter zurücksetzen",
 	"mitglieder.zuruecksetzen_aria":       "Alle Spaltenfilter zurücksetzen",
 	"mitglieder.filter_rueckstand_aria":   "Nach Rückstand filtern",

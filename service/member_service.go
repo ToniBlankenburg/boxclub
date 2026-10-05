@@ -1556,6 +1556,11 @@ type Suchfilter struct {
 	// StatusfilterAusgetreten lädt ausgetretene Mitgliedschaften überhaupt
 	// erst dazu (siehe Search) und liefert dann ausschließlich diese.
 	Status Statusfilter
+	// AuchEhemalige nimmt die Ausgetretenen zusätzlich in die Liste: aktive und
+	// ehemalige Mitglieder stehen dann zusammen da. Anders als
+	// StatusfilterAusgetreten, das *nur* sie zeigt, grenzt es nichts ein — es
+	// lädt sie bloß dazu; ein gewählter Status sortiert sie danach wieder aus.
+	AuchEhemalige bool
 	// Ruhend grenzt unabhängig vom Status auf das Ruhend-Merkmal ein: es ist
 	// laut Datenmodell kein eigener Lebenszyklus-Zustand, sondern eine Fahne
 	// daneben (CONTEXT.md → Ruhend).
@@ -1600,7 +1605,7 @@ func (s *MemberService) Search(query string, filter Suchfilter) ([]Listeneintrag
 	// werden dabei nur geladen, wenn der Statusfilter ausdrücklich danach
 	// fragt — jeder andere Wert (inklusive "alle") bleibt bei der heutigen
 	// Standardansicht ohne sie.
-	zeilen, err := s.eintraegeLesen(filter.Status == StatusfilterAusgetreten, "")
+	zeilen, err := s.eintraegeLesen(filter.Status == StatusfilterAusgetreten || filter.AuchEhemalige, "")
 	if err != nil {
 		return nil, err
 	}
