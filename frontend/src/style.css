@@ -91,3 +91,16 @@
 .beitragsbereich-regler input[type="range"]:focus-visible::-webkit-slider-thumb {
     box-shadow: 0 0 0 3px var(--akzent-ring-40);
 }
+
+/* Die Mitgliederliste ist zum Anklicken da, nicht zum Kopieren: Doppelklick,
+   Shift-Klick und Ziehen (Spalten, Breitengriffe, Regler) sollen keine Zeilen
+   blau markieren. Eingabefelder bleiben auswählbar. */
+#mitglieder-ergebnis {
+    -webkit-user-select: none;
+    user-select: none;
+}
+#mitglieder-ergebnis input,
+#mitglieder-ergebnis textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
