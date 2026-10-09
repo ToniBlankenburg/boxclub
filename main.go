@@ -89,7 +89,10 @@ func main() {
 					DefaultButton: nein,
 					CancelButton:  nein,
 				})
-				return antwort == ja, err
+				// macOS liefert den Text des gedrückten Knopfs, Windows und
+				// Linux (GTK) dagegen fest "Yes"/"No", egal wie die Knöpfe
+				// beschriftet sind.
+				return antwort == ja || antwort == "Yes", err
 			})
 			anwendung.SpeicherzielSetzen(func(vorschlag, filterBeschriftung, filterMuster string) (string, error) {
 				return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{

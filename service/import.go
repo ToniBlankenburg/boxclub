@@ -194,11 +194,11 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 	res, err := tx.Exec(
 		`INSERT INTO mitgliedschaft
 		 	(mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
-		 	 anmeldegebuehr_cents, beitrag_monatlich_cents, ruhend)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, ruhend)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		satz.ID, alsDatumsText(satz.Anmeldung.Datum), satz.Eintritt.Format(isoDatum),
 		alsDatumsText(satz.Kuendigung.Datum), alsDatumsText(satz.Kuendigung.Austritt),
-		satz.Anmeldung.GebuehrCents, satz.BeitragCents, satz.Ruhend)
+		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents, satz.Ruhend)
 	if err != nil {
 		return fmt.Errorf("mitgliedschaft für %d anlegen: %w", satz.ID, err)
 	}
@@ -255,11 +255,11 @@ func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 	if _, err := tx.Exec(
 		`UPDATE mitgliedschaft SET
 		 	anmeldedatum = ?, eintritt = ?, kuendigungsdatum = ?, austritt = ?,
-		 	anmeldegebuehr_cents = ?, beitrag_monatlich_cents = ?, ruhend = ?
+		 	anmeldegebuehr_cents = ?, anmeldegebuehr_eingezogen = ?, beitrag_monatlich_cents = ?, ruhend = ?
 		 WHERE id = ?`,
 		alsDatumsText(satz.Anmeldung.Datum), satz.Eintritt.Format(isoDatum),
 		alsDatumsText(satz.Kuendigung.Datum), alsDatumsText(satz.Kuendigung.Austritt),
-		satz.Anmeldung.GebuehrCents, satz.BeitragCents, satz.Ruhend,
+		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents, satz.Ruhend,
 		mitgliedschaftID); err != nil {
 		return fmt.Errorf("mitgliedschaft %d aktualisieren: %w", mitgliedschaftID, err)
 	}

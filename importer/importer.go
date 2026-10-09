@@ -700,6 +700,11 @@ func (z *zeilenleser) lebenszyklus(satz *service.Importsatz) {
 	// sondern falsch: es steht ja etwas da.
 	unlesbar := gekuendigt == nil && z.text(spalteGekuendigt) != ""
 
+	// Nur „Neu" hat die Anmeldegebühr noch nicht gezahlt; alle anderen Zeilen
+	// kamen schon einmal durch einen Einzug. Ohne diese Zuordnung zöge der
+	// nächste MoneyMoney-Export die Gebühr aller Bestandsmitglieder mit ein.
+	satz.Anmeldung.GebuehrEingezogen = strings.ToLower(roh) != statusNeu
+
 	switch status := strings.ToLower(roh); status {
 	case statusMitglied, statusNeu, statusAktiv:
 		// Ohne Wirkung: diese Zustände liest der Status ohnehin aus Eintritt

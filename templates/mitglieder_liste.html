@@ -75,7 +75,7 @@
            Sortierklick auch dann erhalten, wenn direkt danach gesucht oder
            gefiltert wird (Ticket 27). */}}
       hx-include="#mitglieder-ergebnis"
-      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-rueckstand, change from:#filter-frequenz, change from:#filter-geschlecht, change from:#filter-termin, change from:#filter-status, change from:#filter-ruhend, change from:#filter-ehemalige, change from:#filter-beitrag-von, change from:#filter-beitrag-bis, change from:#filter-eintritt-von, change from:#filter-eintritt-bis">
+      hx-trigger="submit, input changed delay:250ms from:#suchfeld, change from:#filter-ehemalige">
 </form>
 
 {{/* Achtung bei einem weiteren Feld hier: es braucht ein eigenes
@@ -566,7 +566,7 @@
          hier wird sie bloß endlich sichtbar. Zurückhaltend gesetzt: sie ist die
          Angabe zum Nachschlagen, nicht die, an der man die Zeile erkennt. */}}
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
-    <td class="px-4 py-2">
+    <td class="px-4 py-2" data-col="name">
         {{.Nachname}}, {{.Vorname}}
         {{/* Die Google-Bewertung ist die einzige der freiwilligen Angaben, die in
              der Liste steht — als Zeichen am Namen und nicht als eigene Spalte,

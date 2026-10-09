@@ -1432,6 +1432,10 @@ type Listeneintrag struct {
 	// und Austritt ergibt es den Status.
 	Kuendigungsdatum *time.Time
 
+	// GebuehrOffen sagt, ob eine Anmeldegebühr anfiel und noch nicht eingezogen
+	// wurde. Sie hält die Zeile auf Status Neu (siehe Status).
+	GebuehrOffen bool
+
 	// Austritt ist der Tag, zu dem die Mitgliedschaft endet, oder nil. Er steht
 	// auch in der Standardansicht: ein noch bevorstehender Austritt ist die
 	// Kündigungsfrist, und dann zeigt die Zeile, wann der Zeitraum ausläuft.
@@ -1459,8 +1463,18 @@ func (e Listeneintrag) Trainingsfrequenz() Trainingsfrequenz {
 // der Mitgliedschaft, aus denselben drei Datumsfeldern. Er steht bewusst nicht
 // als Feld in der Zeile: ein abgelesener Wert, der einmal mitgeschrieben wird,
 // ist morgen falsch.
+//
+// Eine noch nicht eingezogene Anmeldegebühr hält die Zeile auf Neu, auch wenn
+// der Eintritt erreicht ist: so bleibt ein Excel-Import mit Status „Neu" in der
+// Liste neu, bis der erste Einzug die Gebühr mitnimmt. Das gilt nur für die
+// Anzeige — Monatssoll und MoneyMoney-Export lesen weiter aus den Daten.
 func (e Listeneintrag) Status() Status {
-	return statusAus(e.Eintritt, e.Kuendigungsdatum, e.Austritt, heute())
+	status := statusAus(e.Eintritt, e.Kuendigungsdatum, e.Austritt, heute())
+	if status == StatusAktiv && e.GebuehrOffen {
+		return StatusNeu
+	}
+
+	return status
 }
 
 // List liefert alle aktiven Mitglieder, sortiert nach Nachname und Vorname.
@@ -1667,7 +1681,8 @@ const eintraegeAbfrage = `
 		m.adresse, m.postleitzahl, m.ort,
 		m.google_bewertung, m.rueckstand, m.rueckstand_notiz,
 		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt,
-		ms.beitrag_monatlich_cents, ms.ruhend, m.geschlecht
+		ms.beitrag_monatlich_cents, ms.ruhend, m.geschlecht,
+		ms.anmeldegebuehr_cents > 0 AND ms.anmeldegebuehr_eingezogen = 0
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
@@ -1811,7 +1826,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.GoogleBewertung, &e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&mitgliedschaftID, &eintritt, &kuendigungsdatum, &austritt,
-			&e.BeitragCents, &e.Ruhend, &geschlecht); err != nil {
+			&e.BeitragCents, &e.Ruhend, &geschlecht, &e.GebuehrOffen); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 

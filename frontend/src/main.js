@@ -33,6 +33,7 @@ import './style.css';
 import './registerkarten.js';
 import './tastenkuerzel.js';
 import './spaltenbreite.js';
+import './spaltenreihenfolge.js';
 import './beitragsbereich.js';
 
 // spaltenAusblendbar sind die Schlüssel der Spalten, die sich ausblenden
@@ -174,23 +175,25 @@ function sortierfallbackPruefen(sichtbar) {
 // Inline-Formular ersetzt.
 document.body.addEventListener('htmx:afterSwap', spaltenAnwenden);
 
-// Das äußere, nie ausgetauschte <form id="mitglieder-filter"> löst die
-// Filter über "hx-trigger=... change from:#filter-x" aus (siehe
-// "mitglieder-werkzeugleiste" in mitglieder_liste.html). htmx bindet diese
-// "from:"-Ziele beim Verarbeiten des Formulars einmalig an die dort gerade
-// vorhandenen Knoten — die Filterfelder selbst liegen aber innerhalb von
-// #mitglieder-ergebnis und werden bei jedem Such-/Filter-Austausch durch
-// frische Knoten ersetzt. Ohne das hier bliebe die Bindung am alten,
-// entfernten Knoten hängen: die erste Filteränderung funktioniert noch
-// (Erstverarbeitung beim Laden der Seite), jede weitere Änderung an
-// irgendeinem Filterfeld danach löst dagegen stillschweigend keinen Request
-// mehr aus. htmx.process() bindet die "from:"-Ziele des Formulars neu an
-// die gerade aktuellen Knoten.
-document.body.addEventListener('htmx:afterSwap', () => {
-    const formular = document.getElementById('mitglieder-filter');
-    if (formular) {
-        window.htmx.process(formular);
+// Die Filterfelder liegen im Zahnrad-Menü der Kopfzeile, also innerhalb von
+// #mitglieder-ergebnis, und werden bei jedem Such-/Filter-Austausch durch
+// frische Knoten ersetzt. Die "change from:#filter-x"-Trigger des äußeren
+// <form id="mitglieder-filter"> (siehe "mitglieder-werkzeugleiste") hängen
+// aber nur beim ersten Verarbeiten an den dann vorhandenen Knoten.
+// htmx.process() hilft nicht: htmx überspringt einen Knoten, dessen Attribute
+// sich nicht geändert haben (initHash), und rebindet nichts. Deshalb hört
+// hier ein delegierter Listener auf "change" und stößt das Formular an.
+// Suchfeld und "ehemalige" sind nie ausgetauscht und lösen über ihren
+// eigenen Trigger aus — hier ausgenommen, sonst käme der Request doppelt.
+document.body.addEventListener('change', (ereignis) => {
+    const feld = ereignis.target;
+    if (!feld.form || feld.form.id !== 'mitglieder-filter') {
+        return;
     }
+    if (feld.id === 'suchfeld' || feld.id === 'filter-ehemalige') {
+        return;
+    }
+    window.htmx.trigger(feld.form, 'submit');
 });
 
 // Die Kästchen im Spalten-Menü der Kopfzeile blenden ihre Spalte aus oder
