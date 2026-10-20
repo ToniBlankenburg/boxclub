@@ -2,11 +2,7 @@
 {{/* Zur Navigation davor siehe navigation.html. */}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
-    <div class="mb-5 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-            {{if .HatLogo}}<img src="/api/verein/logo" alt="{{t "verein.logo_alt"}}" class="h-8 w-auto max-w-[8rem] object-contain">{{end}}
-            <h2 class="text-base font-semibold">{{t "mitglieder.titel"}}</h2>
-        </div>
+    <div class="mb-5 flex items-center justify-end gap-4">
         <div class="flex gap-2">
             {{/* Serienmail nimmt die angekreuzten Zeilen des Ergebnisses mit
                  (siehe die Kontrollkästchen in "mitglied-zeile" unten) —
@@ -99,6 +95,15 @@
             <span class="relative h-5 w-9 rounded-full bg-neutral-300 transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-[var(--akzent)] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--akzent-ring-40)]"
                   aria-hidden="true"></span>
             {{t "mitglieder.ehemalige_schalter"}}
+        </label>
+        {{/* Nachnamen anzeigen: rein darstellend, läuft client-seitig
+             (frontend/src/main.js) und wird in localStorage gemerkt. Das Kästchen
+             hat bewusst kein name und kein form — es betrifft die Suche nicht. */}}
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700 select-none">
+            <input id="schalter-nachnamen" type="checkbox" role="switch" checked class="peer sr-only">
+            <span class="relative h-5 w-9 rounded-full bg-neutral-300 transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-[var(--akzent)] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--akzent-ring-40)]"
+                  aria-hidden="true"></span>
+            {{t "mitglieder.nachnamen_schalter"}}
         </label>
         {{/* Setzt alle Spaltenfilter zurück, lässt die Suche aber unangetastet —
              anders als das alte Zurücksetzen vor ADR-0020, das die ganze Ansicht
@@ -567,7 +572,7 @@
          Angabe zum Nachschlagen, nicht die, an der man die Zeile erkennt. */}}
     <td class="px-4 py-2 text-sm text-neutral-500 tabular-nums">{{.MitgliedID}}</td>
     <td class="px-4 py-2" data-col="name">
-        {{.Nachname}}, {{.Vorname}}
+        <span data-nachname>{{.Nachname}}, </span>{{.Vorname}}
         {{/* Die Google-Bewertung ist die einzige der freiwilligen Angaben, die in
              der Liste steht — als Zeichen am Namen und nicht als eigene Spalte,
              denn die Frage lautet "wen kann ich noch fragen" und wird
@@ -599,7 +604,7 @@
          geschaltet war und der Austrittstag darüber hinweggegangen ist — ein
          Ehemaliger, der sich als "ruhend" ausgibt, wäre dann genau die Auskunft,
          die dieses Ticket abschaffen wollte. */}}
-    <td class="px-4 py-2" data-col="status">
+    <td class="px-4 py-2 text-center" data-col="status">
         {{if and .Ruhend (not $status.Ausgetreten)}}
             <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
                   title="{{t "mitglieder.ruhend_titel" $status.Bezeichnung}}">

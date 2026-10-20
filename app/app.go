@@ -224,6 +224,12 @@ type formularEingabe struct {
 	// KindManuell ist das Handkennzeichen „Kind“; das Formular bietet es nur
 	// ohne Geburtsdatum an (service.Mitglied.IstKindAm).
 	KindManuell bool
+	// Kontoinhaber ist der abweichende Zahler eines Kindes. Ein gesperrtes
+	// Feld schickt der Browser nicht mit; KontoinhaberGesendet unterscheidet
+	// das von einem geleerten, damit ein gesperrter Wert nicht still verloren
+	// geht.
+	Kontoinhaber         string
+	KontoinhaberGesendet bool
 	// Beitrag ist der getippte Euro-Betrag, so wie er im Feld steht — umgerechnet
 	// wird er im Service (service.BeitragAusEuro).
 	Beitrag string
@@ -304,6 +310,11 @@ type formularDaten struct {
 	// immer (das Geburtsdatum kann noch leer bleiben, das Skript sperrt das
 	// Feld, sobald eines getippt ist), beim Bearbeiten nur ohne Geburtsdatum.
 	KindKennzeichenAnbieten bool
+
+	// KontoinhaberAktiv schaltet das Feld „Abweichender Kontoinhaber“ frei: nur
+	// für ein Kind. Beim Anlegen entscheidet main.js live, sobald Geburtsdatum
+	// oder Kennzeichen sich ändern.
+	KontoinhaberAktiv bool
 
 	// Termine sind die Trainingstermine zum Ankreuzen, in Wochenreihenfolge.
 	// Sie stehen neben der Eingabe und nicht darin: welche Termine es gibt,
@@ -689,11 +700,6 @@ type listeDaten struct {
 	// braucht und sonst nach der ersten Filteränderung auf 0/0 einbräche.
 	BeitragMin int64
 	BeitragMax int64
-
-	// HatLogo sagt, ob die Vereinsdaten ein Logo tragen — dann steht es neben
-	// dem Titel der Liste (CONTEXT.md → Vereinslogo). Das Logo ist freiwillig,
-	// ohne eines bleibt der Titel allein.
-	HatLogo bool
 }
 
 // AktivRueckstand, AktivTraining und AktivGeschlecht sagen, ob der Filter
@@ -1018,14 +1024,7 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		return listeDaten{}, false
 	}
 
-	verein, err := a.svc.GetVereinsdaten()
-	if err != nil {
-		fehlerAntwort(w, err)
-		return listeDaten{}, false
-	}
-
 	return listeDaten{
-		HatLogo:          len(verein.Logo) > 0,
 		Eintraege:        eintraege,
 		Meldung:          m,
 		Suche:            eingabe,
@@ -1057,6 +1056,7 @@ func (a *App) anlegenFormularRendern(w http.ResponseWriter, eingabe formularEing
 		Termine:                 auswahl,
 		Fehler:                  fehler,
 		KindKennzeichenAnbieten: true,
+		KontoinhaberAktiv:       eingabe.alsMitglied().IstKind(),
 	})
 }
 
@@ -1164,7 +1164,6 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		terminIDs = terminIDsAlsText(letzte.Trainingstermine)
 	}
 
-			KindManuell:        m.KindManuell,
 	if eingabe == nil {
 		eingabe = &formularEingabe{
 			Vorname:            m.Vorname,
@@ -1177,6 +1176,8 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 			IBAN:               m.IBAN,
 			Geschlecht:         m.Geschlecht,
 			GoogleBewertung:    bool(m.GoogleBewertung),
+			KindManuell:        m.KindManuell,
+			Kontoinhaber:       m.Kontoinhaber,
 			Beitrag:            beitrag,
 			Anmeldegebuehr:     anmeldegebuehr,
 			Anmeldedatum:       anmeldedatum,
@@ -1202,11 +1203,14 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		EintrittAnzeige:     datumAnzeige(eintritt),
 
 		KindKennzeichenAnbieten: m.Geburtsdatum == nil,
-		Termine:                 auswahl,
-		Vertraege:               vertragsbloecke(m.Mitgliedschaften),
-		Rechnung:                rechnungBereichAmMitglied(m),
-		Status:                  status,
-		Fehler:                  fehler,
+		KontoinhaberAktiv: service.Mitglied{
+			Geburtsdatum: m.Geburtsdatum, KindManuell: eingabe.KindManuell,
+		}.IstKind(),
+		Termine:   auswahl,
+		Vertraege: vertragsbloecke(m.Mitgliedschaften),
+		Rechnung:  rechnungBereichAmMitglied(m),
+		Status:    status,
+		Fehler:    fehler,
 	})
 }
 
@@ -1622,10 +1626,21 @@ func aufListeUmleiten(w http.ResponseWriter) {
 	w.Header().Set("HX-Reswap", "innerHTML")
 }
 
+// alsMitglied übersetzt nur, was für den Kind-Status zählt: Geburtsdatum und
+// Handkennzeichen. Ein unlesbares Datum zählt wie keines; gemeldet wird es erst
+// beim Speichern.
+func (e formularEingabe) alsMitglied() service.Mitglied {
+	m := service.Mitglied{KindManuell: e.KindManuell}
+	if d, err := time.Parse(isoDatum, e.Geburtsdatum); err == nil {
+		m.Geburtsdatum = &d
+	}
+
+	return m
+}
+
 // formularEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
 func formularEingabeLesen(r *http.Request) formularEingabe {
 	return formularEingabe{
-		KindManuell:     r.FormValue("kind_manuell") != "",
 		Vorname:      r.FormValue("vorname"),
 		Nachname:     r.FormValue("nachname"),
 		Geburtsdatum: r.FormValue("geburtsdatum"),
@@ -1637,11 +1652,14 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		IBAN:         r.FormValue("iban"),
 		Geschlecht:   r.FormValue("geschlecht"),
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
-		GoogleBewertung: r.FormValue("google_bewertung") != "",
-		Beitrag:         r.FormValue("beitrag"),
-		Anmeldegebuehr:  r.FormValue("anmeldegebuehr"),
-		Anmeldedatum:    r.FormValue("anmeldedatum"),
-		Eintritt:        r.FormValue("eintritt"),
+		GoogleBewertung:      r.FormValue("google_bewertung") != "",
+		KindManuell:          r.FormValue("kind_manuell") != "",
+		Kontoinhaber:         r.FormValue("kontoinhaber"),
+		KontoinhaberGesendet: r.Form.Has("kontoinhaber"),
+		Beitrag:              r.FormValue("beitrag"),
+		Anmeldegebuehr:       r.FormValue("anmeldegebuehr"),
+		Anmeldedatum:         r.FormValue("anmeldedatum"),
+		Eintritt:             r.FormValue("eintritt"),
 		// Alle angekreuzten Termine auf einmal. Ein Kontrollkästchen schickt
 		// seinen Wert nur, wenn es gesetzt ist — was hier ankommt, ist damit die
 		// vollständige Aussage darüber, wofür das Mitglied angemeldet sein soll.
@@ -1723,7 +1741,6 @@ func (e formularEingabe) alsAnmeldung() (service.Anmeldung, []string) {
 func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	var fehler []string
 
-		KindManuell:        e.KindManuell,
 	anmeldung, anmeldungFehler := e.alsAnmeldung()
 	fehler = append(fehler, anmeldungFehler...)
 
@@ -1736,6 +1753,8 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 		IBAN:               e.IBAN,
 		Geschlecht:         e.Geschlecht,
 		GoogleBewertung:    service.GoogleBewertung(e.GoogleBewertung),
+		KindManuell:        e.KindManuell,
+		Kontoinhaber:       e.Kontoinhaber,
 		Anmeldung:          anmeldung,
 		TrainingsterminIDs: e.alsTrainingsterminIDs(),
 	}
@@ -1772,7 +1791,6 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 // Geburtsdatum und Eintritt gehören bewusst nicht dazu.
 func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 	var fehler []string
-		KindManuell:     &e.KindManuell,
 
 	anschrift := e.alsAnschrift()
 	googleBewertung := service.GoogleBewertung(e.GoogleBewertung)
@@ -1785,6 +1803,10 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		IBAN:            &e.IBAN,
 		Geschlecht:      &e.Geschlecht,
 		GoogleBewertung: &googleBewertung,
+		KindManuell:     &e.KindManuell,
+	}
+	if e.KontoinhaberGesendet {
+		patch.Kontoinhaber = &e.Kontoinhaber
 	}
 
 	// Kein Kreuz ist auch eine Aussage — nämlich "gar kein Training mehr" — und

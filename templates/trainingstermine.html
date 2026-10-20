@@ -13,8 +13,7 @@
 {{define "trainingstermine"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
-    <div class="mb-5 flex items-center justify-between gap-4">
-        <h2 class="text-base font-semibold">{{t "trainingstermine.titel"}}</h2>
+    <div class="mb-5 flex items-center justify-end gap-4">
         <button class="rounded-md bg-[var(--akzent)] px-4 py-2 font-semibold text-white hover:bg-[var(--akzent-dunkel)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
                 hx-get="/api/trainingstermin/formular{{.Anhaengsel}}" hx-target="#inhalt" hx-swap="innerHTML">
             {{t "trainingstermine.neu_knopf"}}

@@ -7,7 +7,12 @@
 </head>
 <body class="bg-neutral-50 text-neutral-900 antialiased">
 <header class="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-neutral-200 bg-white px-6 py-4">
-    <h1 class="text-base font-semibold">Mitgliederverwaltung</h1>
+    <!-- Vereinslogo links in der Kopfzeile, auf jeder Seite. Ohne Logo
+         antwortet die Route mit 404 (app/verein.go), dann bleibt der Text. -->
+    <img id="kopf-logo" src="/api/verein/logo" alt="" class="h-12 w-auto max-w-[14rem] object-contain" hidden
+         onload="this.hidden=false;document.getElementById('kopf-titel').hidden=true"
+         onerror="this.hidden=true;document.getElementById('kopf-titel').hidden=false">
+    <h1 id="kopf-titel" class="text-base font-semibold">Mitgliederverwaltung</h1>
     <!-- Die Bereichsnavigation rendert das Backend: jede Antwort, die den
          Bereich wechseln kann, liefert sie per hx-swap-oob mit und ersetzt
          dieses Element. Der erste Aufruf unten füllt es. -->

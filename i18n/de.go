@@ -45,6 +45,7 @@ var deutsch = map[string]string{
 	"feld.google_bewertung":      "Google-Bewertung",
 	"feld.kind":                  "Kind",
 	"feld.kind_text":             "Unter 18 (ohne Geburtsdatum)",
+	"feld.kontoinhaber":          "Abweichender Kontoinhaber",
 	"feld.training":              "Training",
 	"feld.nicht_aenderbar_titel": "Nach der Anlage nicht mehr änderbar",
 
@@ -90,6 +91,7 @@ var deutsch = map[string]string{
 	"mitglieder.suche_platzhalter":        "Name, E-Mail, Telefon oder Mitglieds-ID",
 	"mitglieder.suche_aria":               "Mitglieder durchsuchen",
 	"mitglieder.ehemalige_schalter":       "Ehemalige anzeigen",
+	"mitglieder.nachnamen_schalter":       "Nachnamen anzeigen",
 	"mitglieder.zuruecksetzen_titel":      "Filter zurücksetzen",
 	"mitglieder.zuruecksetzen_aria":       "Alle Spaltenfilter zurücksetzen",
 	"mitglieder.filter_rueckstand_aria":   "Nach Rückstand filtern",
@@ -496,11 +498,12 @@ var deutsch = map[string]string{
 	// validierung.* sind die Meldungen aus service/, dort als
 	// *service.ValidierungsFehler mit Schlüssel statt fertigem Text gebaut
 	// (ADR-0018, Ticket 07) — service/ selbst kennt keine Sprache.
-	"validierung.mitglied.vorname_leer":    "Vorname darf nicht leer sein.",
-	"validierung.mitglied.nachname_leer":   "Nachname darf nicht leer sein.",
-	"validierung.mitglied.eintritt_leer":   "Eintrittsdatum darf nicht leer sein.",
-	"validierung.mitglied.beitrag_negativ": "Der Beitrag darf nicht negativ sein.",
-	"validierung.mitglied.gebuehr_negativ": "Die Anmeldegebühr darf nicht negativ sein.",
+	"validierung.mitglied.vorname_leer":           "Vorname darf nicht leer sein.",
+	"validierung.mitglied.nachname_leer":          "Nachname darf nicht leer sein.",
+	"validierung.mitglied.eintritt_leer":          "Eintrittsdatum darf nicht leer sein.",
+	"validierung.mitglied.beitrag_negativ":        "Der Beitrag darf nicht negativ sein.",
+	"validierung.mitglied.gebuehr_negativ":        "Die Anmeldegebühr darf nicht negativ sein.",
+	"validierung.mitglied.kontoinhaber_kein_kind": "Nur bei einem Kind kann ein abweichender Kontoinhaber eingetragen werden.",
 
 	"validierung.termin.zu_viele":   "Es sind höchstens %d Trainingstermine möglich.",
 	"validierung.termin.unbekannt":  "Einen ausgewählten Trainingstermin gibt es nicht.",

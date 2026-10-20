@@ -175,6 +175,41 @@ function sortierfallbackPruefen(sichtbar) {
 // Inline-Formular ersetzt.
 document.body.addEventListener('htmx:afterSwap', spaltenAnwenden);
 
+// Nachnamen ausblenden: rein darstellend, deshalb wie die Spaltenwahl
+// client-seitig und in localStorage gemerkt. Standard ist sichtbar.
+const nachnamenSchluessel = 'boxclub.mitgliederliste.nachnamen';
+
+function nachnamenSichtbar() {
+    try {
+        return localStorage.getItem(nachnamenSchluessel) !== 'aus';
+    } catch (e) {
+        return true;
+    }
+}
+
+function nachnamenAnwenden() {
+    const sichtbar = nachnamenSichtbar();
+    document.querySelectorAll('[data-nachname]').forEach((el) => {
+        el.hidden = !sichtbar;
+    });
+    document.querySelectorAll('#schalter-nachnamen').forEach((k) => {
+        k.checked = sichtbar;
+    });
+}
+
+document.body.addEventListener('htmx:afterSwap', nachnamenAnwenden);
+document.body.addEventListener('change', (ereignis) => {
+    if (ereignis.target.id !== 'schalter-nachnamen') {
+        return;
+    }
+    try {
+        localStorage.setItem(nachnamenSchluessel, ereignis.target.checked ? 'an' : 'aus');
+    } catch (e) {
+        // ohne localStorage gilt der Schalter nur bis zum Neuladen
+    }
+    nachnamenAnwenden();
+});
+
 // Die Filterfelder liegen im Zahnrad-Menü der Kopfzeile, also innerhalb von
 // #mitglieder-ergebnis, und werden bei jedem Such-/Filter-Austausch durch
 // frische Knoten ersetzt. Die "change from:#filter-x"-Trigger des äußeren
@@ -357,6 +392,16 @@ document.body.addEventListener('input', (ereignis) => {
     }
 });
 
+// Kopfzeilen-Logo: nach jedem Inhaltswechsel neu laden, damit ein auf der
+// Verein-Seite ersetztes oder entferntes Logo sofort wirkt (die Route sendet
+// no-store). Fehlt es, blendet das onerror in index.html den Text ein.
+document.body.addEventListener('htmx:afterSwap', (e) => {
+  if (e.detail.target && e.detail.target.id === 'inhalt') {
+    const logo = document.getElementById('kopf-logo');
+    if (logo) logo.src = '/api/verein/logo?' + Date.now();
+  }
+});
+
 // Das Handkennzeichen „Kind“ gilt nur ohne Geburtsdatum: sobald im
 // Anlegeformular eins getippt ist, wird das Kästchen gesperrt und abgehakt
 // zurückgenommen (service.Mitglied.IstKindAm).
@@ -373,5 +418,43 @@ document.body.addEventListener('input', (ereignis) => {
     kaestchen.disabled = ereignis.target.value !== '';
     if (kaestchen.disabled) {
         kaestchen.checked = false;
+    }
+});
+
+// Der abweichende Kontoinhaber gilt nur für ein Kind (service.Mitglied.IstKindAm).
+// Beim Anlegen entscheidet das Geburtsdatum, sonst das Handkennzeichen. Im
+// Bearbeitenformular gibt es kein Geburtsdatumfeld: dort steht der Zustand
+// schon vom Server fest, nur das Handkennzeichen ändert ihn.
+function kontoinhaberAnwenden(formular) {
+    const feld = formular.querySelector('[data-kontoinhaber] input');
+    if (!feld) {
+        return;
+    }
+
+    const geburtsdatum = formular.querySelector('input[name="geburtsdatum"]');
+    const kaestchen = formular.querySelector('[data-kind-kennzeichen] input[type="checkbox"]');
+
+    let istKind;
+    if (geburtsdatum && geburtsdatum.value !== '') {
+        const volljaehrig = new Date(geburtsdatum.value + 'T00:00:00');
+        volljaehrig.setFullYear(volljaehrig.getFullYear() + 18);
+        const heute = new Date();
+        heute.setHours(0, 0, 0, 0);
+        istKind = heute < volljaehrig;
+    } else if (kaestchen) {
+        istKind = kaestchen.checked;
+    } else {
+        return;
+    }
+
+    feld.disabled = !istKind;
+    if (!istKind && geburtsdatum) {
+        feld.value = '';
+    }
+}
+
+document.body.addEventListener('input', (ereignis) => {
+    if (ereignis.target.matches && ereignis.target.matches('input[name="geburtsdatum"], input[name="kind_manuell"]')) {
+        kontoinhaberAnwenden(ereignis.target.form);
     }
 });

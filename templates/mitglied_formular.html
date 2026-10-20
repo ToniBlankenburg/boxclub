@@ -135,6 +135,16 @@
                      Format, kein SEPA-Export (ADR-0006). Eine halb
                      abgetippte IBAN soll sich festhalten lassen. */}}
                 {{template "feld" feld (t "feld.iban") "iban" "text" .Eingabe.IBAN false true}}
+                {{/* Nur ein Kind kann einen abweichenden Kontoinhaber haben
+                     (CONTEXT.md → Kontoinhaber): die Eltern zahlen, das Kind
+                     trainiert. Bei Erwachsenen ist das Feld gesperrt; ein
+                     gefüllter Wert bleibt dort sichtbar stehen und wird nicht
+                     mitgeschickt. main.js schaltet es beim Anlegen live. */}}
+                <label class="flex flex-col gap-1.5 sm:col-span-2" data-kontoinhaber>
+                    <span class="text-sm text-neutral-600">{{t "feld.kontoinhaber"}}</span>
+                    <input name="kontoinhaber" type="text" value="{{.Eingabe.Kontoinhaber}}" {{if not .KontoinhaberAktiv}}disabled{{end}}
+                           class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400">
+                </label>
                 {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der
                      Regel davor (CONTEXT.md → Anmeldedatum). Anders als
                      Geburtsdatum und Eintritt bleibt es auch beim Bearbeiten

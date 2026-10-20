@@ -46,6 +46,10 @@ type Mitglied struct {
 	// abgetippte IBAN gar nicht erst festhalten zu können.
 	IBAN string
 
+	// Kontoinhaber ist der Name, wenn nicht das Mitglied selbst zahlt, sonst
+	// leer. Nur ein Kind kann einen haben (CONTEXT.md → Kontoinhaber).
+	Kontoinhaber string
+
 	// Geschlecht ist Freitext. Die Werteliste der Excel ist eine Eintipphilfe
 	// (siehe GeschlechtVorschlaege), keine Einschränkung.
 	Geschlecht string
@@ -248,6 +252,10 @@ type NeuesMitglied struct {
 	// KindManuell wie bei Mitglied; ein Geburtsdatum hat Vorrang.
 	KindManuell bool
 
+	// Kontoinhaber ist der abweichende Zahler; leer heißt „zahlt selbst“. Nur
+	// für ein Kind erlaubt (validieren).
+	Kontoinhaber string
+
 	// BeitragCents ist der individuell vereinbarte Monatsbeitrag in Cent. Er
 	// landet an der Mitgliedschaft, die mit dem Eintritt beginnt.
 	BeitragCents int64
@@ -269,6 +277,8 @@ var negativerBeitrag = meldung("validierung.mitglied.beitrag_negativ")
 
 // negativeGebuehr ist das Gegenstück für die Anmeldegebühr. 0 € heißt hier
 // "keine erhoben" und ist der Normalfall, nicht die Ausnahme.
+var kontoinhaberKeinKind = meldung("validierung.mitglied.kontoinhaber_kein_kind")
+
 var negativeGebuehr = meldung("validierung.mitglied.gebuehr_negativ")
 
 // ErrNichtGefunden meldet, dass zu einer ID kein Datensatz existiert.
@@ -688,7 +698,12 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 		return 0, fmt.Errorf("mitglied-id lesen: %w", err)
 	}
 
-	zahlerID, err := zahlerSelbstAnlegen(tx, id, n.IBAN)
+	var zahlerID int64
+	if name := strings.TrimSpace(n.Kontoinhaber); name != "" {
+		zahlerID, err = zahlerFremdenFinden(tx, name, n.IBAN)
+	} else {
+		zahlerID, err = zahlerSelbstAnlegen(tx, id, n.IBAN)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -758,6 +773,10 @@ func (n NeuesMitglied) validieren() error {
 	if n.Nachname == "" {
 		fehler = append(fehler, meldung("validierung.mitglied.nachname_leer"))
 	}
+	if strings.TrimSpace(n.Kontoinhaber) != "" &&
+		!(Mitglied{Geburtsdatum: n.Geburtsdatum, KindManuell: n.KindManuell}).IstKind() {
+		fehler = append(fehler, kontoinhaberKeinKind)
+	}
 	if n.Eintritt.IsZero() {
 		fehler = append(fehler, meldung("validierung.mitglied.eintritt_leer"))
 	}
@@ -796,6 +815,12 @@ type MitgliedPatch struct {
 	Geschlecht      *string
 	GoogleBewertung *GoogleBewertung
 	KindManuell     *bool
+
+	// Kontoinhaber setzt den abweichenden Zahler; ein Zeiger auf den leeren
+	// Text heißt „zahlt wieder selbst“. Ein neuer abweichender Name ist nur für
+	// ein Kind erlaubt; ein bereits eingetragener bleibt auch nach dem 18.
+	// Geburtstag stehen (CONTEXT.md → Kind).
+	Kontoinhaber *string
 
 	// Anschrift ändert sich als Ganzes und nicht feldweise: ein Umzug betrifft
 	// alle drei Angaben, und im Formular stehen sie zusammen. Wer nur den Ort
@@ -865,12 +890,9 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 		}
 	}
 
-	if patch.IBAN != nil {
-		if _, err := tx.Exec(
-			`UPDATE zahler SET iban = ? WHERE id = (
-			 	SELECT zahler_id FROM mitgliedschaft WHERE id = (`+massgeblicheMitgliedschaft+`))`,
-			ibanNormalisieren(*patch.IBAN), id, heute()); err != nil {
-			return fmt.Errorf("iban von mitglied %d aktualisieren: %w", id, err)
+	if patch.IBAN != nil || patch.Kontoinhaber != nil {
+		if err := zahlerSchreiben(tx, id, patch.IBAN, patch.Kontoinhaber); err != nil {
+			return err
 		}
 	}
 
@@ -1089,13 +1111,16 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 		 	COALESCE((SELECT z.iban FROM zahler z
 		 	          JOIN mitgliedschaft ms ON ms.zahler_id = z.id
 		 	          WHERE ms.id = (`+massgeblicheMitgliedschaft+`)), ''),
+		 	COALESCE((SELECT z.name FROM zahler z
+		 	          JOIN mitgliedschaft ms ON ms.zahler_id = z.id
+		 	          WHERE z.mitglied_id IS NULL AND ms.id = (`+massgeblicheMitgliedschaft+`)), ''),
 		 	geschlecht, google_bewertung, kind_manuell,
 		 	rueckstand, rueckstand_notiz
-		 FROM mitglied WHERE id = ?`, id, heute(), id).
+		 FROM mitglied WHERE id = ?`, id, heute(), id, heute(), id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
 			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
 			&m.Email, &m.Telefon,
-			&m.IBAN, &m.Geschlecht, &m.GoogleBewertung, &m.KindManuell,
+			&m.IBAN, &m.Kontoinhaber, &m.Geschlecht, &m.GoogleBewertung, &m.KindManuell,
 			&m.Rueckstand.Offen, &m.Rueckstand.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)

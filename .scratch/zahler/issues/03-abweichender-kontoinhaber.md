@@ -4,13 +4,13 @@
 
 **Blocked by:** 01 (Zahler „selbst“ als Grundlage), 02 (Kind-Status)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Beschriftung „Abweichender Kontoinhaber“ in beiden Sprachkatalogen (ADR-0017); Fehlermeldungen als Schlüssel (ADR-0018)
-- [ ] Bei Erwachsenen ist das Feld deaktiviert; der Service lehnt einen abweichenden Kontoinhaber für Nicht-Kinder ab
-- [ ] Zwei Kinder mit gleicher IBAN (andere Schreibweise) teilen sich einen Zahler: eine Namensänderung bei dem einen zeigt sich bei dem anderen
-- [ ] Gleiche IBAN mit unterschiedlichem Namen: der zuletzt gespeicherte gewinnt
-- [ ] Zwei Mitgliedschaften ohne IBAN teilen sich keinen Zahler
-- [ ] Zahler ohne Mitgliedschaft verschwindet automatisch (beobachtbar über die Service-API, nicht per SQL)
-- [ ] Kontoinhaber leeren lässt das Mitglied wieder selbst zahlen
-- [ ] Tests über die Service-API; `go test ./...` grün; `wails build` auf Linux
+- [x] Beschriftung „Abweichender Kontoinhaber“ in beiden Sprachkatalogen (ADR-0017); Fehlermeldungen als Schlüssel (ADR-0018)
+- [x] Bei Erwachsenen ist das Feld deaktiviert; der Service lehnt einen abweichenden Kontoinhaber für Nicht-Kinder ab
+- [x] Zwei Kinder mit gleicher IBAN (andere Schreibweise) teilen sich einen Zahler: eine Namensänderung bei dem einen zeigt sich bei dem anderen
+- [x] Gleiche IBAN mit unterschiedlichem Namen: der zuletzt gespeicherte gewinnt
+- [x] Zwei Mitgliedschaften ohne IBAN teilen sich keinen Zahler
+- [x] Zahler ohne Mitgliedschaft verschwindet automatisch (beobachtbar über die Service-API, nicht per SQL)
+- [x] Kontoinhaber leeren lässt das Mitglied wieder selbst zahlen
+- [x] Tests über die Service-API; `go test ./...` grün; `wails build` auf Linux

@@ -35,6 +35,7 @@ var englisch = map[string]string{
 	"feld.google_bewertung":      "Google review",
 	"feld.kind":                  "Child",
 	"feld.kind_text":             "Under 18 (no date of birth)",
+	"feld.kontoinhaber":          "Different account holder",
 	"feld.training":              "Training",
 	"feld.nicht_aenderbar_titel": "Cannot be changed after it is created",
 
@@ -69,6 +70,7 @@ var englisch = map[string]string{
 	"mitglieder.suche_platzhalter":             "Name, email, phone or member ID",
 	"mitglieder.suche_aria":                    "Search members",
 	"mitglieder.ehemalige_schalter":            "Show former members",
+	"mitglieder.nachnamen_schalter":            "Show last names",
 	"mitglieder.zuruecksetzen_titel":           "Reset filters",
 	"mitglieder.zuruecksetzen_aria":            "Reset all column filters",
 	"mitglieder.filter_rueckstand_aria":        "Filter by arrears",
@@ -396,11 +398,12 @@ var englisch = map[string]string{
 	"verein.datenbank_geloescht":             "The database was cleared.",
 
 	// validierung.* — see the German catalog's comment (Ticket 07, ADR-0018).
-	"validierung.mitglied.vorname_leer":    "First name must not be empty.",
-	"validierung.mitglied.nachname_leer":   "Last name must not be empty.",
-	"validierung.mitglied.eintritt_leer":   "Join date must not be empty.",
-	"validierung.mitglied.beitrag_negativ": "The fee must not be negative.",
-	"validierung.mitglied.gebuehr_negativ": "The registration fee must not be negative.",
+	"validierung.mitglied.vorname_leer":           "First name must not be empty.",
+	"validierung.mitglied.nachname_leer":          "Last name must not be empty.",
+	"validierung.mitglied.eintritt_leer":          "Join date must not be empty.",
+	"validierung.mitglied.beitrag_negativ":        "The fee must not be negative.",
+	"validierung.mitglied.gebuehr_negativ":        "The registration fee must not be negative.",
+	"validierung.mitglied.kontoinhaber_kein_kind": "A different account holder can only be entered for a child.",
 
 	"validierung.termin.zu_viele":   "At most %d training sessions are possible.",
 	"validierung.termin.unbekannt":  "One of the selected training sessions does not exist.",
