@@ -96,15 +96,6 @@
                   aria-hidden="true"></span>
             {{t "mitglieder.ehemalige_schalter"}}
         </label>
-        {{/* Nachnamen anzeigen: rein darstellend, läuft client-seitig
-             (frontend/src/main.js) und wird in localStorage gemerkt. Das Kästchen
-             hat bewusst kein name und kein form — es betrifft die Suche nicht. */}}
-        <label class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700 select-none">
-            <input id="schalter-nachnamen" type="checkbox" role="switch" checked class="peer sr-only">
-            <span class="relative h-5 w-9 rounded-full bg-neutral-300 transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-[var(--akzent)] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--akzent-ring-40)]"
-                  aria-hidden="true"></span>
-            {{t "mitglieder.nachnamen_schalter"}}
-        </label>
         {{/* Setzt alle Spaltenfilter zurück, lässt die Suche aber unangetastet —
              anders als das alte Zurücksetzen vor ADR-0020, das die ganze Ansicht
              auf ihren Standard zurückwarf. hx-include zählt hier bewusst nur
@@ -255,6 +246,16 @@
                                         <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
                                     {{end}}
                                 </select>
+                                {{/* Nachnamen anzeigen: rein darstellend, läuft client-seitig
+                                     (frontend/src/main.js) und wird in localStorage gemerkt. Das
+                                     Kästchen hat bewusst kein name und kein form — es betrifft
+                                     die Suche nicht. */}}
+                                <label class="mt-2 flex cursor-pointer items-center gap-2 text-sm text-neutral-700 select-none">
+                                    <input id="schalter-nachnamen" type="checkbox" role="switch" checked class="peer sr-only">
+                                    <span class="relative h-5 w-9 shrink-0 rounded-full bg-neutral-300 transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-[var(--akzent)] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--akzent-ring-40)]"
+                                          aria-hidden="true"></span>
+                                    {{t "mitglieder.nachnamen_schalter"}}
+                                </label>
                             </div>
                         </details>
                         </div>
