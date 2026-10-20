@@ -230,8 +230,8 @@ func TestLesen_UebernimmtDieMusterzeile(t *testing.T) {
 	if bool(satz.GoogleBewertung) {
 		t.Error("GoogleBewertung = true, erwartet false für ❌")
 	}
-	if satz.Ruhend {
-		t.Error("Ruhend = true, erwartet false für Status „Neu“")
+	if satz.Stillgelegt {
+		t.Error("Stillgelegt = true, erwartet false für Status „Neu“")
 	}
 	if satz.Kuendigung.Datum != nil || satz.Kuendigung.Austritt != nil {
 		t.Errorf("Kündigung = %+v, erwartet leer", satz.Kuendigung)
@@ -742,12 +742,12 @@ func TestLesen_DeutetDenStatusFuerDasGekuendigtDatum(t *testing.T) {
 	})
 
 	for _, status := range []string{"Stillgelegt", "Inakiv"} {
-		t.Run(status+" schaltet ruhend", func(t *testing.T) {
+		t.Run(status+" schaltet stillgelegt", func(t *testing.T) {
 			satz := einzigerSatz(t, lesen(t, mappe(t, spalten,
 				mitZeile(map[string]any{"Status": status}))))
 
-			if !satz.Ruhend {
-				t.Error("Ruhend = false, erwartet true")
+			if !satz.Stillgelegt {
+				t.Error("Stillgelegt = false, erwartet true")
 			}
 		})
 	}

@@ -162,15 +162,15 @@ func TestStatus_AusgetretenNachDemAustritt(t *testing.T) {
 	}
 }
 
-// Ruhend steht neben dem Status und nicht in ihm (CONTEXT.md → Ruhend): ein
-// ruhendes Mitglied ist ein aktives, von dem gerade nichts eingezogen wird.
-func TestStatus_RuhendTrittNebenDenStatusUndNichtAnSeineStelle(t *testing.T) {
+// Stillgelegt steht neben dem Status und nicht in ihm (CONTEXT.md → Stilllegung): ein
+// stillgelegtes Mitglied ist ein aktives, von dem gerade nichts eingezogen wird.
+func TestStatus_StillgelegtTrittNebenDenStatusUndNichtAnSeineStelle(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegenZum(t, svc, "Pause", heuteVersetzt(-100))
 
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)
@@ -178,10 +178,10 @@ func TestStatus_RuhendTrittNebenDenStatusUndNichtAnSeineStelle(t *testing.T) {
 		t.Fatalf("Eintrag: %v", err)
 	}
 	if eintrag.Status() != service.StatusAktiv {
-		t.Errorf("Status = %v, erwartet Aktiv — ruhend ist kein Lebenszyklus-Zustand", eintrag.Status().Bezeichnung())
+		t.Errorf("Status = %v, erwartet Aktiv — stillgelegt ist kein Lebenszyklus-Zustand", eintrag.Status().Bezeichnung())
 	}
-	if !eintrag.Ruhend {
-		t.Error("Ruhend = false, erwartet true — das Merkmal muss zusätzlich ablesbar sein")
+	if !eintrag.Stillgelegt {
+		t.Error("Stillgelegt = false, erwartet true — das Merkmal muss zusätzlich ablesbar sein")
 	}
 }
 
@@ -376,9 +376,9 @@ func TestList_ZeigtNeueMitgliederVorIhremEintritt(t *testing.T) {
 	}
 }
 
-// Was in der Kündigungsfrist noch läuft, lässt sich auch noch ruhend schalten —
+// Was in der Kündigungsfrist noch läuft, lässt sich auch noch stillgelegt schalten —
 // die Mitgliedschaft ist ja nicht beendet.
-func TestSetRuhend_GehtAuchInDerKuendigungsfrist(t *testing.T) {
+func TestSetStillgelegt_GehtAuchInDerKuendigungsfrist(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegenZum(t, svc, "Frist", heuteVersetzt(-100))
@@ -386,16 +386,16 @@ func TestSetRuhend_GehtAuchInDerKuendigungsfrist(t *testing.T) {
 	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(30))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend in der Kündigungsfrist: %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt in der Kündigungsfrist: %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)
 	if err != nil {
 		t.Fatalf("Eintrag: %v", err)
 	}
-	if !eintrag.Ruhend {
-		t.Error("Ruhend = false, erwartet true")
+	if !eintrag.Stillgelegt {
+		t.Error("Stillgelegt = false, erwartet true")
 	}
 	if got := eintrag.Status(); got != service.StatusInKuendigungsfrist {
 		t.Errorf("Status = %v, erwartet In Kündigungsfrist", got.Bezeichnung())

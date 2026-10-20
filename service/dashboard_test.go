@@ -65,15 +65,15 @@ func TestMonatsuebersicht_KuendigungsfristZaehltInsMonatssoll(t *testing.T) {
 	}
 }
 
-// Ruhend zählt nicht ins Monatssoll — steht aber daneben, mit Anzahl und
+// Stillgelegt zählt nicht ins Monatssoll — steht aber daneben, mit Anzahl und
 // Betrag, sonst wäre die Summe unerklärt kleiner als die Mitgliederzahl
 // vermuten lässt.
-func TestMonatsuebersicht_RuhendZaehltNichtInsMonatssollSondernDaneben(t *testing.T) {
+func TestMonatsuebersicht_StillgelegtZaehltNichtInsMonatssollSondernDaneben(t *testing.T) {
 	svc := neuerService(t)
 	id := mitgliedAnlegenZum(t, svc, "Pause", heuteVersetzt(-30))
 
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	u, err := svc.Monatsuebersicht()
@@ -82,30 +82,30 @@ func TestMonatsuebersicht_RuhendZaehltNichtInsMonatssollSondernDaneben(t *testin
 	}
 
 	if u.MonatssollCents != 0 {
-		t.Errorf("MonatssollCents = %d, erwartet 0 — ruhend zieht nichts ein", u.MonatssollCents)
+		t.Errorf("MonatssollCents = %d, erwartet 0 — stillgelegt zieht nichts ein", u.MonatssollCents)
 	}
-	if u.RuhendCents != beitragImTest {
-		t.Errorf("RuhendCents = %d, erwartet %d", u.RuhendCents, beitragImTest)
+	if u.StillgelegtCents != beitragImTest {
+		t.Errorf("StillgelegtCents = %d, erwartet %d", u.StillgelegtCents, beitragImTest)
 	}
-	if u.Mitgliederzahlen.Ruhend != 1 {
-		t.Errorf("Mitgliederzahlen.Ruhend = %d, erwartet 1", u.Mitgliederzahlen.Ruhend)
+	if u.Mitgliederzahlen.Stillgelegt != 1 {
+		t.Errorf("Mitgliederzahlen.Stillgelegt = %d, erwartet 1", u.Mitgliederzahlen.Stillgelegt)
 	}
 	if u.Mitgliederzahlen.Aktiv != 0 {
-		t.Errorf("Mitgliederzahlen.Aktiv = %d, erwartet 0 — ruhend steht an seiner Stelle, nicht daneben", u.Mitgliederzahlen.Aktiv)
+		t.Errorf("Mitgliederzahlen.Aktiv = %d, erwartet 0 — stillgelegt steht an seiner Stelle, nicht daneben", u.Mitgliederzahlen.Aktiv)
 	}
 }
 
-// Ruhend gilt auch in der Kündigungsfrist (CONTEXT.md → Ruhend), und auch dort
+// Stillgelegt gilt auch in der Kündigungsfrist (CONTEXT.md → Stilllegung), und auch dort
 // zählt es nicht ins Monatssoll.
-func TestMonatsuebersicht_RuhendInDerKuendigungsfristZaehltEbenfallsNicht(t *testing.T) {
+func TestMonatsuebersicht_StillgelegtInDerKuendigungsfristZaehltEbenfallsNicht(t *testing.T) {
 	svc := neuerService(t)
 	id := mitgliedAnlegenZum(t, svc, "PauseFrist", heuteVersetzt(-100))
 
 	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(30))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	u, err := svc.Monatsuebersicht()
@@ -117,25 +117,25 @@ func TestMonatsuebersicht_RuhendInDerKuendigungsfristZaehltEbenfallsNicht(t *tes
 		t.Errorf("MonatssollCents = %d, erwartet 0", u.MonatssollCents)
 	}
 	if u.Mitgliederzahlen.InKuendigungsfrist != 0 {
-		t.Errorf("InKuendigungsfrist = %d, erwartet 0 — ruhend steht an seiner Stelle", u.Mitgliederzahlen.InKuendigungsfrist)
+		t.Errorf("InKuendigungsfrist = %d, erwartet 0 — stillgelegt steht an seiner Stelle", u.Mitgliederzahlen.InKuendigungsfrist)
 	}
-	if u.Mitgliederzahlen.Ruhend != 1 {
-		t.Errorf("Ruhend = %d, erwartet 1", u.Mitgliederzahlen.Ruhend)
+	if u.Mitgliederzahlen.Stillgelegt != 1 {
+		t.Errorf("Stillgelegt = %d, erwartet 1", u.Mitgliederzahlen.Stillgelegt)
 	}
 }
 
-// Der seltene Grenzfall, in dem sich Neu und Ruhend überschneiden könnten:
-// SetRuhend prüft wie SetKuendigung nur, ob der Austritt noch bevorsteht
-// (laeuftNoch), nicht ob der Eintritt schon begonnen hat — ruhend stellen
+// Der seltene Grenzfall, in dem sich Neu und Stillgelegt überschneiden könnten:
+// SetStillgelegt prüft wie SetKuendigung nur, ob der Austritt noch bevorsteht
+// (laeuftNoch), nicht ob der Eintritt schon begonnen hat — stillgelegt stellen
 // lässt sich also auch ein Zeitraum, der noch gar nicht läuft. Ein noch nicht
-// begonnener Zeitraum zieht aber ohnehin nichts ein, ruhend gestellt oder
+// begonnener Zeitraum zieht aber ohnehin nichts ein, stillgelegt gestellt oder
 // nicht, und zählt deshalb weiterhin als Neu.
-func TestMonatsuebersicht_RuhendVorDemEintrittZaehltAlsNeuUndNichtAlsRuhend(t *testing.T) {
+func TestMonatsuebersicht_StillgelegtVorDemEintrittZaehltAlsNeuUndNichtAlsStillgelegt(t *testing.T) {
 	svc := neuerService(t)
 	id := mitgliedAnlegenZum(t, svc, "FruehePause", heuteVersetzt(7))
 
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend vor dem Eintritt: %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt vor dem Eintritt: %v", err)
 	}
 
 	u, err := svc.Monatsuebersicht()
@@ -146,11 +146,11 @@ func TestMonatsuebersicht_RuhendVorDemEintrittZaehltAlsNeuUndNichtAlsRuhend(t *t
 	if u.Mitgliederzahlen.Neu != 1 {
 		t.Errorf("Neu = %d, erwartet 1", u.Mitgliederzahlen.Neu)
 	}
-	if u.Mitgliederzahlen.Ruhend != 0 {
-		t.Errorf("Ruhend = %d, erwartet 0 — ein noch nicht begonnener Zeitraum zieht nichts ein", u.Mitgliederzahlen.Ruhend)
+	if u.Mitgliederzahlen.Stillgelegt != 0 {
+		t.Errorf("Stillgelegt = %d, erwartet 0 — ein noch nicht begonnener Zeitraum zieht nichts ein", u.Mitgliederzahlen.Stillgelegt)
 	}
-	if u.RuhendCents != 0 {
-		t.Errorf("RuhendCents = %d, erwartet 0", u.RuhendCents)
+	if u.StillgelegtCents != 0 {
+		t.Errorf("StillgelegtCents = %d, erwartet 0", u.StillgelegtCents)
 	}
 }
 
@@ -274,9 +274,9 @@ func TestMonatsuebersicht_GesamtErgibtSichAusDenFuenfZustaenden(t *testing.T) {
 	mitgliedAnlegenZum(t, svc, "Aktiv", heuteVersetzt(-30))
 	mitgliedAnlegenZum(t, svc, "Neu", heuteVersetzt(7))
 
-	ruhend := mitgliedAnlegenZum(t, svc, "Ruhend", heuteVersetzt(-30))
-	if err := svc.SetRuhend(ruhend, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	stillgelegt := mitgliedAnlegenZum(t, svc, "Stillgelegt", heuteVersetzt(-30))
+	if err := svc.SetStillgelegt(stillgelegt, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	frist := mitgliedAnlegenZum(t, svc, "Frist", heuteVersetzt(-100))
@@ -298,8 +298,8 @@ func TestMonatsuebersicht_GesamtErgibtSichAusDenFuenfZustaenden(t *testing.T) {
 		t.Fatalf("Gesamt = %d, erwartet 5", got)
 	}
 	z := u.Mitgliederzahlen
-	if z.Aktiv != 1 || z.Neu != 1 || z.Ruhend != 1 || z.InKuendigungsfrist != 1 || z.Ausgetreten != 1 {
-		t.Errorf("Mitgliederzahlen = %+v, erwartet je einmal Aktiv, Neu, Ruhend, InKuendigungsfrist, Ausgetreten", z)
+	if z.Aktiv != 1 || z.Neu != 1 || z.Stillgelegt != 1 || z.InKuendigungsfrist != 1 || z.Ausgetreten != 1 {
+		t.Errorf("Mitgliederzahlen = %+v, erwartet je einmal Aktiv, Neu, Stillgelegt, InKuendigungsfrist, Ausgetreten", z)
 	}
 	// Monatssoll trägt nur Aktiv und InKuendigungsfrist, macht hier also zwei
 	// Beiträge — nicht die fünf angelegten Mitglieder.

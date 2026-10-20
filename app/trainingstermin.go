@@ -239,7 +239,7 @@ func terminzeilenTeilen(zeilen []terminzeile) (allgemein, frauen, kinder []termi
 //
 // Mitgeschickt wird der *gewünschte* Zustand und nicht der aktuelle: so tut ein
 // Klick aus einer veralteten Ansicht nicht das Gegenteil — dasselbe Muster wie
-// beim Ruhend-Kennzeichen. Der Stand der Einblendung fährt mit, damit die
+// beim Stillgelegt-Kennzeichen. Der Stand der Einblendung fährt mit, damit die
 // Antwort dieselbe Ansicht zeigt, aus der geklickt wurde.
 func terminzeilen(listen []service.Teilnehmerliste, auchArchivierte bool) []terminzeile {
 	zeilen := make([]terminzeile, 0, len(listen))
@@ -444,7 +444,7 @@ func (a *App) trainingsterminAktualisieren(w http.ResponseWriter, r *http.Reques
 }
 
 // trainingsterminArchivSchalten nimmt einen Termin aus dem Stundenplan oder
-// holt ihn zurück. Wie beim Ruhend-Kennzeichen schickt die Schaltfläche den
+// holt ihn zurück. Wie beim Stillgelegt-Kennzeichen schickt die Schaltfläche den
 // gewünschten Wert mit und nicht den aktuellen: so tut ein Klick aus einer
 // veralteten Ansicht nicht das Gegenteil.
 //

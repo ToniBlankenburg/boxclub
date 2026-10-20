@@ -77,14 +77,14 @@ func TestMoneyMoneyExportieren_MandatsreferenzIstDieMitgliedsID(t *testing.T) {
 	}
 }
 
-// Ruhende, noch nicht begonnene und ausgetretene Mitgliedschaften ziehen
+// Stillgelegte, noch nicht begonnene und ausgetretene Mitgliedschaften ziehen
 // nichts ein — dieselbe Menge wie im Monatssoll des Dashboards.
-func TestMoneyMoneyExportieren_SchliesstRuhendeNeueUndAusgetreteneAus(t *testing.T) {
+func TestMoneyMoneyExportieren_SchliesstStillgelegteNeueUndAusgetreteneAus(t *testing.T) {
 	svc := neuerService(t)
 
-	ruhendID := moneyMoneyMitglied(t, svc, "Clara", "Diehl", "")
-	if err := svc.SetRuhend(ruhendID, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	stillgelegtID := moneyMoneyMitglied(t, svc, "Clara", "Diehl", "")
+	if err := svc.SetStillgelegt(stillgelegtID, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	neuID, err := svc.Create(service.NeuesMitglied{
@@ -108,7 +108,7 @@ func TestMoneyMoneyExportieren_SchliesstRuhendeNeueUndAusgetreteneAus(t *testing
 		t.Fatalf("MoneyMoneyExportieren: %v", err)
 	}
 
-	for _, ausgeschlossen := range []int64{ruhendID, neuID, ausgetretenID} {
+	for _, ausgeschlossen := range []int64{stillgelegtID, neuID, ausgetretenID} {
 		for _, z := range export.Zeilen {
 			if z.MitgliedID == ausgeschlossen {
 				t.Errorf("Mitglied %d steht im Export, sollte aber ausgeschlossen sein", ausgeschlossen)
@@ -369,9 +369,9 @@ func TestMoneyMoneyExportieren_SummeEntsprichtDemMonatssoll(t *testing.T) {
 
 	moneyMoneyMitglied(t, svc, "Anna", "Berger", "")
 
-	ruhendID := moneyMoneyMitglied(t, svc, "Clara", "Diehl", "")
-	if err := svc.SetRuhend(ruhendID, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	stillgelegtID := moneyMoneyMitglied(t, svc, "Clara", "Diehl", "")
+	if err := svc.SetStillgelegt(stillgelegtID, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	if _, err := svc.Create(service.NeuesMitglied{

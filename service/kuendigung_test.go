@@ -8,7 +8,7 @@ import (
 	"github.com/ToniBlankenburg/boxclub/service"
 )
 
-// Kündigung und Ruhend am MemberService-Seam. Beide Felder hängen an der
+// Kündigung und Stillgelegt am MemberService-Seam. Beide Felder hängen an der
 // Mitgliedschaft; beobachtet wird ausschließlich über die Service-API.
 
 // austrittZum ist die Kündigung, die nur den Austritt festhält — der Fall der
@@ -308,9 +308,9 @@ func TestSetKuendigung_KuendigungsdatumAmAustrittstagIstErlaubt(t *testing.T) {
 	}
 }
 
-// Ruhend ist das Merkmal, das sich aus keinem Datum ergibt: es wird gesetzt und
-// wieder zurückgenommen (CONTEXT.md → Ruhend).
-func TestSetRuhend_SchaltetHinUndZurueck(t *testing.T) {
+// Stillgelegt ist das Merkmal, das sich aus keinem Datum ergibt: es wird gesetzt und
+// wieder zurückgenommen (CONTEXT.md → Stilllegung).
+func TestSetStillgelegt_SchaltetHinUndZurueck(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
@@ -319,51 +319,51 @@ func TestSetRuhend_SchaltetHinUndZurueck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if m.Mitgliedschaften[0].Ruhend {
-		t.Error("Ruhend = true bei einem frisch angelegten Mitglied, erwartet false")
+	if m.Mitgliedschaften[0].Stillgelegt {
+		t.Error("Stillgelegt = true bei einem frisch angelegten Mitglied, erwartet false")
 	}
 
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend(true): %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt(true): %v", err)
 	}
 	if m, err = svc.Get(id); err != nil {
-		t.Fatalf("Get nach SetRuhend(true): %v", err)
+		t.Fatalf("Get nach SetStillgelegt(true): %v", err)
 	}
-	if !m.Mitgliedschaften[0].Ruhend {
-		t.Error("Ruhend = false, erwartet true")
+	if !m.Mitgliedschaften[0].Stillgelegt {
+		t.Error("Stillgelegt = false, erwartet true")
 	}
 
-	// Ruhend ist kein Ende: die Mitgliedschaft läuft weiter, das Mitglied bleibt
+	// Stillgelegt ist kein Ende: die Mitgliedschaft läuft weiter, das Mitglied bleibt
 	// in der Standardansicht.
 	if m.LaufendeMitgliedschaft() == nil {
-		t.Error("LaufendeMitgliedschaft = nil, erwartet den weiterlaufenden Zeitraum — ruhend ist kein Austritt")
+		t.Error("LaufendeMitgliedschaft = nil, erwartet den weiterlaufenden Zeitraum — stillgelegt ist kein Austritt")
 	}
 	liste, err := svc.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(liste) != 1 || liste[0].MitgliedID != id {
-		t.Fatalf("List = %+v, erwartet das ruhende Mitglied %d", liste, id)
+		t.Fatalf("List = %+v, erwartet das stillgelegte Mitglied %d", liste, id)
 	}
-	if !liste[0].Ruhend {
-		t.Error("Ruhend der Zeile = false, erwartet true — sonst ist das Merkmal in der Liste unsichtbar")
+	if !liste[0].Stillgelegt {
+		t.Error("Stillgelegt der Zeile = false, erwartet true — sonst ist das Merkmal in der Liste unsichtbar")
 	}
 
-	if err := svc.SetRuhend(id, false); err != nil {
-		t.Fatalf("SetRuhend(false): %v", err)
+	if err := svc.SetStillgelegt(id, false); err != nil {
+		t.Fatalf("SetStillgelegt(false): %v", err)
 	}
 	if m, err = svc.Get(id); err != nil {
-		t.Fatalf("Get nach SetRuhend(false): %v", err)
+		t.Fatalf("Get nach SetStillgelegt(false): %v", err)
 	}
-	if m.Mitgliedschaften[0].Ruhend {
-		t.Error("Ruhend = true, erwartet false nach dem Zurücknehmen")
+	if m.Mitgliedschaften[0].Stillgelegt {
+		t.Error("Stillgelegt = true, erwartet false nach dem Zurücknehmen")
 	}
 }
 
-// Ruhend und Rückstand sind unabhängig. Für ein ruhendes Mitglied wird keine
+// Stillgelegt und Rückstand sind unabhängig. Für ein stillgelegtes Mitglied wird keine
 // Lastschrift losgeschickt, es kann also kein neuer Rückstand entstehen — ein
-// bestehender bleibt aber stehen. Ruhend zu schalten ist kein Schuldenerlass.
-func TestSetRuhend_LaesstEinenBestehendenRueckstandStehen(t *testing.T) {
+// bestehender bleibt aber stehen. Stillgelegt zu schalten ist kein Schuldenerlass.
+func TestSetStillgelegt_LaesstEinenBestehendenRueckstandStehen(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
@@ -372,8 +372,8 @@ func TestSetRuhend_LaesstEinenBestehendenRueckstandStehen(t *testing.T) {
 		t.Fatalf("SetRueckstand: %v", err)
 	}
 
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend(true): %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt(true): %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)
@@ -381,25 +381,25 @@ func TestSetRuhend_LaesstEinenBestehendenRueckstandStehen(t *testing.T) {
 		t.Fatalf("Eintrag: %v", err)
 	}
 	if eintrag.Rueckstand != rueckstand {
-		t.Errorf("Rueckstand = %+v, erwartet unverändert %+v — ruhend erlässt keine Schulden",
+		t.Errorf("Rueckstand = %+v, erwartet unverändert %+v — stillgelegt erlässt keine Schulden",
 			eintrag.Rueckstand, rueckstand)
 	}
 
 	// Und umgekehrt: das Zurücknehmen rührt den Rückstand ebenso wenig an.
-	if err := svc.SetRuhend(id, false); err != nil {
-		t.Fatalf("SetRuhend(false): %v", err)
+	if err := svc.SetStillgelegt(id, false); err != nil {
+		t.Fatalf("SetStillgelegt(false): %v", err)
 	}
 	if eintrag, err = svc.Eintrag(id); err != nil {
-		t.Fatalf("Eintrag nach SetRuhend(false): %v", err)
+		t.Fatalf("Eintrag nach SetStillgelegt(false): %v", err)
 	}
 	if eintrag.Rueckstand != rueckstand {
 		t.Errorf("Rueckstand = %+v, erwartet unverändert %+v", eintrag.Rueckstand, rueckstand)
 	}
 }
 
-// Ruhend schalten lässt sich nur, was läuft: ein ausgetretenes Mitglied hat keinen
+// Stillgelegt schalten lässt sich nur, was läuft: ein ausgetretenes Mitglied hat keinen
 // Zeitraum, für den ein Einzug ausgesetzt werden könnte.
-func TestSetRuhend_AufAusgetretenemMitgliedIstEinFehler(t *testing.T) {
+func TestSetStillgelegt_AufAusgetretenemMitgliedIstEinFehler(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
@@ -407,19 +407,19 @@ func TestSetRuhend_AufAusgetretenemMitgliedIstEinFehler(t *testing.T) {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
 
-	if err := svc.SetRuhend(id, true); !errors.Is(err, service.ErrNichtAktiv) {
-		t.Fatalf("SetRuhend nach dem Austritt = %v, erwartet ErrNichtAktiv", err)
+	if err := svc.SetStillgelegt(id, true); !errors.Is(err, service.ErrNichtAktiv) {
+		t.Fatalf("SetStillgelegt nach dem Austritt = %v, erwartet ErrNichtAktiv", err)
 	}
 }
 
 // Der neue Zeitraum beginnt unbelastet: weder mit der Kündigung des alten noch
-// mit dessen Ruhend-Kennzeichen. Beides gehörte zu einem Zeitraum, der vorbei ist.
-func TestRejoin_BeginntOhneKuendigungUndNichtRuhend(t *testing.T) {
+// mit dessen Stillgelegt-Kennzeichen. Beides gehörte zu einem Zeitraum, der vorbei ist.
+func TestRejoin_BeginntOhneKuendigungUndNichtStillgelegt(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
-	if err := svc.SetRuhend(id, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	if err := svc.SetStillgelegt(id, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	gekuendigt := datum(t, "2026-03-15")
@@ -444,8 +444,8 @@ func TestRejoin_BeginntOhneKuendigungUndNichtRuhend(t *testing.T) {
 	if laufend.Kuendigungsdatum != nil {
 		t.Errorf("Kuendigungsdatum = %v, erwartet nil — die Kündigung galt dem alten Zeitraum", laufend.Kuendigungsdatum)
 	}
-	if laufend.Ruhend {
-		t.Error("Ruhend = true, erwartet false — wer wieder eintritt, trainiert wieder")
+	if laufend.Stillgelegt {
+		t.Error("Stillgelegt = true, erwartet false — wer wieder eintritt, trainiert wieder")
 	}
 
 	// Der alte Zeitraum behält seine Angaben: er ist die Historie.
@@ -453,17 +453,17 @@ func TestRejoin_BeginntOhneKuendigungUndNichtRuhend(t *testing.T) {
 	if alt.Kuendigungsdatum == nil || !alt.Kuendigungsdatum.Equal(gekuendigt) {
 		t.Errorf("Kuendigungsdatum des alten Zeitraums = %v, erwartet unverändert %v", alt.Kuendigungsdatum, gekuendigt)
 	}
-	if !alt.Ruhend {
-		t.Error("Ruhend des alten Zeitraums = false, erwartet unverändert true")
+	if !alt.Stillgelegt {
+		t.Error("Stillgelegt des alten Zeitraums = false, erwartet unverändert true")
 	}
 }
 
-// Zu einer unbekannten ID lässt sich nichts ruhend schalten. Das Gegenstück für die
+// Zu einer unbekannten ID lässt sich nichts stillgelegt schalten. Das Gegenstück für die
 // Kündigung steht bei den übrigen Lebenszyklus-Fehlern in lebenszyklus_test.go.
-func TestSetRuhend_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
+func TestSetStillgelegt_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
 	svc := neuerService(t)
 
-	if err := svc.SetRuhend(4711, true); !errors.Is(err, service.ErrNichtGefunden) {
-		t.Errorf("SetRuhend(4711) = %v, erwartet ErrNichtGefunden", err)
+	if err := svc.SetStillgelegt(4711, true); !errors.Is(err, service.ErrNichtGefunden) {
+		t.Errorf("SetStillgelegt(4711) = %v, erwartet ErrNichtGefunden", err)
 	}
 }

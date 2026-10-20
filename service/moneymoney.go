@@ -54,7 +54,7 @@ const moneyMoneyAbfrage = `
 	SELECT m.id,
 		CASE WHEN z.mitglied_id IS NULL THEN z.name ELSE m.vorname || ' ' || m.nachname END,
 		z.iban,
-		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt, ms.ruhend,
+		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt, ms.stillgelegt,
 		ms.beitrag_monatlich_cents,
 		ms.anmeldedatum, ms.anmeldegebuehr_cents, ms.anmeldegebuehr_eingezogen
 	FROM mitglied m
@@ -69,7 +69,7 @@ const moneyMoneyAbfrage = `
 // MoneyMoneyExportieren liefert die Zeilen des CSV-Exports: eine je
 // Mitgliedschaft, die diesen Monat auch tatsächlich einzieht — dieselbe Menge
 // wie im Monatssoll des Dashboards (aktiv und in Kündigungsfrist, ohne
-// ruhende und ohne noch nicht begonnene, siehe Monatsuebersicht), nur als
+// stillgelegte und ohne noch nicht begonnene, siehe Monatsuebersicht), nur als
 // Einzelzeilen statt als Summe.
 //
 // Eine offene Anmeldegebühr reist in derselben Zeile mit: sie ist ein
@@ -102,13 +102,13 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 			zahler, iban                 string
 			eintrittText                 string
 			kuendigungsdatum, austritt   sql.NullString
-			ruhend                       bool
+			stillgelegt                  bool
 			beitragCents, gebuehrCents   int64
 			anmeldedatum                 sql.NullString
 			gebuehrEingezogen            bool
 		)
 		if err := rows.Scan(&mitgliedID, &zahler, &iban,
-			&mitgliedschaftID, &eintrittText, &kuendigungsdatum, &austritt, &ruhend,
+			&mitgliedschaftID, &eintrittText, &kuendigungsdatum, &austritt, &stillgelegt,
 			&beitragCents, &anmeldedatum, &gebuehrCents, &gebuehrEingezogen); err != nil {
 			return MoneyMoneyExport{}, fmt.Errorf("moneymoney-zeile lesen: %w", err)
 		}
@@ -136,7 +136,7 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 		// service/dashboard.go) — Ausgetreten kommt aus der Abfrage
 		// (laeuftNoch) hier zwar gar nicht erst mit, aber die Funktion trotzdem
 		// zu rufen hält beide Stellen an einer Regel fest statt an zweien.
-		if !zaehltInsMonatssoll(status, ruhend) {
+		if !zaehltInsMonatssoll(status, stillgelegt) {
 			continue
 		}
 

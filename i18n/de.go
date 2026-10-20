@@ -71,18 +71,18 @@ var deutsch = map[string]string{
 	"filter.geschlecht.alle":  "Jedes Geschlecht",
 	"filter.termin.alle":      "Jeder Termin",
 
-	// filter.status.* und filter.ruhend.* sind die Einträge der beiden
+	// filter.status.* und filter.stillgelegt.* sind die Einträge der beiden
 	// Auswahlfelder im Status-Zahnrad (Ticket 02) — eigenständig
-	// zueinander, weil Ruhend laut Datenmodell kein Lebenszyklus-Zustand
-	// ist (CONTEXT.md → Ruhend).
+	// zueinander, weil Stillgelegt laut Datenmodell kein Lebenszyklus-Zustand
+	// ist (CONTEXT.md → Stilllegung).
 	"filter.status.neu":                 "Neu",
 	"filter.status.aktiv":               "Aktiv",
 	"filter.status.in_kuendigungsfrist": "In Kündigungsfrist",
 	"filter.status.ausgetreten":         "Ausgetreten",
 	"filter.status.alle":                "Jeder Status",
-	"filter.ruhend.alle":                "Alle Mitglieder",
-	"filter.ruhend.ruhend":              "Ruhend",
-	"filter.ruhend.laufend":             "Laufend",
+	"filter.stillgelegt.alle":           "Alle Mitglieder",
+	"filter.stillgelegt.stillgelegt":    "Stillgelegt",
+	"filter.stillgelegt.laufend":        "Laufend",
 
 	// mitglieder.* ist die Listenansicht samt Filterleiste und Zeilenaktionen
 	// (Ticket 02, templates/mitglieder_liste.html).
@@ -100,7 +100,7 @@ var deutsch = map[string]string{
 	"mitglieder.filter_geschlecht_aria":   "Nach Geschlecht filtern",
 	"mitglieder.filter_termin_aria":       "Nach Trainingstermin filtern",
 	"mitglieder.filter_status_aria":       "Nach Status filtern",
-	"mitglieder.filter_ruhend_aria":       "Nach Ruhend filtern",
+	"mitglieder.filter_stillgelegt_aria":  "Nach Stillgelegt filtern",
 	"mitglieder.filter_beitrag_von_aria":  "Beitrag von",
 	"mitglieder.filter_beitrag_bis_aria":  "Beitrag bis",
 	"mitglieder.filter_eintritt_von_aria": "Eintritt von",
@@ -125,8 +125,8 @@ var deutsch = map[string]string{
 	"mitglieder.zeile_bearbeiten_aria":         "%s %s bearbeiten",
 	"mitglieder.serienmail_auswaehlen_aria":    "%s %s für die Serienmail auswählen",
 	"mitglieder.google_bewertung_titel":        "Google-Bewertung: %s",
-	"mitglieder.ruhend_titel":                  "Ruhend — kein Beitragseinzug, die Mitgliedschaft läuft weiter (Status: %s)",
-	"mitglieder.ruhend_abzeichen":              "ruhend",
+	"mitglieder.stillgelegt_titel":             "Stillgelegt — kein Beitragseinzug, die Mitgliedschaft läuft weiter (Status: %s)",
+	"mitglieder.stillgelegt_abzeichen":         "stillgelegt",
 	"mitglieder.austritt_zum":                  "zum %s",
 	"mitglieder.gekuendigt_seit":               "gekündigt %s",
 	"mitglieder.archiviert_suffix":             "(archiviert)",
@@ -136,9 +136,9 @@ var deutsch = map[string]string{
 	"mitglieder.kuendigung_erfassen_fuer_aria": "Kündigung erfassen für %s %s",
 	"mitglieder.wiedereintritt_knopf":          "Wiedereintritt",
 	"mitglieder.kuendigung_knopf":              "Kündigung",
-	"mitglieder.ruhend_schalten_aria":          "%s %s ruhend schalten",
+	"mitglieder.stillgelegt_schalten_aria":     "%s %s stillgelegt schalten",
 	"mitglieder.aktiv_setzen_aria":             "%s %s wieder aktiv setzen",
-	"mitglieder.ruhend_knopf":                  "Ruhend",
+	"mitglieder.stillgelegt_knopf":             "Stillgelegt",
 	"mitglieder.aktiv_setzen_knopf":            "Aktiv setzen",
 	"mitglieder.gekuendigt_am_feld":            "Gekündigt am",
 	"mitglieder.austritt_zum_feld":             "Austritt zum",
@@ -195,13 +195,13 @@ var deutsch = map[string]string{
 	"dashboard.beschreibung_nach": " des laufenden Monats. Das Monatssoll ist ein Soll und kein Ist: es " +
 		"zeigt, was eingezogen werden soll, nicht, was tatsächlich ankam — das weiß nur die Bank. Es gibt hier " +
 		"deshalb auch keinen Verlauf über mehrere Monate.",
-	"dashboard.stat_davon_ruhend":       "davon ruhend",
+	"dashboard.stat_davon_stillgelegt":  "davon stillgelegt",
 	"dashboard.stat_neu_ausgetreten":    "Neu / Ausgetreten (Monat)",
 	"dashboard.zustand_ueberschrift":    "Mitglieder nach Zustand (%d gesamt)",
 	"dashboard.status_aktiv":            "Aktiv",
 	"dashboard.status_kuendigungsfrist": "In Kündigungsfrist",
 	"dashboard.status_neu":              "Neu",
-	"dashboard.status_ruhend":           "Ruhend",
+	"dashboard.status_stillgelegt":      "Stillgelegt",
 	"dashboard.status_ausgetreten":      "Ausgetreten",
 	"dashboard.moneymoney_knopf":        "MoneyMoney-Export …",
 	"dashboard.moneymoney_hinweis":      "CSV für den Lastschrifteinzug dieses Monats, eine Zeile je Mitgliedschaft.",

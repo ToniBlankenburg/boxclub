@@ -31,8 +31,8 @@
             <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{euro .MonatssollCents}}</p>
         </div>
         <div class="min-w-40 flex-1 px-5 py-4">
-            <p class="text-xs text-neutral-500">{{t "dashboard.stat_davon_ruhend"}}</p>
-            <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Mitgliederzahlen.Ruhend}} · {{euro .RuhendCents}}</p>
+            <p class="text-xs text-neutral-500">{{t "dashboard.stat_davon_stillgelegt"}}</p>
+            <p class="mt-0.5 text-2xl font-semibold tabular-nums">{{.Mitgliederzahlen.Stillgelegt}} · {{euro .StillgelegtCents}}</p>
         </div>
         {{/* Die Zahl ist nur nützlich, wenn man von ihr aus weiterarbeiten
              kann — deshalb ein Link mit gesetztem Rückstandsfilter statt
@@ -55,7 +55,7 @@
         <span class="text-neutral-600">{{t "dashboard.status_aktiv"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Aktiv}}</strong></span>
         <span class="text-neutral-600">{{t "dashboard.status_kuendigungsfrist"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.InKuendigungsfrist}}</strong></span>
         <span class="text-neutral-600">{{t "dashboard.status_neu"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Neu}}</strong></span>
-        <span class="text-neutral-600">{{t "dashboard.status_ruhend"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ruhend}}</strong></span>
+        <span class="text-neutral-600">{{t "dashboard.status_stillgelegt"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Stillgelegt}}</strong></span>
         <span class="text-neutral-600">{{t "dashboard.status_ausgetreten"}} <strong class="tabular-nums text-neutral-900">{{.Mitgliederzahlen.Ausgetreten}}</strong></span>
     </div>
 

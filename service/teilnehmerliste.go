@@ -53,7 +53,7 @@ func (s *MemberService) Teilnehmerlisten(auchArchivierte bool) ([]Teilnehmerlist
 	for _, e := range eintraege {
 		// Wer ruht, trainiert gerade nicht: die Anmeldung steht, die Liste
 		// führt ihn aber nicht (CONTEXT.md → Teilnehmerliste).
-		if e.Ruhend {
+		if e.Stillgelegt {
 			continue
 		}
 

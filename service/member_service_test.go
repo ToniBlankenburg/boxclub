@@ -1125,66 +1125,66 @@ func TestSearch_AuchEhemaligeZeigtAlleZusammen(t *testing.T) {
 	}
 }
 
-// Der Ruhendfilter ist eigenständig zum Statusfilter, weil Ruhend laut
+// Der Stillgelegtfilter ist eigenständig zum Statusfilter, weil Stillgelegt laut
 // Datenmodell kein Lebenszyklus-Zustand ist, sondern eine Fahne daneben
-// (CONTEXT.md → Ruhend) — analog zu Rueckstandsfilter.
-func TestSearch_FiltertNachRuhend(t *testing.T) {
+// (CONTEXT.md → Stilllegung) — analog zu Rueckstandsfilter.
+func TestSearch_FiltertNachStillgelegt(t *testing.T) {
 	svc := neuerService(t)
 
 	mitgliedAnlegen(t, svc, "Lena", "Laufend")
 
-	ruhendID := mitgliedAnlegen(t, svc, "Rico", "Ruhend")
-	if err := svc.SetRuhend(ruhendID, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	stillgelegtID := mitgliedAnlegen(t, svc, "Rico", "Stillgelegt")
+	if err := svc.SetStillgelegt(stillgelegtID, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	faelle := []struct {
 		name     string
-		filter   service.Ruhendfilter
+		filter   service.Stillgelegtfilter
 		erwartet []string
 	}{
-		{"alle", service.RuhendfilterAlle, []string{"Laufend, Lena", "Ruhend, Rico"}},
-		{"ruhend", service.RuhendfilterRuhend, []string{"Ruhend, Rico"}},
-		{"laufend", service.RuhendfilterLaufend, []string{"Laufend, Lena"}},
+		{"alle", service.StillgelegtfilterAlle, []string{"Laufend, Lena", "Stillgelegt, Rico"}},
+		{"stillgelegt", service.StillgelegtfilterStillgelegt, []string{"Stillgelegt, Rico"}},
+		{"laufend", service.StillgelegtfilterLaufend, []string{"Laufend, Lena"}},
 	}
 
 	for _, f := range faelle {
 		t.Run(f.name, func(t *testing.T) {
-			gefunden := suchen(t, svc, "", service.Suchfilter{Ruhend: f.filter})
+			gefunden := suchen(t, svc, "", service.Suchfilter{Stillgelegt: f.filter})
 			if !slices.Equal(gefunden, f.erwartet) {
-				t.Errorf("Ruhendfilter %v = %v, erwartet %v", f.filter, gefunden, f.erwartet)
+				t.Errorf("Stillgelegtfilter %v = %v, erwartet %v", f.filter, gefunden, f.erwartet)
 			}
 		})
 	}
 }
 
-// Status und Ruhend wirken unabhängig voneinander und zusammen konjunktiv
-// (UND-Verknüpfung): Status=Aktiv + Ruhend=ruhend liefert nur, wer beides
-// zugleich ist — nicht das ruhende Mitglied in der Kündigungsfrist.
-func TestSearch_KombiniertStatusMitRuhend(t *testing.T) {
+// Status und Stillgelegt wirken unabhängig voneinander und zusammen konjunktiv
+// (UND-Verknüpfung): Status=Aktiv + Stillgelegt=stillgelegt liefert nur, wer beides
+// zugleich ist — nicht das stillgelegte Mitglied in der Kündigungsfrist.
+func TestSearch_KombiniertStatusMitStillgelegt(t *testing.T) {
 	svc := neuerService(t)
 
-	aktivRuhendID := mitgliedAnlegenZum(t, svc, "AktivRuhend", heuteVersetzt(-10))
-	if err := svc.SetRuhend(aktivRuhendID, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	aktivStillgelegtID := mitgliedAnlegenZum(t, svc, "AktivStillgelegt", heuteVersetzt(-10))
+	if err := svc.SetStillgelegt(aktivStillgelegtID, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	mitgliedAnlegenZum(t, svc, "AktivLaufend", heuteVersetzt(-10))
 
-	kuendigungRuhendID := mitgliedAnlegenZum(t, svc, "KuendigungRuhend", heuteVersetzt(-30))
-	if err := svc.SetKuendigung(kuendigungRuhendID, austrittZum(heuteVersetzt(30))); err != nil {
+	kuendigungStillgelegtID := mitgliedAnlegenZum(t, svc, "KuendigungStillgelegt", heuteVersetzt(-30))
+	if err := svc.SetKuendigung(kuendigungStillgelegtID, austrittZum(heuteVersetzt(30))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
-	if err := svc.SetRuhend(kuendigungRuhendID, true); err != nil {
-		t.Fatalf("SetRuhend: %v", err)
+	if err := svc.SetStillgelegt(kuendigungStillgelegtID, true); err != nil {
+		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
 	gefunden := suchen(t, svc, "", service.Suchfilter{
-		Status: service.StatusfilterAktiv,
-		Ruhend: service.RuhendfilterRuhend,
+		Status:      service.StatusfilterAktiv,
+		Stillgelegt: service.StillgelegtfilterStillgelegt,
 	})
-	if !slices.Equal(gefunden, []string{"AktivRuhend, Test"}) {
-		t.Errorf("Status=Aktiv + Ruhend=ruhend = %v, erwartet [AktivRuhend, Test] — nicht KuendigungRuhend", gefunden)
+	if !slices.Equal(gefunden, []string{"AktivStillgelegt, Test"}) {
+		t.Errorf("Status=Aktiv + Stillgelegt=stillgelegt = %v, erwartet [AktivStillgelegt, Test] — nicht KuendigungStillgelegt", gefunden)
 	}
 }
 

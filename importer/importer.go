@@ -713,7 +713,7 @@ func (z *zeilenleser) lebenszyklus(satz *service.Importsatz) {
 			z.melden("import.fehler.status_unerwartetes_datum", roh, spalteGekuendigt)
 		}
 	case statusStillgelegt, statusInaktivTippfehler, statusInaktiv:
-		satz.Ruhend = true
+		satz.Stillgelegt = true
 		if gekuendigt != nil {
 			z.melden("import.fehler.status_unerwartetes_datum", roh, spalteGekuendigt)
 		}

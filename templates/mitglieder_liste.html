@@ -261,10 +261,10 @@
                         {{template "spaltengriff" "name"}}
                     </th>
                     {{/* Status bündelt zwei eigenständige Auswahlfelder im
-                         selben Menü: Lebenszyklus-Status und Ruhend, weil
-                         Ruhend laut Datenmodell keiner ist, sondern eine
+                         selben Menü: Lebenszyklus-Status und Stillgelegt, weil
+                         Stillgelegt laut Datenmodell keiner ist, sondern eine
                          Fahne daneben (spec.md, Story 13; CONTEXT.md →
-                         Ruhend). Status übernimmt zugleich die Funktion der
+                         Stillgelegt). Status übernimmt zugleich die Funktion der
                          alten Ehemalige-Checkbox: nur wer aktiv
                          "Ausgetreten" wählt, sieht ausgetretene Mitglieder. */}}
                     <th class="sticky top-0 z-10 w-36 bg-white px-4 py-2 font-medium" data-col="status"
@@ -287,10 +287,10 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-ruhend">{{t "mitglieder.filter_ruhend_aria"}}</label>
-                                    <select form="mitglieder-filter" id="filter-ruhend" name="ruhend" aria-label="{{t "mitglieder.filter_ruhend_aria"}}"
+                                    <label class="mb-1 block text-xs font-medium text-neutral-500" for="filter-stillgelegt">{{t "mitglieder.filter_stillgelegt_aria"}}</label>
+                                    <select form="mitglieder-filter" id="filter-stillgelegt" name="stillgelegt" aria-label="{{t "mitglieder.filter_stillgelegt_aria"}}"
                                             class="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">
-                                        {{range .Ruhendoptionen}}
+                                        {{range .Stillgelegtoptionen}}
                                             <option value="{{.Wert}}" {{if .Gewaehlt}}selected{{end}}>{{.Beschriftung}}</option>
                                         {{end}}
                                     </select>
@@ -528,7 +528,7 @@
         aria-label="{{t "mitglieder.sortieren_nach" .Beschriftung}}{{if .Aktiv}}{{if eq .AriaSort "ascending"}}{{t "mitglieder.aktuell_aufsteigend"}}{{else}}{{t "mitglieder.aktuell_absteigend"}}{{end}}{{end}}"
         hx-get="/api/mitglieder/ergebnis"
         hx-target="#mitglieder-ergebnis" hx-swap="innerHTML"
-        hx-include="#suchfeld, #filter-ehemalige, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-ruhend, #filter-beitrag-von, #filter-beitrag-bis, #filter-eintritt-von, #filter-eintritt-bis"
+        hx-include="#suchfeld, #filter-ehemalige, #filter-rueckstand, #filter-frequenz, #filter-geschlecht, #filter-termin, #filter-status, #filter-stillgelegt, #filter-beitrag-von, #filter-beitrag-bis, #filter-eintritt-von, #filter-eintritt-bis"
         hx-vals='{"sort":"{{.Schluessel}}","richtung":"{{.NaechsteRichtung}}"}'>
     {{.Beschriftung}}{{if .Aktiv}}<span aria-hidden="true">{{.Pfeil}}</span>{{end}}
 </button>
@@ -589,26 +589,26 @@
          Widerspruch zu ihnen stehen. Darunter steht das Datum, aus dem er sich
          ergibt, sofern es nicht ohnehin in der Eintrittsspalte steht.
 
-         Ruhend verdrängt das Statuskennzeichen, solange die Mitgliedschaft
-         läuft: ein ruhendes Mitglied soll in der Spalte als ruhend dastehen und
-         nicht als "aktiv, aber auch ruhend". Das ist eine reine Anzeige-
+         Stillgelegt verdrängt das Statuskennzeichen, solange die Mitgliedschaft
+         läuft: ein stillgelegtes Mitglied soll in der Spalte als stillgelegt dastehen und
+         nicht als "aktiv, aber auch stillgelegt". Das ist eine reine Anzeige-
          entscheidung und weicht bewusst vom Abnahmekriterium in Ticket 18 ab
-         ("Ruhend wird zusätzlich angezeigt, nicht anstelle des Status") — am
-         Modell ändert sie nichts: ruhend bleibt ein Merkmal neben dem
-         Lebenszyklus (CONTEXT.md → Ruhend) und wird weiterhin nicht aus Daten
+         ("Stillgelegt wird zusätzlich angezeigt, nicht anstelle des Status") — am
+         Modell ändert sie nichts: stillgelegt bleibt ein Merkmal neben dem
+         Lebenszyklus (CONTEXT.md → Stilllegung) und wird weiterhin nicht aus Daten
          abgeleitet. Damit der Lebenszyklus trotzdem nicht verloren geht, nennt
          ihn der Tooltip.
 
          Bei einem Ausgetretenen gilt das nicht: dort bleibt der Status stehen.
-         Ruhend kann ihm anhaften, wenn jemand während der Kündigungsfrist ruhend
+         Stillgelegt kann ihm anhaften, wenn jemand während der Kündigungsfrist stillgelegt
          geschaltet war und der Austrittstag darüber hinweggegangen ist — ein
-         Ehemaliger, der sich als "ruhend" ausgibt, wäre dann genau die Auskunft,
+         Ehemaliger, der sich als "stillgelegt" ausgibt, wäre dann genau die Auskunft,
          die dieses Ticket abschaffen wollte. */}}
     <td class="px-4 py-2 text-center" data-col="status">
-        {{if and .Ruhend (not $status.Ausgetreten)}}
+        {{if and .Stillgelegt (not $status.Ausgetreten)}}
             <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
-                  title="{{t "mitglieder.ruhend_titel" $status.Bezeichnung}}">
-                {{t "mitglieder.ruhend_abzeichen"}}
+                  title="{{t "mitglieder.stillgelegt_titel" $status.Bezeichnung}}">
+                {{t "mitglieder.stillgelegt_abzeichen"}}
             </span>
         {{else}}
             {{template "statuskennzeichen" $status}}
@@ -655,7 +655,7 @@
     {{/* Der Beitrag ist individuell vereinbart (ADR-0005); 0,00 € ist ein
          gültiger Betrag und keine fehlende Angabe. */}}
     <td class="px-4 py-2 text-right tabular-nums" data-col="beitrag">{{euro .BeitragCents}}</td>
-    {{/* Rückstand, Kündigung/Wiedereintritt und Ruhend ändern sich nicht mehr
+    {{/* Rückstand, Kündigung/Wiedereintritt und Stillgelegt ändern sich nicht mehr
          von hier aus — die Zeile zeigt nur noch den Stand, die Schaltflächen
          dazu stehen am Mitglied selbst (mitglied-status-block unten). */}}
     <td class="px-4 py-2" data-col="rueckstand">
@@ -681,12 +681,12 @@
 {{$status := .Status}}
 <div id="mitglied-status-{{.MitgliedID}}"
      class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-4">
-    {{/* Ruhend verdrängt das Statuskennzeichen, solange die Mitgliedschaft
+    {{/* Stillgelegt verdrängt das Statuskennzeichen, solange die Mitgliedschaft
          läuft — dieselbe Regel wie in der Zeile (siehe dort). */}}
-    {{if and .Ruhend (not $status.Ausgetreten)}}
+    {{if and .Stillgelegt (not $status.Ausgetreten)}}
         <span class="inline-flex items-center rounded-full border border-sky-700/30 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800"
-              title="{{t "mitglieder.ruhend_titel" $status.Bezeichnung}}">
-            {{t "mitglieder.ruhend_abzeichen"}}
+              title="{{t "mitglieder.stillgelegt_titel" $status.Bezeichnung}}">
+            {{t "mitglieder.stillgelegt_abzeichen"}}
         </span>
     {{else}}
         {{template "statuskennzeichen" $status}}
@@ -717,17 +717,17 @@
                 hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
             {{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_knopf"}}{{else}}{{t "mitglieder.kuendigung_knopf"}}{{end}}
         </button>
-        {{/* Ruhend schalten lässt sich nur, was läuft — bei einem Ehemaligen
+        {{/* Stillgelegt schalten lässt sich nur, was läuft — bei einem Ehemaligen
              gibt es keinen Einzug, den man aussetzen könnte. Die Schaltfläche
              schickt den gewünschten Wert mit, nicht den aktuellen: so tut ein
              Klick aus einer veralteten Ansicht nicht das Gegenteil. */}}
         {{if not $status.Ausgetreten}}
             <button type="button"
                     class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                    aria-label="{{if .Ruhend}}{{t "mitglieder.aktiv_setzen_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.ruhend_schalten_aria" .Vorname .Nachname}}{{end}}"
-                    hx-post="/api/mitglied/{{.MitgliedID}}/ruhend{{if not .Ruhend}}?ruhend=1{{end}}"
+                    aria-label="{{if .Stillgelegt}}{{t "mitglieder.aktiv_setzen_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.stillgelegt_schalten_aria" .Vorname .Nachname}}{{end}}"
+                    hx-post="/api/mitglied/{{.MitgliedID}}/stillgelegt{{if not .Stillgelegt}}?stillgelegt=1{{end}}"
                     hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
-                {{if .Ruhend}}{{t "mitglieder.aktiv_setzen_knopf"}}{{else}}{{t "mitglieder.ruhend_knopf"}}{{end}}
+                {{if .Stillgelegt}}{{t "mitglieder.aktiv_setzen_knopf"}}{{else}}{{t "mitglieder.stillgelegt_knopf"}}{{end}}
             </button>
         {{end}}
     </div>

@@ -103,7 +103,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/rueckstand", a.rueckstandSpeichern)
 	mux.HandleFunc("GET /api/mitglied/{id}/kuendigung", a.kuendigungFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/kuendigung", a.kuendigungEintragen)
-	mux.HandleFunc("POST /api/mitglied/{id}/ruhend", a.ruhendSchalten)
+	mux.HandleFunc("POST /api/mitglied/{id}/stillgelegt", a.stillgelegtSchalten)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
 	// Die Vertragsablage hängt am Zeitraum und nicht am Mitglied — deshalb eine
@@ -397,13 +397,13 @@ const (
 	statusAusgetreten        = "ausgetreten"
 )
 
-// Werte des Ruhendfilters, wie sie über die Adresszeile laufen — eigenständig
-// zum Statusfilter, weil Ruhend laut Datenmodell kein Lebenszyklus-Zustand
-// ist, sondern eine Fahne daneben (CONTEXT.md → Ruhend).
+// Werte des Stillgelegtfilters, wie sie über die Adresszeile laufen — eigenständig
+// zum Statusfilter, weil Stillgelegt laut Datenmodell kein Lebenszyklus-Zustand
+// ist, sondern eine Fahne daneben (CONTEXT.md → Stilllegung).
 const (
-	ruhendAlle    = ""
-	ruhendRuhend  = "ruhend"
-	ruhendLaufend = "laufend"
+	stillgelegtAlle        = ""
+	stillgelegtStillgelegt = "stillgelegt"
+	stillgelegtLaufend     = "laufend"
 )
 
 // Werte der Sortierrichtung, wie sie über die Adresszeile laufen. Aufsteigend
@@ -468,11 +468,11 @@ type suchEingabe struct {
 	Frequenz   string
 	Geschlecht string
 	Termin     string
-	// Status und Ruhend sind die Rohwerte des Status-Zahnrads (Ticket 02) —
-	// zwei eigenständige Felder in einem Menü, weil Ruhend kein
-	// Lebenszyklus-Zustand ist (siehe service.Ruhendfilter).
-	Status string
-	Ruhend string
+	// Status und Stillgelegt sind die Rohwerte des Status-Zahnrads (Ticket 02) —
+	// zwei eigenständige Felder in einem Menü, weil Stillgelegt kein
+	// Lebenszyklus-Zustand ist (siehe service.Stillgelegtfilter).
+	Status      string
+	Stillgelegt string
 
 	// Ehemalige ist der Schalter in der Werkzeugleiste: Ausgetretene zusätzlich
 	// zu den übrigen anzeigen.
@@ -514,7 +514,7 @@ func suchEingabeLesen(r *http.Request) suchEingabe {
 		Geschlecht:      werte.Get("geschlecht"),
 		Termin:          werte.Get("termin"),
 		Status:          werte.Get("status"),
-		Ruhend:          werte.Get("ruhend"),
+		Stillgelegt:     werte.Get("stillgelegt"),
 		Ehemalige:       werte.Get("ehemalige") != "",
 		BeitragVon:      werte.Get("beitragVon"),
 		BeitragBis:      werte.Get("beitragBis"),
@@ -566,11 +566,11 @@ func (e suchEingabe) alsSuchfilter() service.Suchfilter {
 		filter.Status = service.StatusfilterAusgetreten
 	}
 
-	switch e.Ruhend {
-	case ruhendRuhend:
-		filter.Ruhend = service.RuhendfilterRuhend
-	case ruhendLaufend:
-		filter.Ruhend = service.RuhendfilterLaufend
+	switch e.Stillgelegt {
+	case stillgelegtStillgelegt:
+		filter.Stillgelegt = service.StillgelegtfilterStillgelegt
+	case stillgelegtLaufend:
+		filter.Stillgelegt = service.StillgelegtfilterLaufend
 	}
 
 	// Unlesbares (leer, kein Zahlenformat) bleibt wie bei jedem anderen Feld
@@ -646,14 +646,14 @@ func statusoptionen(sprache i18n.Sprache) []filteroption {
 	}
 }
 
-// ruhendoptionen sind die Stufen des Ruhendfilters — eigenständig zum
-// Statusfilter, weil Ruhend kein Lebenszyklus-Zustand ist (CONTEXT.md →
-// Ruhend).
-func ruhendoptionen(sprache i18n.Sprache) []filteroption {
+// stillgelegtoptionen sind die Stufen des Stillgelegtfilters — eigenständig zum
+// Statusfilter, weil Stillgelegt kein Lebenszyklus-Zustand ist (CONTEXT.md →
+// Stillgelegt).
+func stillgelegtoptionen(sprache i18n.Sprache) []filteroption {
 	return []filteroption{
-		{Wert: ruhendAlle, Beschriftung: i18n.Text(sprache, "filter.ruhend.alle")},
-		{Wert: ruhendRuhend, Beschriftung: i18n.Text(sprache, "filter.ruhend.ruhend")},
-		{Wert: ruhendLaufend, Beschriftung: i18n.Text(sprache, "filter.ruhend.laufend")},
+		{Wert: stillgelegtAlle, Beschriftung: i18n.Text(sprache, "filter.stillgelegt.alle")},
+		{Wert: stillgelegtStillgelegt, Beschriftung: i18n.Text(sprache, "filter.stillgelegt.stillgelegt")},
+		{Wert: stillgelegtLaufend, Beschriftung: i18n.Text(sprache, "filter.stillgelegt.laufend")},
 	}
 }
 
@@ -733,11 +733,11 @@ func (d listeDaten) AktivEintritt() bool {
 	return d.Suche.EintrittVon != "" || d.Suche.EintrittBis != ""
 }
 
-// AktivStatus fasst Status- und Ruhendfilter zusammen: ihr Zahnrad füllt sich,
+// AktivStatus fasst Status- und Stillgelegtfilter zusammen: ihr Zahnrad füllt sich,
 // sobald einer der beiden vom Nullwert abweicht — sie stehen im selben Menü
 // (spec.md, Story 13).
 func (d listeDaten) AktivStatus() bool {
-	return d.Suche.Status != statusAlle || d.Suche.Ruhend != ruhendAlle
+	return d.Suche.Status != statusAlle || d.Suche.Stillgelegt != stillgelegtAlle
 }
 
 // Gefiltert sagt, ob überhaupt eingegrenzt wurde. Ein leeres Ergebnis liest
@@ -840,13 +840,13 @@ func (d listeDaten) Frequenzoptionen() []filteroption {
 	return gewaehlteOption(frequenzoptionenBauen(d.Sprache), d.Suche.Frequenz)
 }
 
-// Statusoptionen und Ruhendoptionen sind die Stufen der beiden Filterfelder
+// Statusoptionen und Stillgelegtoptionen sind die Stufen der beiden Filterfelder
 // im Status-Zahnrad, die gewählte darunter markiert.
 func (d listeDaten) Statusoptionen() []filteroption {
 	return gewaehlteOption(statusoptionen(d.Sprache), d.Suche.Status)
 }
-func (d listeDaten) Ruhendoptionen() []filteroption {
-	return gewaehlteOption(ruhendoptionen(d.Sprache), d.Suche.Ruhend)
+func (d listeDaten) Stillgelegtoptionen() []filteroption {
+	return gewaehlteOption(stillgelegtoptionen(d.Sprache), d.Suche.Stillgelegt)
 }
 
 // Geschlechtsoptionen sind "jedes Geschlecht" und die Werte, die im Bestand
@@ -1263,7 +1263,7 @@ func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe,
 
 // mitgliedStatusBlock liefert den Statusblock des Mitgliedsformulars in seiner
 // Ausgangsform — der Rückweg aus Rückstand, Kündigung, Wiedereintritt und
-// Ruhend, wenn der Nutzer abbricht.
+// Stillgelegt, wenn der Nutzer abbricht.
 func (a *App) mitgliedStatusBlock(w http.ResponseWriter, r *http.Request) {
 	eintrag, ok := a.zeileLesen(w, r)
 	if !ok {
@@ -1503,10 +1503,10 @@ func (a *App) kuendigungFormularMitFehler(w http.ResponseWriter, id int64, fehle
 	a.rendern(w, "mitglied-kuendigung-formular", kuendigungsformular(eintrag, fehler))
 }
 
-// ruhendSchalten setzt das Ruhend-Kennzeichen oder nimmt es zurück und antwortet
+// stillgelegtSchalten setzt das Stillgelegt-Kennzeichen oder nimmt es zurück und antwortet
 // mit der aktualisierten Zeile. Ein Formular braucht das nicht: die Zeile zeigt
 // den aktuellen Wert, die Schaltfläche schickt den gewünschten mit.
-func (a *App) ruhendSchalten(w http.ResponseWriter, r *http.Request) {
+func (a *App) stillgelegtSchalten(w http.ResponseWriter, r *http.Request) {
 	id, ok := mitgliedID(w, r)
 	if !ok {
 		return
@@ -1517,7 +1517,7 @@ func (a *App) ruhendSchalten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.svc.SetRuhend(id, r.FormValue("ruhend") != ""); err != nil {
+	if err := a.svc.SetStillgelegt(id, r.FormValue("stillgelegt") != ""); err != nil {
 		a.veralteteAnsichtOderFehler(w, err)
 		return
 	}

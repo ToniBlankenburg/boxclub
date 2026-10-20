@@ -147,8 +147,8 @@ function sortierfallbackPruefen(sichtbar) {
     if (termin && termin.value) parameter.set('termin', termin.value);
     const status = document.getElementById('filter-status');
     if (status && status.value) parameter.set('status', status.value);
-    const ruhend = document.getElementById('filter-ruhend');
-    if (ruhend && ruhend.value) parameter.set('ruhend', ruhend.value);
+    const stillgelegt = document.getElementById('filter-stillgelegt');
+    if (stillgelegt && stillgelegt.value) parameter.set('stillgelegt', stillgelegt.value);
     // Der Regler trägt immer einen Wert (nie leer wie ein Auswahlfeld) — an
     // seiner eigenen Grenze steht er unbewegt, genau wie Go ihn ohne Filter
     // rendert (listeDaten.BeitragVonWert/-BisWert), und grenzt dann nicht ein.

@@ -91,16 +91,16 @@ type Mitgliedschaft struct {
 
 	Austritt *time.Time
 
-	// Ruhend sagt, dass das Mitglied vorübergehend nicht trainiert (Verletzung,
+	// Stillgelegt sagt, dass das Mitglied vorübergehend nicht trainiert (Verletzung,
 	// Auslandsaufenthalt) und für diese Zeit kein Beitrag eingezogen wird. Die
-	// Mitgliedschaft läuft weiter — ruhend ist kein Austritt und auch kein
-	// Lebenszyklus-Zustand, sondern ein Merkmal daneben (CONTEXT.md → Ruhend).
+	// Mitgliedschaft läuft weiter — stillgelegt ist kein Austritt und auch kein
+	// Lebenszyklus-Zustand, sondern ein Merkmal daneben (CONTEXT.md → Stilllegung).
 	//
 	// Es hängt an der Mitgliedschaft und nicht am Mitglied, weil sich nur
-	// ruhend schalten lässt, was läuft. Zum Rückstand ist es unabhängig: für ein
-	// ruhendes Mitglied geht keine Lastschrift los, es kann also kein neuer
+	// stillgelegt schalten lässt, was läuft. Zum Rückstand ist es unabhängig: für ein
+	// stillgelegtes Mitglied geht keine Lastschrift los, es kann also kein neuer
 	// Rückstand entstehen — ein bestehender bleibt aber stehen.
-	Ruhend bool
+	Stillgelegt bool
 
 	// BeitragCents ist der monatliche Beitrag in Cent. 0 ist ein gültiger
 	// Betrag — Trainer zahlen nichts — und keine fehlende Angabe.
@@ -380,7 +380,7 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft (
 	anmeldegebuehr_cents    INTEGER NOT NULL DEFAULT 0,
 	anmeldegebuehr_eingezogen INTEGER NOT NULL DEFAULT 0,
 	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0,
-	ruhend                  INTEGER NOT NULL DEFAULT 0
+	stillgelegt                  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_mitglied ON mitgliedschaft(mitglied_id);
@@ -549,13 +549,13 @@ var spaltenNachtraege = []struct {
 	{"mitglied", "google_bewertung", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitglied", "kind_manuell", "INTEGER NOT NULL DEFAULT 0"},
 
-	// mitgliedschaft: Anmeldedatum/-gebühr, Kündigungsdatum und Ruhend kamen
+	// mitgliedschaft: Anmeldedatum/-gebühr, Kündigungsdatum und Stillgelegt kamen
 	// nacheinander dazu, alle mit demselben Grundgedanken: ohne Angabe fehlt
 	// die Information, sie ist nicht falsch gesetzt.
 	{"mitgliedschaft", "anmeldedatum", "TEXT"},
 	{"mitgliedschaft", "anmeldegebuehr_cents", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitgliedschaft", "kuendigungsdatum", "TEXT"},
-	{"mitgliedschaft", "ruhend", "INTEGER NOT NULL DEFAULT 0"},
+	{"mitgliedschaft", "stillgelegt", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitgliedschaft", "anmeldegebuehr_eingezogen", "INTEGER NOT NULL DEFAULT 0"},
 
 	// trainingstermin: ein Termin, zu dem nur Frauen angemeldet werden. Der
@@ -1157,7 +1157,7 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 // die Abfrage über alle Zeiträume eines Mitglieds und die über einen einzelnen
 // nicht auseinanderlaufen können.
 const mitgliedschaftsspalten = `id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
-	anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, ruhend`
+	anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, stillgelegt`
 
 // zeilenleser ist die Teilmenge von *sql.Row und *sql.Rows, die
 // mitgliedschaftZeileLesen braucht — so liest dieselbe Funktion die einzelne
@@ -1177,7 +1177,7 @@ func mitgliedschaftZeileLesen(zeile zeilenleser) (Mitgliedschaft, error) {
 		austritt         sql.NullString
 	)
 	if err := zeile.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &kuendigungsdatum, &austritt,
-		&ms.Anmeldung.GebuehrCents, &ms.Anmeldung.GebuehrEingezogen, &ms.BeitragCents, &ms.Ruhend); err != nil {
+		&ms.Anmeldung.GebuehrCents, &ms.Anmeldung.GebuehrEingezogen, &ms.BeitragCents, &ms.Stillgelegt); err != nil {
 		return Mitgliedschaft{}, err
 	}
 
@@ -1345,20 +1345,20 @@ func (s *MemberService) SetKuendigung(id int64, k Kuendigung) error {
 	return nil
 }
 
-// SetRuhend schaltet die laufende Mitgliedschaft ruhend oder wieder aktiv. Für
+// SetStillgelegt schaltet die laufende Mitgliedschaft stillgelegt oder wieder aktiv. Für
 // die Zeit, in der sie ruht, wird kein Beitrag eingezogen; Mitglied bleibt das
-// Mitglied trotzdem (CONTEXT.md → Ruhend).
+// Mitglied trotzdem (CONTEXT.md → Stilllegung).
 //
-// Nur ein laufender Zeitraum lässt sich ruhend schalten: bei einem ausgetretenen
+// Nur ein laufender Zeitraum lässt sich stillgelegt schalten: bei einem ausgetretenen
 // Mitglied gibt es keinen Einzug, den man aussetzen könnte — der Fehler ist dann
 // ErrNichtAktiv. Ein Mitglied in der Kündigungsfrist läuft dagegen noch und lässt
-// sich sehr wohl ruhend schalten; sein Beitrag wird ja bis zum Austritt eingezogen.
+// sich sehr wohl stillgelegt schalten; sein Beitrag wird ja bis zum Austritt eingezogen.
 //
-// Der Rückstand bleibt dabei unberührt. Für ein ruhendes Mitglied geht keine
+// Der Rückstand bleibt dabei unberührt. Für ein stillgelegtes Mitglied geht keine
 // Lastschrift los, es kann also kein *neuer* Rückstand entstehen; ein
-// bestehender bleibt stehen, denn ruhend zu schalten ist kein Schuldenerlass
+// bestehender bleibt stehen, denn stillgelegt zu schalten ist kein Schuldenerlass
 // (ADR-0006). Der Aufruf ist idempotent.
-func (s *MemberService) SetRuhend(id int64, ruhend bool) error {
+func (s *MemberService) SetStillgelegt(id int64, stillgelegt bool) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("transaktion starten: %w", err)
@@ -1375,9 +1375,9 @@ func (s *MemberService) SetRuhend(id int64, ruhend bool) error {
 	}
 
 	if _, err := tx.Exec(
-		`UPDATE mitgliedschaft SET ruhend = ? WHERE id = ?`,
-		ruhend, mitgliedschaftID); err != nil {
-		return fmt.Errorf("ruhend von mitglied %d setzen: %w", id, err)
+		`UPDATE mitgliedschaft SET stillgelegt = ? WHERE id = ?`,
+		stillgelegt, mitgliedschaftID); err != nil {
+		return fmt.Errorf("stillgelegt von mitglied %d setzen: %w", id, err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -1441,7 +1441,7 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// Zeitraums abzuschreiben hieße, eine Gebühr zu behaupten, die niemand
 	// gezahlt hat.
 	//
-	// Ebenso beginnt der neue Zeitraum ohne Kündigung und nicht ruhend: beides
+	// Ebenso beginnt der neue Zeitraum ohne Kündigung und nicht stillgelegt: beides
 	// galt dem alten. Die Spalten stehen deshalb gar nicht erst in der
 	// Anweisung — sie bekommen ihren Vorgabewert.
 	if _, err := tx.Exec(
@@ -1558,10 +1558,10 @@ type Listeneintrag struct {
 	// Abgelesen wird daraus der Status.
 	Austritt *time.Time
 
-	// Ruhend ist das Merkmal der maßgeblichen Mitgliedschaft. Es steht neben
-	// dem Lebenszyklus und nicht in ihm: ein ruhendes Mitglied ist ein aktives,
+	// Stillgelegt ist das Merkmal der maßgeblichen Mitgliedschaft. Es steht neben
+	// dem Lebenszyklus und nicht in ihm: ein stillgelegtes Mitglied ist ein aktives,
 	// von dem gerade nichts eingezogen wird.
-	Ruhend bool
+	Stillgelegt bool
 
 	// Trainingstermine sind die Termine der maßgeblichen Mitgliedschaft — bei
 	// einem Ehemaligen also die seines letzten Zeitraums, wie Beitrag und
@@ -1636,28 +1636,28 @@ func (f Rueckstandsfilter) trifft(r Rueckstand) bool {
 	}
 }
 
-// Ruhendfilter grenzt die Ergebnisliste nach dem Ruhend-Merkmal ein — analog
-// zu Rueckstandsfilter, aber eigenständig zum Statusfilter: Ruhend ist laut
+// Stillgelegtfilter grenzt die Ergebnisliste nach dem Stillgelegt-Merkmal ein — analog
+// zu Rueckstandsfilter, aber eigenständig zum Statusfilter: Stillgelegt ist laut
 // Datenmodell kein Lebenszyklus-Zustand, sondern eine Fahne daneben
-// (CONTEXT.md → Ruhend).
-type Ruhendfilter int
+// (CONTEXT.md → Stilllegung).
+type Stillgelegtfilter int
 
 const (
-	// RuhendfilterAlle ist der Nullwert und grenzt nicht ein.
-	RuhendfilterAlle Ruhendfilter = iota
-	// RuhendfilterRuhend: nur Mitglieder, deren maßgebliche Mitgliedschaft ruht.
-	RuhendfilterRuhend
-	// RuhendfilterLaufend: nur Mitglieder, deren maßgebliche Mitgliedschaft läuft.
-	RuhendfilterLaufend
+	// StillgelegtfilterAlle ist der Nullwert und grenzt nicht ein.
+	StillgelegtfilterAlle Stillgelegtfilter = iota
+	// StillgelegtfilterStillgelegt: nur Mitglieder, deren maßgebliche Mitgliedschaft ruht.
+	StillgelegtfilterStillgelegt
+	// StillgelegtfilterLaufend: nur Mitglieder, deren maßgebliche Mitgliedschaft läuft.
+	StillgelegtfilterLaufend
 )
 
 // trifft entscheidet, ob das Merkmal durch diesen Filter kommt.
-func (f Ruhendfilter) trifft(ruhend bool) bool {
+func (f Stillgelegtfilter) trifft(stillgelegt bool) bool {
 	switch f {
-	case RuhendfilterRuhend:
-		return ruhend
-	case RuhendfilterLaufend:
-		return !ruhend
+	case StillgelegtfilterStillgelegt:
+		return stillgelegt
+	case StillgelegtfilterLaufend:
+		return !stillgelegt
 	default:
 		return true
 	}
@@ -1691,10 +1691,10 @@ type Suchfilter struct {
 	// StatusfilterAusgetreten, das *nur* sie zeigt, grenzt es nichts ein — es
 	// lädt sie bloß dazu; ein gewählter Status sortiert sie danach wieder aus.
 	AuchEhemalige bool
-	// Ruhend grenzt unabhängig vom Status auf das Ruhend-Merkmal ein: es ist
+	// Stillgelegt grenzt unabhängig vom Status auf das Stillgelegt-Merkmal ein: es ist
 	// laut Datenmodell kein eigener Lebenszyklus-Zustand, sondern eine Fahne
-	// daneben (CONTEXT.md → Ruhend).
-	Ruhend Ruhendfilter
+	// daneben (CONTEXT.md → Stilllegung).
+	Stillgelegt Stillgelegtfilter
 
 	// BeitragVonCents und BeitragBisCents grenzen auf einen Beitragsbereich
 	// ein. Pointer statt Sentinel-Wert, weil 0 € ein gültiger Beitrag ist
@@ -1797,7 +1797,7 @@ const eintraegeAbfrage = `
 		m.adresse, m.postleitzahl, m.ort,
 		m.google_bewertung, m.rueckstand, m.rueckstand_notiz,
 		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt,
-		ms.beitrag_monatlich_cents, ms.ruhend, m.geschlecht,
+		ms.beitrag_monatlich_cents, ms.stillgelegt, m.geschlecht,
 		ms.anmeldegebuehr_cents > 0 AND ms.anmeldegebuehr_eingezogen = 0
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
@@ -1849,7 +1849,7 @@ func (z suchzeile) passtZu(begriff string, filter Suchfilter) bool {
 		return false
 	}
 
-	if !filter.Ruhend.trifft(z.eintrag.Ruhend) {
+	if !filter.Stillgelegt.trifft(z.eintrag.Stillgelegt) {
 		return false
 	}
 
@@ -1942,7 +1942,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.GoogleBewertung, &e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&mitgliedschaftID, &eintritt, &kuendigungsdatum, &austritt,
-			&e.BeitragCents, &e.Ruhend, &geschlecht, &e.GebuehrOffen); err != nil {
+			&e.BeitragCents, &e.Stillgelegt, &geschlecht, &e.GebuehrOffen); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 

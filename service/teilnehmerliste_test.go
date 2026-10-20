@@ -110,10 +110,10 @@ func TestTeilnehmerlisten_ZeigtAngemeldeteAlphabetischMitAnzahl(t *testing.T) {
 	}
 }
 
-// Ein ruhendes Mitglied trainiert gerade nicht. Ohne Kennzeichen in der Liste
+// Ein stillgelegtes Mitglied trainiert gerade nicht. Ohne Kennzeichen in der Liste
 // muss schon die Auswahl stimmen: es fehlt, und mit der Rücknahme der Pause
 // steht es wieder da — die Anmeldung selbst hat sich nie geändert.
-func TestTeilnehmerlisten_RuhendeStehenNichtDarin(t *testing.T) {
+func TestTeilnehmerlisten_StillgelegteStehenNichtDarin(t *testing.T) {
 	svc := neuerService(t)
 	_, _, samstag := stundenplan(t, svc)
 	eintritt := heuteVersetzt(-90)
@@ -121,8 +121,8 @@ func TestTeilnehmerlisten_RuhendeStehenNichtDarin(t *testing.T) {
 	teilnehmerAnlegen(t, svc, "Anna", "Berger", eintritt, samstag)
 	pause := teilnehmerAnlegen(t, svc, "Ben", "Conrad", eintritt, samstag)
 
-	if err := svc.SetRuhend(pause, true); err != nil {
-		t.Fatalf("SetRuhend(true): %v", err)
+	if err := svc.SetStillgelegt(pause, true); err != nil {
+		t.Fatalf("SetStillgelegt(true): %v", err)
 	}
 
 	listen, err := svc.Teilnehmerlisten(false)
@@ -133,8 +133,8 @@ func TestTeilnehmerlisten_RuhendeStehenNichtDarin(t *testing.T) {
 		t.Errorf("während der Pause = %v, erwartet %v", got, want)
 	}
 
-	if err := svc.SetRuhend(pause, false); err != nil {
-		t.Fatalf("SetRuhend(false): %v", err)
+	if err := svc.SetStillgelegt(pause, false); err != nil {
+		t.Fatalf("SetStillgelegt(false): %v", err)
 	}
 
 	listen, err = svc.Teilnehmerlisten(false)

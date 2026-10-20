@@ -14,8 +14,8 @@ import "time"
 //
 // Vier Zustände, mehr gibt es nicht. Die Excel kannte daneben `Mitglied` (was
 // dasselbe ist wie `Aktiv`) sowie `Stillgelegt` und `Inakiv` — beides keine
-// Zustände, sondern das Merkmal *ruhend*, das neben dem Lebenszyklus steht und
-// als Einziges in dieser Reihe gespeichert wird (CONTEXT.md → Ruhend).
+// Zustände, sondern das Merkmal *stillgelegt*, das neben dem Lebenszyklus steht und
+// als Einziges in dieser Reihe gespeichert wird (CONTEXT.md → Stilllegung).
 type Status int
 
 const (

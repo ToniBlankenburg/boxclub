@@ -5,7 +5,7 @@ import "fmt"
 // Monatsuebersicht ist die Berechnung hinter dem Dashboard (CONTEXT.md →
 // Monatssoll, ADR-0009): das Monatssoll des laufenden Monats, Mitgliederzahlen
 // nach Zustand und die Zahl der Mitglieder im Rückstand. Sie speichert nichts
-// Neues — jeder Aufruf liest Beitrag, Status und Ruhend neu aus derselben
+// Neues — jeder Aufruf liest Beitrag, Status und Stillgelegt neu aus derselben
 // Quelle wie die Mitgliederliste.
 //
 // Es ist ausdrücklich ein Soll und kein Ist: was tatsächlich eingezogen wurde,
@@ -15,17 +15,17 @@ import "fmt"
 // Messung.
 type Monatsuebersicht struct {
 	// MonatssollCents ist die Summe der Beiträge aller Mitgliedschaften, die
-	// diesen Monat einziehen: aktiv und in Kündigungsfrist, aber weder ruhend
+	// diesen Monat einziehen: aktiv und in Kündigungsfrist, aber weder stillgelegt
 	// noch noch nicht begonnen noch schon ausgetreten.
 	MonatssollCents int64
 
-	// RuhendCents steht dem Monatssoll getrennt daneben (Ticket 26): die
-	// Anzahl dazu steht schon in Mitgliederzahlen.Ruhend und wird hier nicht
+	// StillgelegtCents steht dem Monatssoll getrennt daneben (Ticket 26): die
+	// Anzahl dazu steht schon in Mitgliederzahlen.Stillgelegt und wird hier nicht
 	// verdoppelt. Zusammen zählen sie genau die Mitgliedschaften, die ohne
-	// ihre Ruhendstellung ins Monatssoll eingegangen wären — ohne diesen
+	// ihre Stilllegung ins Monatssoll eingegangen wären — ohne diesen
 	// Ausweis stünde die Summe unerklärt kleiner da, als die Mitgliederzahl
 	// vermuten lässt.
-	RuhendCents int64
+	StillgelegtCents int64
 
 	// Mitgliederzahlen zählt jedes Mitglied genau einmal nach seinem
 	// Zustand.
@@ -52,8 +52,8 @@ type Monatsuebersicht struct {
 // Mitgliederzahlen zählt die Mitglieder nach ihrem Zustand, je einmal: die
 // fünf Zahlen ergeben zusammen Gesamt.
 //
-// Ruhend steht hier — anders als überall sonst (CONTEXT.md → Ruhend) — nicht
-// neben Aktiv/In Kündigungsfrist, sondern an ihrer Stelle: ein ruhendes
+// Stillgelegt steht hier — anders als überall sonst (CONTEXT.md → Stilllegung) — nicht
+// neben Aktiv/In Kündigungsfrist, sondern an ihrer Stelle: ein stillgelegtes
 // Mitglied zählte sonst doppelt, einmal im Lebenszyklus und einmal im Ausweis
 // daneben. Das deckt sich mit dem Monatssoll, das dieselben Mitgliedschaften
 // genauso herausrechnet.
@@ -61,14 +61,14 @@ type Mitgliederzahlen struct {
 	Neu                int
 	Aktiv              int
 	InKuendigungsfrist int
-	Ruhend             int
+	Stillgelegt        int
 	Ausgetreten        int
 }
 
 // Gesamt ist die Zahl aller Mitglieder — die Summe der fünf Zustände, die sich
 // gegenseitig ausschließen und zusammen den ganzen Bestand ergeben.
 func (z Mitgliederzahlen) Gesamt() int {
-	return z.Neu + z.Aktiv + z.InKuendigungsfrist + z.Ruhend + z.Ausgetreten
+	return z.Neu + z.Aktiv + z.InKuendigungsfrist + z.Stillgelegt + z.Ausgetreten
 }
 
 // Monatsuebersicht liefert die Zahlen des Dashboards. Gelesen wird dieselbe
@@ -95,26 +95,26 @@ func (s *MemberService) Monatsuebersicht() (Monatsuebersicht, error) {
 
 		// Die Reihenfolge entscheidet über den einen Fall, in dem sich zwei
 		// Merkmale überschneiden könnten: Ausgetreten und Neu gehen beide vor
-		// Ruhend, aus demselben Grund, aus dem statusAus vom Ende des
+		// Stillgelegt, aus demselben Grund, aus dem statusAus vom Ende des
 		// Lebenszyklus her prüft — ein erreichtes Ende ist die aussagekräftigere
 		// Auskunft, und ein noch nicht begonnener Zeitraum zieht ohnehin nichts
-		// ein, ruhend gestellt oder nicht (siehe
-		// TestMonatsuebersicht_RuhendVorDemEintrittZaehltAlsNeuUndNichtAlsRuhend).
+		// ein, stillgelegt gestellt oder nicht (siehe
+		// TestMonatsuebersicht_StillgelegtVorDemEintrittZaehltAlsNeuUndNichtAlsStillgelegt).
 		switch {
 		case status.Ausgetreten():
 			u.Mitgliederzahlen.Ausgetreten++
 		case status.Neu():
 			u.Mitgliederzahlen.Neu++
-		case e.Ruhend:
-			u.Mitgliederzahlen.Ruhend++
-			u.RuhendCents += e.BeitragCents
+		case e.Stillgelegt:
+			u.Mitgliederzahlen.Stillgelegt++
+			u.StillgelegtCents += e.BeitragCents
 		case status.InKuendigungsfrist():
 			u.Mitgliederzahlen.InKuendigungsfrist++
 		default:
 			u.Mitgliederzahlen.Aktiv++
 		}
 
-		if zaehltInsMonatssoll(status, e.Ruhend) {
+		if zaehltInsMonatssoll(status, e.Stillgelegt) {
 			u.MonatssollCents += e.BeitragCents
 		}
 	}
@@ -127,12 +127,12 @@ func (s *MemberService) Monatsuebersicht() (Monatsuebersicht, error) {
 }
 
 // zaehltInsMonatssoll sagt, ob eine Mitgliedschaft mit diesem Status und
-// Ruhend-Merkmal diesen Monat Beitrag einzieht — dieselbe Regel für
+// Stillgelegt-Merkmal diesen Monat Beitrag einzieht — dieselbe Regel für
 // Monatsuebersicht hier und für den MoneyMoney-Export (service/moneymoney.go,
 // ADR-0013), an einer Stelle, damit beide nicht auseinanderlaufen können.
-// Aktiv und in Kündigungsfrist ziehen ein, Ausgetreten, Neu und Ruhend nicht.
-func zaehltInsMonatssoll(status Status, ruhend bool) bool {
-	return !status.Ausgetreten() && !status.Neu() && !ruhend
+// Aktiv und in Kündigungsfrist ziehen ein, Ausgetreten, Neu und Stillgelegt nicht.
+func zaehltInsMonatssoll(status Status, stillgelegt bool) bool {
+	return !status.Ausgetreten() && !status.Neu() && !stillgelegt
 }
 
 // monatsbewegungen zählt, wie viele Mitgliedschaften im Monat von heute bereits
