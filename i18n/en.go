@@ -155,6 +155,7 @@ var englisch = map[string]string{
 	"mitglied.bereiche_aria":            "Member sections",
 	"mitglied.tab_stammdaten":           "Personal details",
 	"mitglied.tab_vertraege":            "Contracts",
+	"mitglied.tab_stilllegungen":        "Suspensions",
 	"mitglied.tab_rechnung":             "Invoice",
 	"mitglied.bearbeiten_titel":         "Edit member",
 	"mitglied.anlegen_titel":            "Add new member",

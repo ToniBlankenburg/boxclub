@@ -183,6 +183,7 @@ var deutsch = map[string]string{
 	"mitglied.bereiche_aria":            "Mitglied-Bereiche",
 	"mitglied.tab_stammdaten":           "Stammdaten",
 	"mitglied.tab_vertraege":            "Verträge",
+	"mitglied.tab_stilllegungen":        "Stilllegungen",
 	"mitglied.tab_rechnung":             "Rechnung",
 	"mitglied.bearbeiten_titel":         "Mitglied bearbeiten",
 	"mitglied.anlegen_titel":            "Neues Mitglied anlegen",

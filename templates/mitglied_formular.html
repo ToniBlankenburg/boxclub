@@ -3,7 +3,7 @@
      Ergebnis des UI-Prototyps zu Farbe/Navigation/Formular/Dashboard, siehe
      .scratch/prototyp-stilrichtungen-verdict.md und Branch
      prototype/stilrichtungen (Commit 391d4e3). */}}
-{{/* Stammdaten, Verträge und Rechnung stehen als drei Registerkarten statt
+{{/* Stammdaten, Verträge, Stilllegungen und Rechnung stehen als vier Registerkarten statt
      gestapelt untereinander (Ticket 08) — Ergebnis des UI-Prototyps zu
      Registerkarten, siehe .scratch/prototyp-registerkarten-verdict.md und
      Branch prototype/registerkarten (Commit 09ae7e4). Beim Anlegen gibt es
@@ -23,6 +23,10 @@
                 class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
             {{t "mitglied.tab_vertraege"}}
         </button>
+        <button type="button" role="tab" data-rk-tab="stilllegungen" aria-selected="false"
+                class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+            {{t "mitglied.tab_stilllegungen"}}
+        </button>
         <button type="button" role="tab" data-rk-tab="rechnung" aria-selected="false"
                 class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
             {{t "mitglied.tab_rechnung"}}
@@ -34,6 +38,9 @@
     </div>
     <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="vertraege" hidden>
         {{template "vertraege" .Vertraege}}
+    </div>
+    <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="stilllegungen" hidden>
+        {{template "mitglied-stilllegungen" .Stilllegungen}}
     </div>
     <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="rechnung" hidden>
         {{template "rechnung-bereich" .Rechnung}}
@@ -71,7 +78,6 @@
          abgeschickten Eingabe. */}}
     {{if .Bearbeiten}}
         {{template "mitglied-status-block" .Status}}
-        {{template "mitglied-stilllegungen" .Stilllegungen}}
     {{end}}
 
     {{if .Fehler}}
