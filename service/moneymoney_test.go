@@ -83,7 +83,7 @@ func TestMoneyMoneyExportieren_SchliesstStillgelegteNeueUndAusgetreteneAus(t *te
 	svc := neuerService(t)
 
 	stillgelegtID := moneyMoneyMitglied(t, svc, "Clara", "Diehl", "")
-	if err := svc.SetStillgelegt(stillgelegtID, true); err != nil {
+	if _, err := svc.CreateStilllegung(stillgelegtID, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -370,7 +370,7 @@ func TestMoneyMoneyExportieren_SummeEntsprichtDemMonatssoll(t *testing.T) {
 	moneyMoneyMitglied(t, svc, "Anna", "Berger", "")
 
 	stillgelegtID := moneyMoneyMitglied(t, svc, "Clara", "Diehl", "")
-	if err := svc.SetStillgelegt(stillgelegtID, true); err != nil {
+	if _, err := svc.CreateStilllegung(stillgelegtID, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 

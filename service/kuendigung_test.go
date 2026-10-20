@@ -319,17 +319,17 @@ func TestSetStillgelegt_SchaltetHinUndZurueck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if m.Mitgliedschaften[0].Stillgelegt {
+	if m.Mitgliedschaften[0].Stillgelegt() {
 		t.Error("Stillgelegt = true bei einem frisch angelegten Mitglied, erwartet false")
 	}
 
-	if err := svc.SetStillgelegt(id, true); err != nil {
-		t.Fatalf("SetStillgelegt(true): %v", err)
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
+		t.Fatalf("CreateStilllegung: %v", err)
 	}
 	if m, err = svc.Get(id); err != nil {
-		t.Fatalf("Get nach SetStillgelegt(true): %v", err)
+		t.Fatalf("Get nach CreateStilllegung: %v", err)
 	}
-	if !m.Mitgliedschaften[0].Stillgelegt {
+	if !m.Mitgliedschaften[0].Stillgelegt() {
 		t.Error("Stillgelegt = false, erwartet true")
 	}
 
@@ -349,13 +349,13 @@ func TestSetStillgelegt_SchaltetHinUndZurueck(t *testing.T) {
 		t.Error("Stillgelegt der Zeile = false, erwartet true — sonst ist das Merkmal in der Liste unsichtbar")
 	}
 
-	if err := svc.SetStillgelegt(id, false); err != nil {
-		t.Fatalf("SetStillgelegt(false): %v", err)
+	if err := wiederAktiv(svc, id); err != nil {
+		t.Fatalf("BeendeStilllegung: %v", err)
 	}
 	if m, err = svc.Get(id); err != nil {
-		t.Fatalf("Get nach SetStillgelegt(false): %v", err)
+		t.Fatalf("Get nach BeendeStilllegung: %v", err)
 	}
-	if m.Mitgliedschaften[0].Stillgelegt {
+	if m.Mitgliedschaften[0].Stillgelegt() {
 		t.Error("Stillgelegt = true, erwartet false nach dem Zurücknehmen")
 	}
 }
@@ -372,8 +372,8 @@ func TestSetStillgelegt_LaesstEinenBestehendenRueckstandStehen(t *testing.T) {
 		t.Fatalf("SetRueckstand: %v", err)
 	}
 
-	if err := svc.SetStillgelegt(id, true); err != nil {
-		t.Fatalf("SetStillgelegt(true): %v", err)
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
+		t.Fatalf("CreateStilllegung: %v", err)
 	}
 
 	eintrag, err := svc.Eintrag(id)
@@ -386,11 +386,11 @@ func TestSetStillgelegt_LaesstEinenBestehendenRueckstandStehen(t *testing.T) {
 	}
 
 	// Und umgekehrt: das Zurücknehmen rührt den Rückstand ebenso wenig an.
-	if err := svc.SetStillgelegt(id, false); err != nil {
-		t.Fatalf("SetStillgelegt(false): %v", err)
+	if err := wiederAktiv(svc, id); err != nil {
+		t.Fatalf("BeendeStilllegung: %v", err)
 	}
 	if eintrag, err = svc.Eintrag(id); err != nil {
-		t.Fatalf("Eintrag nach SetStillgelegt(false): %v", err)
+		t.Fatalf("Eintrag nach BeendeStilllegung: %v", err)
 	}
 	if eintrag.Rueckstand != rueckstand {
 		t.Errorf("Rueckstand = %+v, erwartet unverändert %+v", eintrag.Rueckstand, rueckstand)
@@ -407,19 +407,21 @@ func TestSetStillgelegt_AufAusgetretenemMitgliedIstEinFehler(t *testing.T) {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
 
-	if err := svc.SetStillgelegt(id, true); !errors.Is(err, service.ErrNichtAktiv) {
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); !errors.Is(err, service.ErrNichtAktiv) {
 		t.Fatalf("SetStillgelegt nach dem Austritt = %v, erwartet ErrNichtAktiv", err)
 	}
 }
 
 // Der neue Zeitraum beginnt unbelastet: weder mit der Kündigung des alten noch
-// mit dessen Stillgelegt-Kennzeichen. Beides gehörte zu einem Zeitraum, der vorbei ist.
+// mit dessen Stilllegungen. Beides gehörte zu einem Zeitraum, der vorbei ist.
 func TestRejoin_BeginntOhneKuendigungUndNichtStillgelegt(t *testing.T) {
 	svc := neuerService(t)
 
 	id := mitgliedAnlegen(t, svc, "Nina", "Klein")
-	if err := svc.SetStillgelegt(id, true); err != nil {
-		t.Fatalf("SetStillgelegt: %v", err)
+	if _, err := svc.CreateStilllegung(id, service.Stilllegungsangabe{
+		Von: datum(t, "2026-02-01"), Bis: datum(t, "2026-02-28"),
+	}); err != nil {
+		t.Fatalf("CreateStilllegung: %v", err)
 	}
 
 	gekuendigt := datum(t, "2026-03-15")
@@ -444,8 +446,8 @@ func TestRejoin_BeginntOhneKuendigungUndNichtStillgelegt(t *testing.T) {
 	if laufend.Kuendigungsdatum != nil {
 		t.Errorf("Kuendigungsdatum = %v, erwartet nil — die Kündigung galt dem alten Zeitraum", laufend.Kuendigungsdatum)
 	}
-	if laufend.Stillgelegt {
-		t.Error("Stillgelegt = true, erwartet false — wer wieder eintritt, trainiert wieder")
+	if len(laufend.Stilllegungen) != 0 {
+		t.Errorf("Stilllegungen = %v, erwartet keine — wer wieder eintritt, beginnt ohne", laufend.Stilllegungen)
 	}
 
 	// Der alte Zeitraum behält seine Angaben: er ist die Historie.
@@ -453,8 +455,8 @@ func TestRejoin_BeginntOhneKuendigungUndNichtStillgelegt(t *testing.T) {
 	if alt.Kuendigungsdatum == nil || !alt.Kuendigungsdatum.Equal(gekuendigt) {
 		t.Errorf("Kuendigungsdatum des alten Zeitraums = %v, erwartet unverändert %v", alt.Kuendigungsdatum, gekuendigt)
 	}
-	if !alt.Stillgelegt {
-		t.Error("Stillgelegt des alten Zeitraums = false, erwartet unverändert true")
+	if len(alt.Stilllegungen) != 1 {
+		t.Errorf("Stilllegungen des alten Zeitraums = %v, erwartet unverändert eine", alt.Stilllegungen)
 	}
 }
 
@@ -463,7 +465,7 @@ func TestRejoin_BeginntOhneKuendigungUndNichtStillgelegt(t *testing.T) {
 func TestSetStillgelegt_UnbekannteIDMeldetNichtGefunden(t *testing.T) {
 	svc := neuerService(t)
 
-	if err := svc.SetStillgelegt(4711, true); !errors.Is(err, service.ErrNichtGefunden) {
+	if _, err := svc.CreateStilllegung(4711, stilllegungHeute()); !errors.Is(err, service.ErrNichtGefunden) {
 		t.Errorf("SetStillgelegt(4711) = %v, erwartet ErrNichtGefunden", err)
 	}
 }

@@ -111,7 +111,7 @@ func TestUebernehmen_AutomatischeVergabeZaehltOberhalbDerImportiertenNummern(t *
 // Die Trainingstermine kommen als Verweise in den Stundenplan an: der Importer
 // hat die Freitexte der Excel schon zugeordnet (ADR-0008), hier werden sie
 // geschrieben.
-func TestUebernehmen_SchreibtKuendigungStillgelegtUndTrainingstermine(t *testing.T) {
+func TestUebernehmen_SchreibtKuendigungUndTrainingstermine(t *testing.T) {
 	svc := neuerService(t)
 
 	montag, mittwoch, _ := stundenplan(t, svc)
@@ -121,7 +121,6 @@ func TestUebernehmen_SchreibtKuendigungStillgelegtUndTrainingstermine(t *testing
 
 	satz := importsatz(t, 47, "Erika", "Musterfrau")
 	satz.Kuendigung = service.Kuendigung{Datum: &kuendigungsdatum, Austritt: &austritt}
-	satz.Stillgelegt = true
 	satz.TrainingsterminIDs = ids(montag, mittwoch)
 
 	if _, err := svc.Uebernehmen(satz); err != nil {
@@ -140,8 +139,8 @@ func TestUebernehmen_SchreibtKuendigungStillgelegtUndTrainingstermine(t *testing
 	if ms.Austritt == nil || !ms.Austritt.Equal(austritt) {
 		t.Errorf("Austritt = %v, erwartet %v", ms.Austritt, austritt)
 	}
-	if !ms.Stillgelegt {
-		t.Error("Stillgelegt = false, erwartet true")
+	if len(ms.Stilllegungen) != 0 {
+		t.Errorf("Stilllegungen = %v, erwartet keine — der Import legt nie eine an", ms.Stilllegungen)
 	}
 	if gefunden := ids(ms.Trainingstermine...); !slices.Equal(gefunden, ids(montag, mittwoch)) {
 		t.Errorf("Trainingstermine = %v, erwartet %v", gefunden, ids(montag, mittwoch))

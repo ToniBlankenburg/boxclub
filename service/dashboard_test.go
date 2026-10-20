@@ -72,7 +72,7 @@ func TestMonatsuebersicht_StillgelegtZaehltNichtInsMonatssollSondernDaneben(t *t
 	svc := neuerService(t)
 	id := mitgliedAnlegenZum(t, svc, "Pause", heuteVersetzt(-30))
 
-	if err := svc.SetStillgelegt(id, true); err != nil {
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestMonatsuebersicht_StillgelegtInDerKuendigungsfristZaehltEbenfallsNicht(t
 	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(30))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
-	if err := svc.SetStillgelegt(id, true); err != nil {
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestMonatsuebersicht_StillgelegtVorDemEintrittZaehltAlsNeuUndNichtAlsStillg
 	svc := neuerService(t)
 	id := mitgliedAnlegenZum(t, svc, "FruehePause", heuteVersetzt(7))
 
-	if err := svc.SetStillgelegt(id, true); err != nil {
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt vor dem Eintritt: %v", err)
 	}
 
@@ -275,7 +275,7 @@ func TestMonatsuebersicht_GesamtErgibtSichAusDenFuenfZustaenden(t *testing.T) {
 	mitgliedAnlegenZum(t, svc, "Neu", heuteVersetzt(7))
 
 	stillgelegt := mitgliedAnlegenZum(t, svc, "Stillgelegt", heuteVersetzt(-30))
-	if err := svc.SetStillgelegt(stillgelegt, true); err != nil {
+	if _, err := svc.CreateStilllegung(stillgelegt, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 

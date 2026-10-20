@@ -37,9 +37,6 @@ type Importsatz struct {
 	// Formular, wo eine leere Eingabe nichts festhielte und deshalb abgewiesen
 	// wird.
 	Kuendigung Kuendigung
-
-	// Stillgelegt kommt aus den Status-Werten „Stillgelegt" und „Inakiv".
-	Stillgelegt bool
 }
 
 // Importwirkung sagt, was eine übernommene Zeile bewirkt hat. Der Bericht zählt
@@ -199,11 +196,11 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 	res, err := tx.Exec(
 		`INSERT INTO mitgliedschaft
 		 	(mitglied_id, zahler_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
-		 	 anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, stillgelegt)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		satz.ID, zahlerID, alsDatumsText(satz.Anmeldung.Datum), satz.Eintritt.Format(isoDatum),
 		alsDatumsText(satz.Kuendigung.Datum), alsDatumsText(satz.Kuendigung.Austritt),
-		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents, satz.Stillgelegt)
+		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents)
 	if err != nil {
 		return fmt.Errorf("mitgliedschaft für %d anlegen: %w", satz.ID, err)
 	}
@@ -266,11 +263,11 @@ func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 	if _, err := tx.Exec(
 		`UPDATE mitgliedschaft SET
 		 	anmeldedatum = ?, eintritt = ?, kuendigungsdatum = ?, austritt = ?,
-		 	anmeldegebuehr_cents = ?, anmeldegebuehr_eingezogen = ?, beitrag_monatlich_cents = ?, stillgelegt = ?
+		 	anmeldegebuehr_cents = ?, anmeldegebuehr_eingezogen = ?, beitrag_monatlich_cents = ?
 		 WHERE id = ?`,
 		alsDatumsText(satz.Anmeldung.Datum), satz.Eintritt.Format(isoDatum),
 		alsDatumsText(satz.Kuendigung.Datum), alsDatumsText(satz.Kuendigung.Austritt),
-		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents, satz.Stillgelegt,
+		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents,
 		mitgliedschaftID); err != nil {
 		return fmt.Errorf("mitgliedschaft %d aktualisieren: %w", mitgliedschaftID, err)
 	}

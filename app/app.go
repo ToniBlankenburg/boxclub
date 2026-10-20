@@ -103,7 +103,11 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/mitglied/{id}/rueckstand", a.rueckstandSpeichern)
 	mux.HandleFunc("GET /api/mitglied/{id}/kuendigung", a.kuendigungFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/kuendigung", a.kuendigungEintragen)
-	mux.HandleFunc("POST /api/mitglied/{id}/stillgelegt", a.stillgelegtSchalten)
+	mux.HandleFunc("GET /api/mitglied/{id}/stilllegungen", a.stilllegungenBlock)
+	mux.HandleFunc("POST /api/mitglied/{id}/stilllegung", a.stilllegungAnlegen)
+	mux.HandleFunc("POST /api/stilllegung/{id}", a.stilllegungAendern)
+	mux.HandleFunc("POST /api/stilllegung/{id}/beenden", a.stilllegungBeenden)
+	mux.HandleFunc("POST /api/stilllegung/{id}/loeschen", a.stilllegungLoeschen)
 	mux.HandleFunc("GET /api/mitglied/{id}/wiedereintritt", a.wiedereintrittFormular)
 	mux.HandleFunc("POST /api/mitglied/{id}/wiedereintritt", a.wiedereintrittEintragen)
 	// Die Vertragsablage hängt am Zeitraum und nicht am Mitglied — deshalb eine
@@ -233,6 +237,8 @@ type formularEingabe struct {
 	// Beitrag ist der getippte Euro-Betrag, so wie er im Feld steht — umgerechnet
 	// wird er im Service (service.BeitragAusEuro).
 	Beitrag string
+	// Mindestlaufzeit sind die getippten Monate der Bindung; leer heißt keine.
+	Mindestlaufzeit string
 	// Anmeldegebuehr ist der getippte Euro-Betrag der einmaligen Gebühr; anders
 	// als der Beitrag darf das Feld leer bleiben (service.AnmeldegebuehrAusEuro).
 	Anmeldegebuehr string
@@ -350,6 +356,13 @@ type formularDaten struct {
 	// Aktionen früher stammten — der Nullwert beim Anlegen, wo es noch keine
 	// Zeile zu diesem Mitglied gibt.
 	Status service.Listeneintrag
+
+	// Stilllegungen speist den Block der Stilllegungen; der Nullwert beim Anlegen.
+	Stilllegungen stilllegungDaten
+
+	// MindestlaufzeitEnde ist das abgelesene Ende der Bindung, fertig formatiert,
+	// oder leer ohne Mindestlaufzeit.
+	MindestlaufzeitEnde string
 
 	Fehler []string
 }
@@ -1159,15 +1172,19 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 	// ausgetretenen Mitglied, dessen letzter Eintritt und Beitrag hier stehen
 	// sollen. Denselben Zeitraum ändert Update auch wieder.
 	var (
-		eintritt       *time.Time
-		beitrag        string
-		anmeldedatum   string
-		anmeldegebuehr string
-		terminIDs      []string
+		eintritt        *time.Time
+		beitrag         string
+		mindestlaufzeit string
+		anmeldedatum    string
+		anmeldegebuehr  string
+		terminIDs       []string
 	)
 	if letzte := m.LetzteMitgliedschaft(); letzte != nil {
 		eintritt = &letzte.Eintritt
 		beitrag = service.BeitragAlsEuro(letzte.BeitragCents)
+		if letzte.MindestlaufzeitMonate > 0 {
+			mindestlaufzeit = strconv.Itoa(letzte.MindestlaufzeitMonate)
+		}
 		anmeldedatum = isoDatumsWert(letzte.Anmeldung.Datum)
 		anmeldegebuehr = service.AnmeldegebuehrAlsEuro(letzte.Anmeldung.GebuehrCents)
 		terminIDs = terminIDsAlsText(letzte.Trainingstermine)
@@ -1188,6 +1205,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 			KindManuell:        m.KindManuell,
 			Kontoinhaber:       m.Kontoinhaber,
 			Beitrag:            beitrag,
+			Mindestlaufzeit:    mindestlaufzeit,
 			Anmeldegebuehr:     anmeldegebuehr,
 			Anmeldedatum:       anmeldedatum,
 			TrainingsterminIDs: terminIDs,
@@ -1226,7 +1244,22 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		Rechnung:  rechnungBereichAmMitglied(m),
 		Status:    status,
 		Fehler:    fehler,
+
+		Stilllegungen:       stilllegungDatenZu(m, stilllegungEingabe{}, 0, nil),
+		MindestlaufzeitEnde: mindestlaufzeitEndeAnzeige(m),
 	})
+}
+
+// mindestlaufzeitEndeAnzeige formatiert das abgelesene Ende der Mindestlaufzeit
+// der maßgeblichen Mitgliedschaft, oder liefert "" ohne Bindung.
+func mindestlaufzeitEndeAnzeige(m service.Mitglied) string {
+	if ms := m.LetzteMitgliedschaft(); ms != nil {
+		if ende := ms.MindestlaufzeitEnde(); ende != nil {
+			return datumAnzeige(ende)
+		}
+	}
+
+	return ""
 }
 
 // terminauswahlLesen holt die Termine, die das Mitgliedsformular anbietet, und
@@ -1352,6 +1385,12 @@ type kuendigungDaten struct {
 	Kuendigungsdatum string
 	Austritt         string
 	Fehler           []string
+
+	// MindestlaufzeitEnde ist das abgelesene Ende der Bindung, formatiert, oder
+	// leer ohne Mindestlaufzeit; MindestlaufzeitUnterschritten sagt, dass der
+	// vorgeschlagene oder erfasste Austritt davor liegt.
+	MindestlaufzeitEnde           string
+	MindestlaufzeitUnterschritten bool
 }
 
 // wiedereintrittDaten speist die Zeile, in der ein Wiedereintritt datiert wird.
@@ -1371,7 +1410,7 @@ func (a *App) kuendigungFormular(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.rendern(w, "mitglied-kuendigung-formular", kuendigungsformular(eintrag, nil))
+	a.rendern(w, "mitglied-kuendigung-formular", a.kuendigungsformular(eintrag, nil))
 }
 
 // kuendigungsformular belegt beide Eingaben vor: das Kündigungsdatum mit dem
@@ -1394,7 +1433,7 @@ func (a *App) kuendigungFormular(w http.ResponseWriter, r *http.Request) {
 // Bleiben soll der Termin trotzdem löschbar: ein geleertes Feld heißt weiterhin
 // "Kündigung liegt vor, Termin noch offen" (siehe kuendigungLesen). Der
 // Vorschlag nimmt dem Nutzer das Rechnen ab, nicht die Entscheidung.
-func kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendigungDaten {
+func (a *App) kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendigungDaten {
 	kuendigungsdatum := time.Now()
 	if eintrag.Kuendigungsdatum != nil {
 		kuendigungsdatum = *eintrag.Kuendigungsdatum
@@ -1406,12 +1445,26 @@ func kuendigungsformular(eintrag service.Listeneintrag, fehler []string) kuendig
 		austritt = &regulaer
 	}
 
-	return kuendigungDaten{
+	daten := kuendigungDaten{
 		Eintrag:          eintrag,
 		Kuendigungsdatum: kuendigungsdatum.Format(isoDatum),
 		Austritt:         austritt.Format(isoDatum),
 		Fehler:           fehler,
 	}
+
+	// Die Mindestlaufzeit bindet nichts: das Formular nennt ihr Ende und warnt,
+	// wenn der Austritt davor liegt, speichert aber trotzdem (CONTEXT.md →
+	// Mindestlaufzeit). Ist sie nicht lesbar, fehlt nur der Hinweis.
+	if m, err := a.svc.Get(eintrag.MitgliedID); err == nil {
+		if ms := m.LetzteMitgliedschaft(); ms != nil {
+			if ende := ms.MindestlaufzeitEnde(); ende != nil {
+				daten.MindestlaufzeitEnde = datumAnzeige(ende)
+				daten.MindestlaufzeitUnterschritten = austritt.Format(isoDatum) < ende.Format(isoDatum)
+			}
+		}
+	}
+
+	return daten
 }
 
 // kuendigungEintragen erfasst die Kündigung. Welche Datumsangaben fachlich
@@ -1500,35 +1553,7 @@ func (a *App) kuendigungFormularMitFehler(w http.ResponseWriter, id int64, fehle
 		return
 	}
 
-	a.rendern(w, "mitglied-kuendigung-formular", kuendigungsformular(eintrag, fehler))
-}
-
-// stillgelegtSchalten setzt das Stillgelegt-Kennzeichen oder nimmt es zurück und antwortet
-// mit der aktualisierten Zeile. Ein Formular braucht das nicht: die Zeile zeigt
-// den aktuellen Wert, die Schaltfläche schickt den gewünschten mit.
-func (a *App) stillgelegtSchalten(w http.ResponseWriter, r *http.Request) {
-	id, ok := mitgliedID(w, r)
-	if !ok {
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		fehlerAntwort(w, err)
-		return
-	}
-
-	if err := a.svc.SetStillgelegt(id, r.FormValue("stillgelegt") != ""); err != nil {
-		a.veralteteAnsichtOderFehler(w, err)
-		return
-	}
-
-	eintrag, err := a.svc.Eintrag(id)
-	if err != nil {
-		a.veralteteAnsichtOderFehler(w, err)
-		return
-	}
-
-	a.rendern(w, "mitglied-status-block", eintrag)
+	a.rendern(w, "mitglied-kuendigung-formular", a.kuendigungsformular(eintrag, fehler))
 }
 
 // wiedereintrittFormular tauscht die Zeile gegen die Datumseingabe. Vorbelegt
@@ -1674,6 +1699,7 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Kontoinhaber:         r.FormValue("kontoinhaber"),
 		KontoinhaberGesendet: r.Form.Has("kontoinhaber"),
 		Beitrag:              r.FormValue("beitrag"),
+		Mindestlaufzeit:      r.FormValue("mindestlaufzeit"),
 		Anmeldegebuehr:       r.FormValue("anmeldegebuehr"),
 		Anmeldedatum:         r.FormValue("anmeldedatum"),
 		Eintritt:             r.FormValue("eintritt"),
@@ -1800,7 +1826,30 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	}
 	neu.BeitragCents = cents
 
+	monate, err := e.alsMindestlaufzeit()
+	if err != nil {
+		fehler = append(fehler, err.Error())
+	}
+	neu.MindestlaufzeitMonate = monate
+
 	return neu, fehler
+}
+
+// alsMindestlaufzeit liest die Monate der Bindung. Leer heißt keine Bindung
+// (0); alles andere muss eine ganze Zahl sein — ob sie negativ sein darf,
+// entscheidet der Service.
+func (e formularEingabe) alsMindestlaufzeit() (int, error) {
+	roh := strings.TrimSpace(e.Mindestlaufzeit)
+	if roh == "" {
+		return 0, nil
+	}
+
+	monate, err := strconv.Atoi(roh)
+	if err != nil {
+		return 0, errors.New("Mindestlaufzeit muss eine ganze Zahl sein.")
+	}
+
+	return monate, nil
 }
 
 // alsPatch übersetzt die Rohwerte in eine Änderung. Das Bearbeitungsformular
@@ -1849,6 +1898,12 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		fehler = append(fehler, err.Error())
 	} else {
 		patch.BeitragCents = &cents
+	}
+
+	if monate, err := e.alsMindestlaufzeit(); err != nil {
+		fehler = append(fehler, err.Error())
+	} else {
+		patch.MindestlaufzeitMonate = &monate
 	}
 
 	return patch, fehler

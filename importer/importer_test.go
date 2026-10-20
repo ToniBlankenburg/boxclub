@@ -230,9 +230,6 @@ func TestLesen_UebernimmtDieMusterzeile(t *testing.T) {
 	if bool(satz.GoogleBewertung) {
 		t.Error("GoogleBewertung = true, erwartet false für ❌")
 	}
-	if satz.Stillgelegt {
-		t.Error("Stillgelegt = true, erwartet false für Status „Neu“")
-	}
 	if satz.Kuendigung.Datum != nil || satz.Kuendigung.Austritt != nil {
 		t.Errorf("Kündigung = %+v, erwartet leer", satz.Kuendigung)
 	}
@@ -742,12 +739,17 @@ func TestLesen_DeutetDenStatusFuerDasGekuendigtDatum(t *testing.T) {
 	})
 
 	for _, status := range []string{"Stillgelegt", "Inakiv"} {
-		t.Run(status+" schaltet stillgelegt", func(t *testing.T) {
-			satz := einzigerSatz(t, lesen(t, mappe(t, spalten,
-				mitZeile(map[string]any{"Status": status}))))
+		t.Run(status+" kommt als Hinweis in den Bericht", func(t *testing.T) {
+			ergebnis := lesen(t, mappe(t, spalten,
+				mitZeile(map[string]any{"Status": status})))
 
-			if !satz.Stillgelegt {
-				t.Error("Stillgelegt = false, erwartet true")
+			// Die Zeile bleibt (Stillgelegt trägt keinen Zeitraum), der Bericht sagt,
+			// dass die Stilllegung von Hand nachzutragen ist.
+			if len(ergebnis.Saetze) != 1 || len(ergebnis.Fehler) != 0 {
+				t.Errorf("Sätze/Fehler = %d/%v, erwartet eine Zeile ohne Fehler", len(ergebnis.Saetze), ergebnis.Fehler)
+			}
+			if len(ergebnis.Hinweise) != 1 {
+				t.Errorf("Hinweise = %v, erwartet genau einen", ergebnis.Hinweise)
 			}
 		})
 	}

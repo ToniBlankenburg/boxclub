@@ -713,7 +713,10 @@ func (z *zeilenleser) lebenszyklus(satz *service.Importsatz) {
 			z.melden("import.fehler.status_unerwartetes_datum", roh, spalteGekuendigt)
 		}
 	case statusStillgelegt, statusInaktivTippfehler, statusInaktiv:
-		satz.Stillgelegt = true
+		// Die Excel kennt keinen Zeitraum, und ein erfundenes Ende würde den Beitrag
+		// still aussetzen (ADR-0022): der Import legt keine Stilllegung an, die Zeile
+		// kommt ohne, und der Bericht sagt, dass sie von Hand nachzutragen ist.
+		z.hinweisen("import.hinweis.stillgelegt", roh)
 		if gekuendigt != nil {
 			z.melden("import.fehler.status_unerwartetes_datum", roh, spalteGekuendigt)
 		}

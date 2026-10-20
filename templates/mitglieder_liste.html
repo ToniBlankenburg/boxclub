@@ -711,25 +711,15 @@
              Vorhandensein eines Austrittsdatums: erst ein *erreichter* Austritt
              macht ehemalig, und nur dann ist Wiedereintritt die Aktion. */}}
         <button type="button"
-                class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="{{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_fuer_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.kuendigung_erfassen_fuer_aria" .Vorname .Nachname}}{{end}}"
                 hx-get="/api/mitglied/{{.MitgliedID}}/{{if $status.Ausgetreten}}wiedereintritt{{else}}kuendigung{{end}}"
-                hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
+                hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML"
+                {{/* In einer Stilllegung lässt sich nicht kündigen; der Hinweis
+                     erklärt es beim Darüberfahren (CONTEXT.md → Stilllegung). */}}
+                {{if and .Stillgelegt (not $status.Ausgetreten)}}disabled title="{{t "mitglieder.kuendigung_gesperrt_titel"}}"{{end}}>
             {{if $status.Ausgetreten}}{{t "mitglieder.wiedereintritt_knopf"}}{{else}}{{t "mitglieder.kuendigung_knopf"}}{{end}}
         </button>
-        {{/* Stillgelegt schalten lässt sich nur, was läuft — bei einem Ehemaligen
-             gibt es keinen Einzug, den man aussetzen könnte. Die Schaltfläche
-             schickt den gewünschten Wert mit, nicht den aktuellen: so tut ein
-             Klick aus einer veralteten Ansicht nicht das Gegenteil. */}}
-        {{if not $status.Ausgetreten}}
-            <button type="button"
-                    class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                    aria-label="{{if .Stillgelegt}}{{t "mitglieder.aktiv_setzen_aria" .Vorname .Nachname}}{{else}}{{t "mitglieder.stillgelegt_schalten_aria" .Vorname .Nachname}}{{end}}"
-                    hx-post="/api/mitglied/{{.MitgliedID}}/stillgelegt{{if not .Stillgelegt}}?stillgelegt=1{{end}}"
-                    hx-target="#mitglied-status-{{.MitgliedID}}" hx-swap="outerHTML">
-                {{if .Stillgelegt}}{{t "mitglieder.aktiv_setzen_knopf"}}{{else}}{{t "mitglieder.stillgelegt_knopf"}}{{end}}
-            </button>
-        {{end}}
     </div>
 </div>
 {{end}}
@@ -772,6 +762,13 @@
         <span class="text-sm text-neutral-500">
             {{t "mitglieder.kuendigung_hinweis"}}
         </span>
+        {{if .MindestlaufzeitEnde}}
+            <span class="text-sm {{if .MindestlaufzeitUnterschritten}}text-amber-800{{else}}text-neutral-500{{end}}"
+                  {{if .MindestlaufzeitUnterschritten}}role="alert"{{end}}>
+                {{t "stilllegung.mindestlaufzeit_ende" .MindestlaufzeitEnde}}
+                {{if .MindestlaufzeitUnterschritten}}{{t "stilllegung.mindestlaufzeit_warnung"}}{{end}}
+            </span>
+        {{end}}
         {{range .Fehler}}
             <span class="text-sm text-red-800" role="alert">{{.}}</span>
         {{end}}
@@ -890,5 +887,85 @@
              ein erledigter Vorgang hinterlässt (ADR-0006). */}}
         <span class="text-sm text-neutral-500">{{t "mitglieder.rueckstand_hinweis"}}</span>
     </form>
+</div>
+{{end}}
+
+{{/* mitglied-stilllegungen ist der Block „Stilllegungen“ im Mitgliedsformular:
+     die Historie der maßgeblichen Mitgliedschaft, jede Zeile mit eigenen Feldern
+     zum Ändern, „Wieder aktiv“ (laufende oder bevorstehende) und Löschen, darunter
+     das Erfassen einer neuen. Die Daten sind stilllegungDaten. Jede Aktion ersetzt
+     den Block über seine feste ID. */}}
+{{define "mitglied-stilllegungen"}}
+<div id="mitglied-stilllegungen-{{.MitgliedID}}" class="mb-4 rounded-md border border-neutral-200 bg-neutral-50 p-4">
+    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "stilllegung.abschnitt"}}</p>
+    {{$daten := .}}
+    {{range .Eintraege}}
+        <form class="mb-2 flex flex-wrap items-center gap-2"
+              hx-post="/api/stilllegung/{{.ID}}"
+              hx-target="#mitglied-stilllegungen-{{$daten.MitgliedID}}" hx-swap="outerHTML">
+            <input type="hidden" name="mitglied" value="{{$daten.MitgliedID}}">
+            <label class="flex items-center gap-1 text-sm text-neutral-600">{{t "stilllegung.von"}}
+                <input name="von" type="date" value="{{.Eingabe.Von}}" required
+                       class="rounded-md border border-neutral-300 bg-white px-2 py-1">
+            </label>
+            <label class="flex items-center gap-1 text-sm text-neutral-600">{{t "stilllegung.bis"}}
+                <input name="bis" type="date" value="{{.Eingabe.Bis}}" required
+                       class="rounded-md border border-neutral-300 bg-white px-2 py-1">
+            </label>
+            <label class="flex items-center gap-1 text-sm text-neutral-600">{{t "stilllegung.grund"}}
+                <input name="grund" type="text" value="{{.Eingabe.Grund}}"
+                       class="rounded-md border border-neutral-300 bg-white px-2 py-1">
+            </label>
+            <button type="submit"
+                    class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100">
+                {{t "stilllegung.speichern"}}
+            </button>
+            {{if or .Laeuft .Bevorstehend}}
+                <button type="button"
+                        class="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                        hx-post="/api/stilllegung/{{.ID}}/beenden" hx-vals='{"mitglied": "{{$daten.MitgliedID}}"}'
+                        hx-target="#mitglied-stilllegungen-{{$daten.MitgliedID}}" hx-swap="outerHTML">
+                    {{t "stilllegung.wieder_aktiv"}}
+                </button>
+            {{end}}
+            <button type="button"
+                    class="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50"
+                    hx-post="/api/stilllegung/{{.ID}}/loeschen" hx-vals='{"mitglied": "{{$daten.MitgliedID}}"}'
+                    hx-confirm="{{t "stilllegung.loeschen_bestaetigen"}}"
+                    hx-target="#mitglied-stilllegungen-{{$daten.MitgliedID}}" hx-swap="outerHTML">
+                {{t "stilllegung.loeschen"}}
+            </button>
+            {{if and $daten.Fehler (eq $daten.FehlerID .ID)}}
+                {{range $daten.Fehler}}<span class="text-sm text-red-800" role="alert">{{.}}</span>{{end}}
+            {{end}}
+        </form>
+    {{else}}
+        <p class="mb-2 text-sm text-neutral-500">{{t "stilllegung.keine"}}</p>
+    {{end}}
+    {{if .NeuAnbieten}}
+        <form class="flex flex-wrap items-center gap-2"
+              hx-post="/api/mitglied/{{.MitgliedID}}/stilllegung"
+              hx-target="#mitglied-stilllegungen-{{.MitgliedID}}" hx-swap="outerHTML">
+            <label class="flex items-center gap-1 text-sm text-neutral-600">{{t "stilllegung.von"}}
+                <input name="von" type="date" value="{{.Neu.Von}}" required
+                       class="rounded-md border border-neutral-300 bg-white px-2 py-1">
+            </label>
+            <label class="flex items-center gap-1 text-sm text-neutral-600">{{t "stilllegung.bis"}}
+                <input name="bis" type="date" value="{{.Neu.Bis}}" required
+                       class="rounded-md border border-neutral-300 bg-white px-2 py-1">
+            </label>
+            <label class="flex items-center gap-1 text-sm text-neutral-600">{{t "stilllegung.grund"}}
+                <input name="grund" type="text" value="{{.Neu.Grund}}"
+                       class="rounded-md border border-neutral-300 bg-white px-2 py-1">
+            </label>
+            <button type="submit"
+                    class="rounded-md bg-[var(--akzent)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--akzent-dunkel)]">
+                {{t "stilllegung.erfassen"}}
+            </button>
+            {{if and .Fehler (eq .FehlerID 0)}}
+                {{range .Fehler}}<span class="text-sm text-red-800" role="alert">{{.}}</span>{{end}}
+            {{end}}
+        </form>
+    {{end}}
 </div>
 {{end}}

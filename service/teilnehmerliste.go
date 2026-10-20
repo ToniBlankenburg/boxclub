@@ -51,7 +51,7 @@ func (s *MemberService) Teilnehmerlisten(auchArchivierte bool) ([]Teilnehmerlist
 	// Die Zeilen kommen nach Namen sortiert; gruppiert bleibt diese Reihenfolge.
 	nachTermin := make(map[int64][]Teilnehmer, len(termine))
 	for _, e := range eintraege {
-		// Wer ruht, trainiert gerade nicht: die Anmeldung steht, die Liste
+		// Wer heute stillgelegt ist, trainiert gerade nicht: die Anmeldung steht, die Liste
 		// führt ihn aber nicht (CONTEXT.md → Teilnehmerliste).
 		if e.Stillgelegt {
 			continue

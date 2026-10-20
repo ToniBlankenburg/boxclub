@@ -46,6 +46,11 @@ type MoneyMoneyExport struct {
 	MitgliedschaftIDs []int64
 }
 
+// Die ersten beiden Platzhalter nehmen den laufenden Monat als „JJJJ-MM“ auf, der
+// dritte den heutigen Tag: ein Monat ist ein Stilllegungsmonat, sobald er
+// zwischen Anfangs- und Endmonat einer Stilllegung liegt (siehe
+// stilllegungsmonatAm).
+//
 // moneyMoneyAbfrage liest die maßgebliche, laufende Mitgliedschaft je
 // Mitglied — dieselbe Unterabfrage wie in eintraegeAbfrage, nur ohne die
 // Ehemaligen: für sie geht keine Lastschrift mehr los, laeuftNoch schließt
@@ -54,9 +59,12 @@ const moneyMoneyAbfrage = `
 	SELECT m.id,
 		CASE WHEN z.mitglied_id IS NULL THEN z.name ELSE m.vorname || ' ' || m.nachname END,
 		z.iban,
-		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt, ms.stillgelegt,
+		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt,
 		ms.beitrag_monatlich_cents,
-		ms.anmeldedatum, ms.anmeldegebuehr_cents, ms.anmeldegebuehr_eingezogen
+		ms.anmeldedatum, ms.anmeldegebuehr_cents, ms.anmeldegebuehr_eingezogen,
+		EXISTS (SELECT 1 FROM stilllegung st
+		        WHERE st.mitgliedschaft_id = ms.id
+		          AND substr(st.von, 1, 7) <= ? AND ? <= substr(st.bis, 1, 7))
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
 		SELECT id FROM mitgliedschaft
@@ -89,7 +97,7 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 	jetzt := time.Now()
 	heute := jetzt.Format(isoDatum)
 
-	rows, err := s.db.Query(moneyMoneyAbfrage, heute)
+	rows, err := s.db.Query(moneyMoneyAbfrage, heute[:7], heute[:7], heute)
 	if err != nil {
 		return MoneyMoneyExport{}, fmt.Errorf("moneymoney-export lesen: %w", err)
 	}
@@ -102,14 +110,14 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 			zahler, iban                 string
 			eintrittText                 string
 			kuendigungsdatum, austritt   sql.NullString
-			stillgelegt                  bool
 			beitragCents, gebuehrCents   int64
 			anmeldedatum                 sql.NullString
 			gebuehrEingezogen            bool
+			stilllegungsmonat            bool
 		)
 		if err := rows.Scan(&mitgliedID, &zahler, &iban,
-			&mitgliedschaftID, &eintrittText, &kuendigungsdatum, &austritt, &stillgelegt,
-			&beitragCents, &anmeldedatum, &gebuehrCents, &gebuehrEingezogen); err != nil {
+			&mitgliedschaftID, &eintrittText, &kuendigungsdatum, &austritt,
+			&beitragCents, &anmeldedatum, &gebuehrCents, &gebuehrEingezogen, &stilllegungsmonat); err != nil {
 			return MoneyMoneyExport{}, fmt.Errorf("moneymoney-zeile lesen: %w", err)
 		}
 
@@ -136,7 +144,7 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 		// service/dashboard.go) — Ausgetreten kommt aus der Abfrage
 		// (laeuftNoch) hier zwar gar nicht erst mit, aber die Funktion trotzdem
 		// zu rufen hält beide Stellen an einer Regel fest statt an zweien.
-		if !zaehltInsMonatssoll(status, stillgelegt) {
+		if !zaehltInsMonatssoll(status, stilllegungsmonat) {
 			continue
 		}
 

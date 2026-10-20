@@ -13,7 +13,7 @@ Eine Tabelle `stilllegung(id, mitgliedschaft_id, von, bis, grund NULL)`; `mitgli
 
 - **Abgelesen statt gespeichert.** Stillgelegt ist, wer heute in einer Stilllegung liegt. Damit entfällt die letzte gespeicherte Ausnahme neben dem abgelesenen Status.
 - **`von` und `bis` sind Pflicht.** Kein „bis auf Weiteres": ein offenes Ende wäre dasselbe Vergessen wie beim Boolean, und die Verlängerung der Laufzeit braucht eine Dauer.
-- **Keine Überlappung; keine neue, solange eine läuft.** „Wieder aktiv" setzt `bis` auf heute. Das macht die Zählung der Stilllegungsmonate eindeutig.
+- **Keine Überlappung; keine neue, solange eine läuft.** „Wieder aktiv" setzt `bis` auf gestern (beide Ränder zählen, mit heute bliebe das Mitglied bis Mitternacht stillgelegt); eine heute oder später beginnende wird gelöscht. Das macht die Zählung der Stilllegungsmonate eindeutig.
 - **Ein Monat zählt voll, sobald ein Tag darin stillgelegt ist.** Monatssoll und MoneyMoney-Export lassen ihn aus; es gibt keine anteilige Berechnung, passend zu „individuell vereinbarter Beitrag" (ADR-0005).
 - **Mindestlaufzeit** (`mitgliedschaft.mindestlaufzeit_monate`, optional) ist neu. Ihr Ende ist abgeleitet (Eintritt + Monate + Stilllegungsmonate) und warnt nur; `austritt` bleibt, was eingetragen wird.
 - **Kündigung in einer Stilllegung gesperrt**, mit Hinweis am Knopf.

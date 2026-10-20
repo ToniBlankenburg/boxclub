@@ -71,6 +71,7 @@
          abgeschickten Eingabe. */}}
     {{if .Bearbeiten}}
         {{template "mitglied-status-block" .Status}}
+        {{template "mitglied-stilllegungen" .Stilllegungen}}
     {{end}}
 
     {{if .Fehler}}
@@ -172,6 +173,12 @@
                      nichts —, deshalb ist das Feld Pflicht: die Null gehört
                      hingeschrieben. */}}
                 {{template "feld" feld (t "feld.beitrag") "beitrag" "text" .Eingabe.Beitrag true false}}
+                {{/* Die Mindestlaufzeit ist optional; leer heißt keine Bindung.
+                     Ihr Ende wird abgelesen, nicht eingegeben. */}}
+                {{template "feld" feld (t "feld.mindestlaufzeit") "mindestlaufzeit" "text" .Eingabe.Mindestlaufzeit false false}}
+                {{if .MindestlaufzeitEnde}}
+                    <p class="text-sm text-neutral-500 sm:col-span-2">{{t "stilllegung.mindestlaufzeit_ende" .MindestlaufzeitEnde}}</p>
+                {{end}}
                 {{template "trainingsterminauswahl" .}}
             </div>
         </div>

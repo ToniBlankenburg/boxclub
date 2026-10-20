@@ -1134,7 +1134,7 @@ func TestSearch_FiltertNachStillgelegt(t *testing.T) {
 	mitgliedAnlegen(t, svc, "Lena", "Laufend")
 
 	stillgelegtID := mitgliedAnlegen(t, svc, "Rico", "Stillgelegt")
-	if err := svc.SetStillgelegt(stillgelegtID, true); err != nil {
+	if _, err := svc.CreateStilllegung(stillgelegtID, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -1165,7 +1165,7 @@ func TestSearch_KombiniertStatusMitStillgelegt(t *testing.T) {
 	svc := neuerService(t)
 
 	aktivStillgelegtID := mitgliedAnlegenZum(t, svc, "AktivStillgelegt", heuteVersetzt(-10))
-	if err := svc.SetStillgelegt(aktivStillgelegtID, true); err != nil {
+	if _, err := svc.CreateStilllegung(aktivStillgelegtID, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -1175,7 +1175,7 @@ func TestSearch_KombiniertStatusMitStillgelegt(t *testing.T) {
 	if err := svc.SetKuendigung(kuendigungStillgelegtID, austrittZum(heuteVersetzt(30))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
-	if err := svc.SetStillgelegt(kuendigungStillgelegtID, true); err != nil {
+	if _, err := svc.CreateStilllegung(kuendigungStillgelegtID, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -1245,4 +1245,33 @@ func TestSearch_FiltertNachEintritt(t *testing.T) {
 			}
 		})
 	}
+}
+
+// stilllegungHeute ist eine Stilllegung, die heute läuft: seit gestern, noch
+// einen Monat. Der laufende Kalendermonat ist damit ein Stilllegungsmonat.
+func stilllegungHeute() service.Stilllegungsangabe {
+	jetzt := time.Now()
+
+	return service.Stilllegungsangabe{
+		Von: jetzt.AddDate(0, 0, -1),
+		Bis: jetzt.AddDate(0, 1, 0),
+	}
+}
+
+// wiederAktiv beendet die heute laufende Stilllegung des Mitglieds, wie der
+// Knopf „Wieder aktiv“ es tut.
+func wiederAktiv(svc *service.MemberService, mitgliedID int64) error {
+	m, err := svc.Get(mitgliedID)
+	if err != nil {
+		return err
+	}
+
+	ms := m.LetzteMitgliedschaft()
+	for _, st := range ms.Stilllegungen {
+		if err := svc.BeendeStilllegung(st.ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

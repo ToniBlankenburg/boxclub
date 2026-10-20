@@ -169,7 +169,7 @@ func TestStatus_StillgelegtTrittNebenDenStatusUndNichtAnSeineStelle(t *testing.T
 
 	id := mitgliedAnlegenZum(t, svc, "Pause", heuteVersetzt(-100))
 
-	if err := svc.SetStillgelegt(id, true); err != nil {
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt: %v", err)
 	}
 
@@ -386,7 +386,7 @@ func TestSetStillgelegt_GehtAuchInDerKuendigungsfrist(t *testing.T) {
 	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(30))); err != nil {
 		t.Fatalf("SetKuendigung: %v", err)
 	}
-	if err := svc.SetStillgelegt(id, true); err != nil {
+	if _, err := svc.CreateStilllegung(id, stilllegungHeute()); err != nil {
 		t.Fatalf("SetStillgelegt in der Kündigungsfrist: %v", err)
 	}
 

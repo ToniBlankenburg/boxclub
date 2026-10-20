@@ -5,7 +5,7 @@ import "fmt"
 // Monatsuebersicht ist die Berechnung hinter dem Dashboard (CONTEXT.md →
 // Monatssoll, ADR-0009): das Monatssoll des laufenden Monats, Mitgliederzahlen
 // nach Zustand und die Zahl der Mitglieder im Rückstand. Sie speichert nichts
-// Neues — jeder Aufruf liest Beitrag, Status und Stillgelegt neu aus derselben
+// Neues — jeder Aufruf liest Beitrag, Status und Stilllegungen neu aus derselben
 // Quelle wie die Mitgliederliste.
 //
 // Es ist ausdrücklich ein Soll und kein Ist: was tatsächlich eingezogen wurde,
@@ -15,8 +15,8 @@ import "fmt"
 // Messung.
 type Monatsuebersicht struct {
 	// MonatssollCents ist die Summe der Beiträge aller Mitgliedschaften, die
-	// diesen Monat einziehen: aktiv und in Kündigungsfrist, aber weder stillgelegt
-	// noch noch nicht begonnen noch schon ausgetreten.
+	// diesen Monat einziehen: aktiv und in Kündigungsfrist, aber weder in einem
+	// Stilllegungsmonat noch noch nicht begonnen noch schon ausgetreten.
 	MonatssollCents int64
 
 	// StillgelegtCents steht dem Monatssoll getrennt daneben (Ticket 26): die
@@ -107,15 +107,18 @@ func (s *MemberService) Monatsuebersicht() (Monatsuebersicht, error) {
 			u.Mitgliederzahlen.Neu++
 		case e.Stillgelegt:
 			u.Mitgliederzahlen.Stillgelegt++
-			u.StillgelegtCents += e.BeitragCents
 		case status.InKuendigungsfrist():
 			u.Mitgliederzahlen.InKuendigungsfrist++
 		default:
 			u.Mitgliederzahlen.Aktiv++
 		}
 
-		if zaehltInsMonatssoll(status, e.Stillgelegt) {
+		if zaehltInsMonatssoll(status, e.Stilllegungsmonat) {
 			u.MonatssollCents += e.BeitragCents
+		} else if !status.Ausgetreten() && !status.Neu() {
+			// Ausgesetzt allein wegen der Stilllegung: ohne sie stünde der Beitrag im
+			// Monatssoll.
+			u.StillgelegtCents += e.BeitragCents
 		}
 	}
 
@@ -126,13 +129,14 @@ func (s *MemberService) Monatsuebersicht() (Monatsuebersicht, error) {
 	return u, nil
 }
 
-// zaehltInsMonatssoll sagt, ob eine Mitgliedschaft mit diesem Status und
-// Stillgelegt-Merkmal diesen Monat Beitrag einzieht — dieselbe Regel für
+// zaehltInsMonatssoll sagt, ob eine Mitgliedschaft mit diesem Status diesen
+// Monat Beitrag einzieht; stilllegungsmonat sagt, ob der Monat wegen einer
+// Stilllegung ausfällt (irgendein Tag darin, CONTEXT.md → Stilllegung) — dieselbe Regel für
 // Monatsuebersicht hier und für den MoneyMoney-Export (service/moneymoney.go,
 // ADR-0013), an einer Stelle, damit beide nicht auseinanderlaufen können.
-// Aktiv und in Kündigungsfrist ziehen ein, Ausgetreten, Neu und Stillgelegt nicht.
-func zaehltInsMonatssoll(status Status, stillgelegt bool) bool {
-	return !status.Ausgetreten() && !status.Neu() && !stillgelegt
+// Aktiv und in Kündigungsfrist ziehen ein, Ausgetreten, Neu und ein Stilllegungsmonat nicht.
+func zaehltInsMonatssoll(status Status, stilllegungsmonat bool) bool {
+	return !status.Ausgetreten() && !status.Neu() && !stilllegungsmonat
 }
 
 // monatsbewegungen zählt, wie viele Mitgliedschaften im Monat von heute bereits

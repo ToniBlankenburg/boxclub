@@ -121,8 +121,8 @@ func TestTeilnehmerlisten_StillgelegteStehenNichtDarin(t *testing.T) {
 	teilnehmerAnlegen(t, svc, "Anna", "Berger", eintritt, samstag)
 	pause := teilnehmerAnlegen(t, svc, "Ben", "Conrad", eintritt, samstag)
 
-	if err := svc.SetStillgelegt(pause, true); err != nil {
-		t.Fatalf("SetStillgelegt(true): %v", err)
+	if _, err := svc.CreateStilllegung(pause, stilllegungHeute()); err != nil {
+		t.Fatalf("CreateStilllegung: %v", err)
 	}
 
 	listen, err := svc.Teilnehmerlisten(false)
@@ -133,8 +133,8 @@ func TestTeilnehmerlisten_StillgelegteStehenNichtDarin(t *testing.T) {
 		t.Errorf("während der Pause = %v, erwartet %v", got, want)
 	}
 
-	if err := svc.SetStillgelegt(pause, false); err != nil {
-		t.Fatalf("SetStillgelegt(false): %v", err)
+	if err := wiederAktiv(svc, pause); err != nil {
+		t.Fatalf("BeendeStilllegung: %v", err)
 	}
 
 	listen, err = svc.Teilnehmerlisten(false)

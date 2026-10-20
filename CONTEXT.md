@@ -108,7 +108,7 @@ Ein **Zeitraum**, in dem ein Mitglied vorübergehend nicht trainiert (Verletzung
 
 Sie hängt an der **Mitgliedschaft**: eine Mitgliedschaft kann mehrere Stilllegungen haben, die zusammen ihre Historie bilden. Bei einem Wiedereintritt bleiben sie bei der alten Mitgliedschaft, die neue beginnt ohne. Ein Mitglied ist **stillgelegt**, wenn der heutige Tag in einer Stilllegung liegt — das wird abgelesen, nicht gepflegt; es gibt keinen Schalter. Beide Ränder zählen einschließend.
 
-Zwei Stilllegungen einer Mitgliedschaft **überlappen nie**. Solange jemand stillgelegt ist, kommt keine neue hinzu; erst nach „wieder aktiv" (das setzt `bis` auf heute, eine noch nicht begonnene Stilllegung wird dabei gelöscht). Eine Stilllegung darf über den Austritt hinausreichen; gespeichert wird, was eingetragen ist, nach dem Austritt wirkt sie nicht mehr.
+Zwei Stilllegungen einer Mitgliedschaft **überlappen nie**. Solange jemand stillgelegt ist, kommt keine neue hinzu; erst nach „wieder aktiv" (das setzt `bis` auf gestern — beide Ränder zählen, mit „heute“ wäre das Mitglied noch bis Mitternacht stillgelegt —, eine heute oder später beginnende Stilllegung wird dabei gelöscht). Eine Stilllegung darf über den Austritt hinausreichen; gespeichert wird, was eingetragen ist, nach dem Austritt wirkt sie nicht mehr.
 
 **Wirkung auf den Beitrag:** ein Kalendermonat gilt als *Stilllegungsmonat*, sobald **irgendein Tag** darin in einer Stilllegung liegt — der Zeitraum 20.03. bis 05.04. macht März **und** April zu Stilllegungsmonaten. Für sie wird kein Beitrag eingezogen; Monatssoll und Lastschriftexport folgen derselben Regel. Es gibt keine anteilige Berechnung.
 

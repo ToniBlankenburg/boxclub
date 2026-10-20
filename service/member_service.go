@@ -91,16 +91,16 @@ type Mitgliedschaft struct {
 
 	Austritt *time.Time
 
-	// Stillgelegt sagt, dass das Mitglied vorübergehend nicht trainiert (Verletzung,
-	// Auslandsaufenthalt) und für diese Zeit kein Beitrag eingezogen wird. Die
-	// Mitgliedschaft läuft weiter — stillgelegt ist kein Austritt und auch kein
-	// Lebenszyklus-Zustand, sondern ein Merkmal daneben (CONTEXT.md → Stilllegung).
-	//
-	// Es hängt an der Mitgliedschaft und nicht am Mitglied, weil sich nur
-	// stillgelegt schalten lässt, was läuft. Zum Rückstand ist es unabhängig: für ein
-	// stillgelegtes Mitglied geht keine Lastschrift los, es kann also kein neuer
-	// Rückstand entstehen — ein bestehender bleibt aber stehen.
-	Stillgelegt bool
+	// Stilllegungen sind die Zeiträume, in denen dieser Zeitraum ruht (Verletzung,
+	// Auslandsaufenthalt) und kein Beitrag eingezogen wird — aufsteigend nach
+	// Beginn, die vergangenen als Historie. Stillgelegt ist, wer heute in einer
+	// liegt; das wird abgelesen (Stillgelegt) und nirgends gespeichert
+	// (CONTEXT.md → Stilllegung). Ein Wiedereintritt beginnt ohne.
+	Stilllegungen []Stilllegung
+
+	// MindestlaufzeitMonate bindet das Mitglied für diese Zahl Monate ab Eintritt;
+	// 0 heißt keine Bindung. Das Ende (MindestlaufzeitEnde) wird abgelesen.
+	MindestlaufzeitMonate int
 
 	// BeitragCents ist der monatliche Beitrag in Cent. 0 ist ein gültiger
 	// Betrag — Trainer zahlen nichts — und keine fehlende Angabe.
@@ -269,6 +269,10 @@ type NeuesMitglied struct {
 	// Eintritt beginnt. Beide Angaben darin sind freiwillig.
 	Anmeldung Anmeldung
 
+	// MindestlaufzeitMonate landet ebenfalls an der Mitgliedschaft; 0 heißt keine
+	// Bindung (CONTEXT.md → Mindestlaufzeit).
+	MindestlaufzeitMonate int
+
 	// TrainingsterminIDs sind die Termine des Stundenplans, für die die erste
 	// Mitgliedschaft angemeldet wird — Verweise und kein Text, höchstens
 	// MaxTrainingstermine. Doppelte zählen einmal (siehe
@@ -283,6 +287,15 @@ var negativerBeitrag = meldung("validierung.mitglied.beitrag_negativ")
 // kontoinhaberKeinKind lehnt einen abweichenden Kontoinhaber bei jemandem ab,
 // der kein Kind ist.
 var kontoinhaberKeinKind = meldung("validierung.mitglied.kontoinhaber_kein_kind")
+
+// mindestlaufzeitAlsWert legt 0 („keine Bindung“) als NULL ab.
+func mindestlaufzeitAlsWert(monate int) any {
+	if monate <= 0 {
+		return nil
+	}
+
+	return monate
+}
 
 // negativeGebuehr ist das Gegenstück für die Anmeldegebühr. 0 € heißt hier
 // "keine erhoben" und ist der Normalfall, nicht die Ausnahme.
@@ -380,10 +393,24 @@ CREATE TABLE IF NOT EXISTS mitgliedschaft (
 	anmeldegebuehr_cents    INTEGER NOT NULL DEFAULT 0,
 	anmeldegebuehr_eingezogen INTEGER NOT NULL DEFAULT 0,
 	beitrag_monatlich_cents INTEGER NOT NULL DEFAULT 0,
-	stillgelegt                  INTEGER NOT NULL DEFAULT 0
+	mindestlaufzeit_monate  INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_mitgliedschaft_mitglied ON mitgliedschaft(mitglied_id);
+
+-- Zeiträume, in denen eine Mitgliedschaft ruht (ADR-0022). von und bis sind beide
+-- Pflicht und zählen einschließend; zwei Zeiträume einer Mitgliedschaft
+-- überlappen nie (der Service stellt das sicher, die Tabelle nicht). Mit der
+-- Mitgliedschaft ist auch ihre Historie fort.
+CREATE TABLE IF NOT EXISTS stilllegung (
+	id                INTEGER PRIMARY KEY AUTOINCREMENT,
+	mitgliedschaft_id INTEGER NOT NULL REFERENCES mitgliedschaft(id) ON DELETE CASCADE,
+	von               TEXT    NOT NULL,
+	bis               TEXT    NOT NULL,
+	grund             TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_stilllegung_mitgliedschaft ON stilllegung(mitgliedschaft_id);
 
 -- Der Stundenplan des Vereins (ADR-0008). Er steht für sich: kein Fremdschlüssel
 -- auf eine Mitgliedschaft, denn ein Termin gibt es auch dann, wenn niemand dafür
@@ -549,13 +576,13 @@ var spaltenNachtraege = []struct {
 	{"mitglied", "google_bewertung", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitglied", "kind_manuell", "INTEGER NOT NULL DEFAULT 0"},
 
-	// mitgliedschaft: Anmeldedatum/-gebühr, Kündigungsdatum und Stillgelegt kamen
-	// nacheinander dazu, alle mit demselben Grundgedanken: ohne Angabe fehlt
-	// die Information, sie ist nicht falsch gesetzt.
+	// mitgliedschaft: Anmeldedatum/-gebühr, Kündigungsdatum und Mindestlaufzeit
+	// kamen nacheinander dazu, alle mit demselben Grundgedanken: ohne Angabe
+	// fehlt die Information, sie ist nicht falsch gesetzt.
 	{"mitgliedschaft", "anmeldedatum", "TEXT"},
 	{"mitgliedschaft", "anmeldegebuehr_cents", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitgliedschaft", "kuendigungsdatum", "TEXT"},
-	{"mitgliedschaft", "stillgelegt", "INTEGER NOT NULL DEFAULT 0"},
+	{"mitgliedschaft", "mindestlaufzeit_monate", "INTEGER"},
 	{"mitgliedschaft", "anmeldegebuehr_eingezogen", "INTEGER NOT NULL DEFAULT 0"},
 
 	// trainingstermin: ein Termin, zu dem nur Frauen angemeldet werden. Der
@@ -722,10 +749,11 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 
 	res, err = tx.Exec(
 		`INSERT INTO mitgliedschaft
-		 	(mitglied_id, zahler_id, anmeldedatum, eintritt, anmeldegebuehr_cents, beitrag_monatlich_cents)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
+		 	(mitglied_id, zahler_id, anmeldedatum, eintritt, anmeldegebuehr_cents, beitrag_monatlich_cents,
+		 	 mindestlaufzeit_monate)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, zahlerID, alsDatumsText(n.Anmeldung.Datum), n.Eintritt.Format(isoDatum),
-		n.Anmeldung.GebuehrCents, n.BeitragCents)
+		n.Anmeldung.GebuehrCents, n.BeitragCents, mindestlaufzeitAlsWert(n.MindestlaufzeitMonate))
 	if err != nil {
 		return 0, fmt.Errorf("mitgliedschaft anlegen: %w", err)
 	}
@@ -798,6 +826,9 @@ func (n NeuesMitglied) validieren() error {
 	if n.Anmeldung.GebuehrCents < 0 {
 		fehler = append(fehler, negativeGebuehr)
 	}
+	if n.MindestlaufzeitMonate < 0 {
+		fehler = append(fehler, mindestlaufzeitNegativ)
+	}
 	fehler = append(fehler, trainingsterminIDsPruefen(n.TrainingsterminIDs)...)
 
 	if len(fehler) > 0 {
@@ -855,6 +886,10 @@ type MitgliedPatch struct {
 	// sondern hält einen Vorgang fest — und ein falsch abgetippter Vorgang muss
 	// sich korrigieren lassen.
 	Anmeldung *Anmeldung
+
+	// MindestlaufzeitMonate ändert die Bindung der maßgeblichen Mitgliedschaft; ein
+	// Zeiger auf 0 hebt sie auf, nil lässt sie unberührt.
+	MindestlaufzeitMonate *int
 
 	// TrainingsterminIDs ersetzen die Anmeldungen der maßgeblichen
 	// Mitgliedschaft vollständig: Ankreuzen und Abwählen sind für den Nutzer
@@ -1000,6 +1035,9 @@ func (p MitgliedPatch) validieren() error {
 	if p.Anmeldung != nil && p.Anmeldung.GebuehrCents < 0 {
 		fehler = append(fehler, negativeGebuehr)
 	}
+	if p.MindestlaufzeitMonate != nil && *p.MindestlaufzeitMonate < 0 {
+		fehler = append(fehler, mindestlaufzeitNegativ)
+	}
 	if p.TrainingsterminIDs != nil {
 		fehler = append(fehler, trainingsterminIDsPruefen(*p.TrainingsterminIDs)...)
 	}
@@ -1082,6 +1120,9 @@ func (p MitgliedPatch) mitgliedschaftZuweisungen() zuweisungssatz {
 		z.setze("anmeldedatum", alsDatumsText(p.Anmeldung.Datum))
 		z.setze("anmeldegebuehr_cents", p.Anmeldung.GebuehrCents)
 	}
+	if p.MindestlaufzeitMonate != nil {
+		z.setze("mindestlaufzeit_monate", mindestlaufzeitAlsWert(*p.MindestlaufzeitMonate))
+	}
 
 	return z
 }
@@ -1157,7 +1198,7 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 // die Abfrage über alle Zeiträume eines Mitglieds und die über einen einzelnen
 // nicht auseinanderlaufen können.
 const mitgliedschaftsspalten = `id, mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
-	anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, stillgelegt`
+	anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, mindestlaufzeit_monate`
 
 // zeilenleser ist die Teilmenge von *sql.Row und *sql.Rows, die
 // mitgliedschaftZeileLesen braucht — so liest dieselbe Funktion die einzelne
@@ -1175,11 +1216,13 @@ func mitgliedschaftZeileLesen(zeile zeilenleser) (Mitgliedschaft, error) {
 		eintritt         string
 		kuendigungsdatum sql.NullString
 		austritt         sql.NullString
+		mindestlaufzeit  sql.NullInt64
 	)
 	if err := zeile.Scan(&ms.ID, &ms.MitgliedID, &anmeldedatum, &eintritt, &kuendigungsdatum, &austritt,
-		&ms.Anmeldung.GebuehrCents, &ms.Anmeldung.GebuehrEingezogen, &ms.BeitragCents, &ms.Stillgelegt); err != nil {
+		&ms.Anmeldung.GebuehrCents, &ms.Anmeldung.GebuehrEingezogen, &ms.BeitragCents, &mindestlaufzeit); err != nil {
 		return Mitgliedschaft{}, err
 	}
+	ms.MindestlaufzeitMonate = int(mindestlaufzeit.Int64)
 
 	var err error
 	if ms.Anmeldung.Datum, err = ausDatumsText(anmeldedatum); err != nil {
@@ -1276,7 +1319,13 @@ func (s *MemberService) anreichern(alle []Mitgliedschaft) ([]Mitgliedschaft, err
 		return nil, err
 	}
 
+	stilllegungen, err := s.stilllegungenLesen(ids)
+	if err != nil {
+		return nil, err
+	}
+
 	for i := range alle {
+		alle[i].Stilllegungen = stilllegungen[alle[i].ID]
 		alle[i].Kontoinhaber = kontoinhaber[alle[i].ID]
 		alle[i].Trainingstermine = termine[alle[i].ID]
 		if vertrag, vorhanden := vertraege[alle[i].ID]; vorhanden {
@@ -1332,52 +1381,19 @@ func (s *MemberService) SetKuendigung(id int64, k Kuendigung) error {
 		return &ValidierungsFehler{Meldungen: fehler}
 	}
 
+	// In einer Stilllegung lässt sich nicht kündigen (CONTEXT.md → Stilllegung);
+	// das Gegenteil gilt nicht — wer schon gekündigt hat, kann stillgelegt werden.
+	if stillgelegt, err := stilllegungVorhanden(tx,
+		`mitgliedschaft_id = ? AND von <= ? AND bis >= ?`, mitgliedschaftID, heute(), heute()); err != nil {
+		return err
+	} else if stillgelegt {
+		return &ValidierungsFehler{Meldungen: []Meldung{kuendigungStillgelegt}}
+	}
+
 	if _, err := tx.Exec(
 		`UPDATE mitgliedschaft SET kuendigungsdatum = ?, austritt = ? WHERE id = ?`,
 		alsDatumsText(k.Datum), alsDatumsText(k.Austritt), mitgliedschaftID); err != nil {
 		return fmt.Errorf("kündigung von mitglied %d eintragen: %w", id, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("transaktion abschließen: %w", err)
-	}
-
-	return nil
-}
-
-// SetStillgelegt schaltet die laufende Mitgliedschaft stillgelegt oder wieder aktiv. Für
-// die Zeit, in der sie ruht, wird kein Beitrag eingezogen; Mitglied bleibt das
-// Mitglied trotzdem (CONTEXT.md → Stilllegung).
-//
-// Nur ein laufender Zeitraum lässt sich stillgelegt schalten: bei einem ausgetretenen
-// Mitglied gibt es keinen Einzug, den man aussetzen könnte — der Fehler ist dann
-// ErrNichtAktiv. Ein Mitglied in der Kündigungsfrist läuft dagegen noch und lässt
-// sich sehr wohl stillgelegt schalten; sein Beitrag wird ja bis zum Austritt eingezogen.
-//
-// Der Rückstand bleibt dabei unberührt. Für ein stillgelegtes Mitglied geht keine
-// Lastschrift los, es kann also kein *neuer* Rückstand entstehen; ein
-// bestehender bleibt stehen, denn stillgelegt zu schalten ist kein Schuldenerlass
-// (ADR-0006). Der Aufruf ist idempotent.
-func (s *MemberService) SetStillgelegt(id int64, stillgelegt bool) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return fmt.Errorf("transaktion starten: %w", err)
-	}
-	defer tx.Rollback()
-
-	if err := mitgliedPruefen(tx, id); err != nil {
-		return err
-	}
-
-	mitgliedschaftID, _, err := laufendeMitgliedschaftLesen(tx, id)
-	if err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(
-		`UPDATE mitgliedschaft SET stillgelegt = ? WHERE id = ?`,
-		stillgelegt, mitgliedschaftID); err != nil {
-		return fmt.Errorf("stillgelegt von mitglied %d setzen: %w", id, err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -1441,9 +1457,10 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// Zeitraums abzuschreiben hieße, eine Gebühr zu behaupten, die niemand
 	// gezahlt hat.
 	//
-	// Ebenso beginnt der neue Zeitraum ohne Kündigung und nicht stillgelegt: beides
-	// galt dem alten. Die Spalten stehen deshalb gar nicht erst in der
-	// Anweisung — sie bekommen ihren Vorgabewert.
+	// Ebenso beginnt der neue Zeitraum ohne Kündigung, ohne Stilllegungen und ohne
+	// Mindestlaufzeit: all das galt dem alten. Die Spalten stehen deshalb gar nicht
+	// erst in der Anweisung — sie bekommen ihren Vorgabewert, und die
+	// Stilllegungen bleiben an der alten Mitgliedschaft.
 	if _, err := tx.Exec(
 		`INSERT INTO mitgliedschaft (mitglied_id, zahler_id, eintritt, beitrag_monatlich_cents)
 		 SELECT mitglied_id, zahler_id, ?, beitrag_monatlich_cents FROM mitgliedschaft
@@ -1558,10 +1575,18 @@ type Listeneintrag struct {
 	// Abgelesen wird daraus der Status.
 	Austritt *time.Time
 
-	// Stillgelegt ist das Merkmal der maßgeblichen Mitgliedschaft. Es steht neben
-	// dem Lebenszyklus und nicht in ihm: ein stillgelegtes Mitglied ist ein aktives,
-	// von dem gerade nichts eingezogen wird.
+	// Stillgelegt ist das Merkmal der maßgeblichen Mitgliedschaft: heute liegt in
+	// einer ihrer Stilllegungen. Es steht neben dem Lebenszyklus und nicht in
+	// ihm: ein stillgelegtes Mitglied ist ein aktives, von dem gerade nichts
+	// eingezogen wird. Abgelesen, nie gespeichert.
 	Stillgelegt bool
+
+	// Stilllegungsmonat sagt, dass der laufende Kalendermonat ein
+	// Stilllegungsmonat ist — irgendein Tag darin liegt in einer Stilllegung.
+	// Das ist weiter als Stillgelegt: wer ab dem 28. stillgelegt ist, trainiert
+	// bis dahin noch, zahlt aber für den Monat nichts (CONTEXT.md → Stilllegung).
+	// Monatssoll und Lastschriftexport lesen diese Angabe.
+	Stilllegungsmonat bool
 
 	// Trainingstermine sind die Termine der maßgeblichen Mitgliedschaft — bei
 	// einem Ehemaligen also die seines letzten Zeitraums, wie Beitrag und
@@ -1797,7 +1822,7 @@ const eintraegeAbfrage = `
 		m.adresse, m.postleitzahl, m.ort,
 		m.google_bewertung, m.rueckstand, m.rueckstand_notiz,
 		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt,
-		ms.beitrag_monatlich_cents, ms.stillgelegt, m.geschlecht,
+		ms.beitrag_monatlich_cents, m.geschlecht,
 		ms.anmeldegebuehr_cents > 0 AND ms.anmeldegebuehr_eingezogen = 0
 	FROM mitglied m
 	JOIN mitgliedschaft ms ON ms.id = (
@@ -1942,7 +1967,7 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 			&e.Anschrift.Adresse, &e.Anschrift.Postleitzahl, &e.Anschrift.Ort,
 			&e.GoogleBewertung, &e.Rueckstand.Offen, &e.Rueckstand.Notiz,
 			&mitgliedschaftID, &eintritt, &kuendigungsdatum, &austritt,
-			&e.BeitragCents, &e.Stillgelegt, &geschlecht, &e.GebuehrOffen); err != nil {
+			&e.BeitragCents, &geschlecht, &e.GebuehrOffen); err != nil {
 			return nil, fmt.Errorf("listeneintrag lesen: %w", err)
 		}
 
@@ -1983,8 +2008,15 @@ func (s *MemberService) eintraegeLesen(auchEhemalige bool, bedingung string, wer
 	if err != nil {
 		return nil, err
 	}
+	stilllegungen, err := s.stilllegungenLesen(ids)
+	if err != nil {
+		return nil, err
+	}
 	for i := range zeilen {
-		zeilen[i].eintrag.Trainingstermine = termine[zeilen[i].mitgliedschaftID]
+		e := &zeilen[i].eintrag
+		e.Trainingstermine = termine[zeilen[i].mitgliedschaftID]
+		e.Stillgelegt = stillgelegtAm(stilllegungen[zeilen[i].mitgliedschaftID], heute)
+		e.Stilllegungsmonat = stilllegungsmonatAm(stilllegungen[zeilen[i].mitgliedschaftID], heute)
 	}
 
 	return zeilen, nil
