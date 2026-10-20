@@ -27,3 +27,16 @@ func (m Mitglied) IstKindAm(tag time.Time) bool {
 
 	return tag.Format(isoDatum) < volljaehrig
 }
+
+// KontoinhaberPruefen sagt, ob das Formular heute den Hinweis zeigen soll,
+// dass der abweichende Kontoinhaber zu prüfen ist (CONTEXT.md → Kontoinhaber).
+func (m Mitglied) KontoinhaberPruefen() bool {
+	return m.KontoinhaberPruefenAm(time.Now())
+}
+
+// KontoinhaberPruefenAm gilt für Mitglieder, die einen abweichenden
+// Kontoinhaber haben und an diesem Tag kein Kind mehr sind. Reine Anzeige: der
+// Zahler bleibt wirksam, bis der Admin das Feld leert.
+func (m Mitglied) KontoinhaberPruefenAm(tag time.Time) bool {
+	return m.Kontoinhaber != "" && !m.IstKindAm(tag)
+}

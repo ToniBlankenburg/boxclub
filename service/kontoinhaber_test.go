@@ -298,3 +298,69 @@ func TestKontoinhaber_SelbstZahlerErscheintNachUmbenennungMitNeuemNamen(t *testi
 		t.Errorf("Zahlungspflichtiger = %q, erwartet %q", z.Zahlungspflichtiger, "Anna Neu")
 	}
 }
+
+func TestKontoinhaber_HinweisErscheintErstAmAchtzehntenGeburtstag(t *testing.T) {
+	svc := neuerService(t)
+
+	// Lena wird morgen 18.
+	geburtstag := heuteVersetzt(1).AddDate(-service.Volljaehrigkeitsalter, 0, 0)
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname: "Lena", Nachname: "Berger", Geburtsdatum: &geburtstag,
+		Kontoinhaber: "Petra Berger", IBAN: "DE02120300000000202051",
+		BeitragCents: beitragImTest, Eintritt: heuteVersetzt(-100),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.KontoinhaberPruefenAm(heuteVersetzt(0)) {
+		t.Error("Hinweis am Tag vor dem 18. Geburtstag, erwartet keiner")
+	}
+	if !m.KontoinhaberPruefenAm(heuteVersetzt(1)) {
+		t.Error("kein Hinweis am 18. Geburtstag, erwartet einer")
+	}
+}
+
+func TestKontoinhaber_KeinHinweisOhneAbweichendenKontoinhaber(t *testing.T) {
+	svc := neuerService(t)
+
+	erwachsen := mitgliedAnlegen(t, svc, "Anna", "Berger")
+	kind := kindMitKontoinhaber(t, svc, "Lena", "Petra Berger", "DE02120300000000202051")
+
+	for name, id := range map[string]int64{"Erwachsener": erwachsen, "Kind": kind} {
+		m, err := svc.Get(id)
+		if err != nil {
+			t.Fatalf("Get %s: %v", name, err)
+		}
+		if m.KontoinhaberPruefen() {
+			t.Errorf("%s: Hinweis, erwartet keiner", name)
+		}
+	}
+}
+
+func TestKontoinhaber_NachVolljaehrigkeitBleibtDerKontoinhaberImExportUndWirdGemeldet(t *testing.T) {
+	svc := neuerService(t)
+
+	id := kindMitKontoinhaber(t, svc, "Lena", "Petra Berger", "DE02120300000000202051")
+	nein := false
+	if err := svc.Update(id, service.MitgliedPatch{KindManuell: &nein}); err != nil {
+		t.Fatalf("Update KindManuell: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !m.KontoinhaberPruefen() {
+		t.Error("kein Hinweis für Volljährige mit abweichendem Kontoinhaber")
+	}
+
+	z := zeileZuMitglied(t, exportLesen(t, svc), id)
+	if z.Zahlungspflichtiger != "Petra Berger" || z.IBAN != "DE02120300000000202051" {
+		t.Errorf("Zeile = %+v, erwartet weiter Petra Berger", z)
+	}
+}

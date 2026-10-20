@@ -4,10 +4,10 @@
 
 **Blocked by:** 02 (Kind-Status), 03 (Abweichender Kontoinhaber)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Der Export nach dem 18. Geburtstag nennt weiter den Kontoinhaber
-- [ ] Der Service meldet für Mitglieder mit abweichendem Zahler und Alter ≥ 18 den Hinweis (Stichtagstest um den Geburtstag)
-- [ ] Bei Kindern und bei Erwachsenen ohne abweichenden Kontoinhaber erscheint kein Hinweis
-- [ ] Hinweistext in Deutsch und Englisch
-- [ ] Tests über die Service-API; `go test ./...` grün
+- [x] Der Export nach dem 18. Geburtstag nennt weiter den Kontoinhaber
+- [x] Der Service meldet für Mitglieder mit abweichendem Zahler und Alter ≥ 18 den Hinweis (Stichtagstest um den Geburtstag)
+- [x] Bei Kindern und bei Erwachsenen ohne abweichenden Kontoinhaber erscheint kein Hinweis
+- [x] Hinweistext in Deutsch und Englisch
+- [x] Tests über die Service-API; `go test ./...` grün

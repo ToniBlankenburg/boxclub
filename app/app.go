@@ -316,6 +316,10 @@ type formularDaten struct {
 	// oder Kennzeichen sich ändern.
 	KontoinhaberAktiv bool
 
+	// KontoinhaberPruefen blendet den Hinweis ein, dass das Mitglied volljährig
+	// ist und trotzdem einen abweichenden Kontoinhaber hat. Reine Anzeige.
+	KontoinhaberPruefen bool
+
 	// Termine sind die Trainingstermine zum Ankreuzen, in Wochenreihenfolge.
 	// Sie stehen neben der Eingabe und nicht darin: welche Termine es gibt,
 	// sagt der Stundenplan und nicht das abgeschickte Formular.
@@ -1206,6 +1210,10 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		KontoinhaberAktiv: service.Mitglied{
 			Geburtsdatum: m.Geburtsdatum, KindManuell: eingabe.KindManuell,
 		}.IstKind(),
+		KontoinhaberPruefen: service.Mitglied{
+			Geburtsdatum: m.Geburtsdatum, KindManuell: eingabe.KindManuell,
+			Kontoinhaber: strings.TrimSpace(eingabe.Kontoinhaber),
+		}.KontoinhaberPruefen(),
 		Termine:   auswahl,
 		Vertraege: vertragsbloecke(m.Mitgliedschaften),
 		Rechnung:  rechnungBereichAmMitglied(m),

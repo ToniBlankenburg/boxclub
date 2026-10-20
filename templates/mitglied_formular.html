@@ -145,6 +145,9 @@
                     <input name="kontoinhaber" type="text" value="{{.Eingabe.Kontoinhaber}}" {{if not .KontoinhaberAktiv}}disabled{{end}}
                            class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none disabled:bg-neutral-100 disabled:text-neutral-400">
                 </label>
+                {{if .KontoinhaberPruefen}}
+                    <p class="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-sm text-amber-900 sm:col-span-3" role="status">{{t "mitglied.kontoinhaber_pruefen"}}</p>
+                {{end}}
                 {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der
                      Regel davor (CONTEXT.md → Anmeldedatum). Anders als
                      Geburtsdatum und Eintritt bleibt es auch beim Bearbeiten
