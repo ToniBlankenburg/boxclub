@@ -4,9 +4,9 @@
 
 **Blocked by:** 06 (Hinweis bei Volljährigkeit)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `CONTEXT.md`: Einträge Zahler, Kind, Kontoinhaber mit „Vermeiden“ und Verweisen
-- [ ] Neue ADR in `docs/adr/` im Format der bestehenden (Status, Datum, Kontext, Entscheidung, Konsequenzen, Alternativen)
-- [ ] ADR-0006 bekommt im Statuskopf den Hinweis auf die IBAN-Normalisierung
-- [ ] `CLAUDE.md`: Schema und Beschreibung von IBAN/Rückstand stimmen mit dem Stand überein
+- [x] `CONTEXT.md`: Einträge Zahler, Kind, Kontoinhaber mit „Vermeiden“ und Verweisen
+- [x] Neue ADR in `docs/adr/` im Format der bestehenden (Status, Datum, Kontext, Entscheidung, Konsequenzen, Alternativen)
+- [x] ADR-0006 bekommt im Statuskopf den Hinweis auf die IBAN-Normalisierung
+- [x] `CLAUDE.md`: Schema und Beschreibung von IBAN/Rückstand stimmen mit dem Stand überein

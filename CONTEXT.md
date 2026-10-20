@@ -118,6 +118,24 @@ Das Kennzeichen, dass bei einem Mitglied nach einer Rücklastschrift Geld offen 
 
 **Abgelöst:** *bezahlt_bis* — ein Datum, bis zu dem der Beitrag als bezahlt gilt. Das Konzept setzt voraus, dass Mitglieder von sich aus zahlen und der Verein hinterherschaut; siehe [ADR-0006](docs/adr/0006-rueckstand-statt-bezahlt-bis.md). _Vermeiden:_ bezahlt_bis, Zahlungsstatus, „nicht bezahlt".
 
+## Zahler
+
+Wer die Lastschrift zahlt, getrennt von der Frage, wer trainiert. Eine rein technische Entität mit Name und IBAN; jede Mitgliedschaft zeigt auf genau einen. Bei Erwachsenen ist der Zahler die Person selbst und unsichtbar. Dieselbe normalisierte IBAN heißt derselbe Zahler, daher teilen sich Geschwister mit einem Konto einen; ein Zahler ohne Mitgliedschaft wird automatisch gelöscht. Siehe [ADR-0021](docs/adr/0021-zahler-als-technische-entitaet.md).
+
+**Nicht zu verwechseln mit:** dem Mitglied. Das Mitglied trainiert und hat Anschrift, Rückstand und Dokumente; der Zahler hat nur Name und IBAN. _Vermeiden:_ „Zahler" in der Oberfläche — dort heißt es *Kontoinhaber*. Ebenso Elternteil, Erziehungsberechtigter oder Rechnungsempfänger: der Zahler ist nur, wer zahlt, nicht, in welchem Verhältnis er zum Mitglied steht.
+
+## Kind
+
+Ein Mitglied, das heute jünger als 18 ist. Der Status wird bei jedem Lesen aus dem Geburtsdatum **abgeleitet** und nie gespeichert. Nur ohne Geburtsdatum zählt ein von Hand gesetztes Kennzeichen an der Person; neben einem Geburtsdatum wird es ignoriert. Nur bei einem Kind lässt sich ein abweichender *Kontoinhaber* eintragen.
+
+**Nicht zu verwechseln mit:** der Altersangabe oder einem Mitgliedstarif. Es gibt keine Kindermitgliedschaft mit eigenem Beitrag (ADR-0005). _Vermeiden:_ Jugendlicher, Minderjähriger als Feldname, „Kind" als gespeicherte Spalte oder Filter.
+
+## Kontoinhaber
+
+Das Wort der Oberfläche für den *Zahler*, wenn er nicht das Mitglied selbst ist: das Feld „Abweichender Kontoinhaber" im Formular, daneben die eine IBAN-Zeile. Leer heißt: das Mitglied zahlt selbst. Wird ein Mitglied mit Kontoinhaber volljährig, ändert sich nichts an den Abbuchungen; das Formular zeigt nur einen Hinweis, bis der Admin das Feld leert.
+
+**Nicht zu verwechseln mit:** dem Mitglied und dem Rechnungsempfänger. Der Kontoinhaber ist im MoneyMoney-Export der „Zahlungspflichtige" und füllt den Empfängernamen einer Rechnung vor (überschreibbar); die Anschrift kommt weiter vom Mitglied. _Vermeiden:_ Zahler (in der UI), Elternteil.
+
 ## Zahlung
 
 Ein einzelnes Ereignis auf dem Vereinskonto, das einem Mitglied zugeordnet werden kann. **In v1 nicht modelliert** — v1 hält nur den *Rückstand* als Kennzeichen. In v2 kommen Zahlungen und Rücklastschriften aus dem MoneyMoney-Import.

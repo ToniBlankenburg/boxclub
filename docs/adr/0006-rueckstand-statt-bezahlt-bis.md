@@ -1,6 +1,6 @@
 # ADR-0006: Kein `bezahlt_bis` — der Verein zieht ein und verwaltet nur Rückstände
 
-**Status:** Accepted — der Satz "ohne SEPA-Export" gilt seit [ADR-0013](0013-moneymoney-csv-export-fuer-lastschrifteinzug.md) nicht mehr uneingeschränkt: ein CSV-Export für den Lastschrifteinzug über MoneyMoney kam dazu. Alles andere hier — kein Zahlungsstatus, keine IBAN-Validierung, keine Zahlungshistorie — steht unverändert.
+**Status:** Accepted — der Satz "ohne SEPA-Export" gilt seit [ADR-0013](0013-moneymoney-csv-export-fuer-lastschrifteinzug.md) nicht mehr uneingeschränkt: ein CSV-Export für den Lastschrifteinzug über MoneyMoney kam dazu. Alles andere hier — kein Zahlungsstatus, keine IBAN-Validierung, keine Zahlungshistorie — steht unverändert. Eine Ausnahme: die IBAN liegt seit [ADR-0021](0021-zahler-als-technische-entitaet.md) am Zahler und wird dort beim Schreiben normalisiert (Leerzeichen entfernt, Großbuchstaben) — das Textfeld ist nicht mehr ganz „rein"; eine Validierung bleibt ausgeschlossen.
 **Datum:** 2026-09-11
 
 ## Kontext
