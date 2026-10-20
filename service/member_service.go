@@ -40,10 +40,10 @@ type Mitglied struct {
 	Email        string
 	Telefon      string
 
-	// IBAN steht als reiner Text da: die App speichert sie, prüft sie aber
-	// nicht und erzeugt keine Lastschrift-Dateien (ADR-0006). Eine Prüfziffer
-	// zu verlangen hieße, eine unvollständig abgetippte IBAN gar nicht erst
-	// festhalten zu können — und genau das tut die Excel heute.
+	// IBAN liegt am Zahler (CONTEXT.md → Zahler) und wird beim Schreiben nur
+	// normalisiert: Leerzeichen weg, Großbuchstaben. Geprüft wird sie nicht
+	// (ADR-0006) — eine Prüfziffer zu verlangen hieße, eine unvollständig
+	// abgetippte IBAN gar nicht erst festhalten zu können.
 	IBAN string
 
 	// Geschlecht ist Freitext. Die Werteliste der Excel ist eine Eintipphilfe
@@ -319,16 +319,35 @@ CREATE TABLE IF NOT EXISTS mitglied (
 	ort              TEXT    NOT NULL DEFAULT '',
 	email            TEXT    NOT NULL DEFAULT '',
 	telefon          TEXT    NOT NULL DEFAULT '',
-	iban             TEXT    NOT NULL DEFAULT '',
 	geschlecht       TEXT    NOT NULL DEFAULT '',
 	google_bewertung INTEGER NOT NULL DEFAULT 0,
 	rueckstand       INTEGER NOT NULL DEFAULT 0,
 	rueckstand_notiz TEXT    NOT NULL DEFAULT ''
 );
 
+-- Wer zahlt (CONTEXT.md → Zahler), getrennt von der Frage, wer trainiert. Rein
+-- technisch: die Oberfläche kennt den Begriff nicht, sie sagt „Kontoinhaber".
+--
+-- mitglied_id ist gesetzt, wenn das Mitglied selbst zahlt; der Name kommt dann
+-- beim Lesen aus der Person und name bleibt leer. Je Person gibt es höchstens
+-- einen solchen Zahler, daher der eindeutige Index.
+--
+-- iban wird beim Schreiben immer normalisiert (ibanNormalisieren) — die einzige
+-- Stelle, an der die App von „IBAN als reiner Text" aus ADR-0006 abweicht.
+CREATE TABLE IF NOT EXISTS zahler (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	name        TEXT    NOT NULL DEFAULT '',
+	iban        TEXT    NOT NULL DEFAULT '',
+	mitglied_id INTEGER REFERENCES mitglied(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_zahler_mitglied
+	ON zahler(mitglied_id) WHERE mitglied_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS mitgliedschaft (
 	id                      INTEGER PRIMARY KEY AUTOINCREMENT,
 	mitglied_id             INTEGER NOT NULL REFERENCES mitglied(id) ON DELETE CASCADE,
+	zahler_id               INTEGER NOT NULL REFERENCES zahler(id),
 	anmeldedatum            TEXT,
 	eintritt                TEXT    NOT NULL,
 	kuendigungsdatum        TEXT,
@@ -500,7 +519,6 @@ var spaltenNachtraege = []struct {
 	// (CONTEXT.md → Anschrift).
 	{"mitglied", "postleitzahl", "TEXT NOT NULL DEFAULT ''"},
 	{"mitglied", "ort", "TEXT NOT NULL DEFAULT ''"},
-	{"mitglied", "iban", "TEXT NOT NULL DEFAULT ''"},
 	{"mitglied", "geschlecht", "TEXT NOT NULL DEFAULT ''"},
 	{"mitglied", "google_bewertung", "INTEGER NOT NULL DEFAULT 0"},
 
@@ -646,12 +664,12 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
 		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, geschlecht, google_bewertung)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 geschlecht, google_bewertung)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
 		n.Anschrift.Adresse, n.Anschrift.Postleitzahl, n.Anschrift.Ort,
 		n.Email, n.Telefon,
-		n.IBAN, n.Geschlecht, bool(n.GoogleBewertung))
+		n.Geschlecht, bool(n.GoogleBewertung))
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -661,11 +679,16 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 		return 0, fmt.Errorf("mitglied-id lesen: %w", err)
 	}
 
+	zahlerID, err := zahlerSelbstAnlegen(tx, id, n.IBAN)
+	if err != nil {
+		return 0, err
+	}
+
 	res, err = tx.Exec(
 		`INSERT INTO mitgliedschaft
-		 	(mitglied_id, anmeldedatum, eintritt, anmeldegebuehr_cents, beitrag_monatlich_cents)
-		 VALUES (?, ?, ?, ?, ?)`,
-		id, alsDatumsText(n.Anmeldung.Datum), n.Eintritt.Format(isoDatum),
+		 	(mitglied_id, zahler_id, anmeldedatum, eintritt, anmeldegebuehr_cents, beitrag_monatlich_cents)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		id, zahlerID, alsDatumsText(n.Anmeldung.Datum), n.Eintritt.Format(isoDatum),
 		n.Anmeldung.GebuehrCents, n.BeitragCents)
 	if err != nil {
 		return 0, fmt.Errorf("mitgliedschaft anlegen: %w", err)
@@ -682,6 +705,33 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("transaktion abschließen: %w", err)
+	}
+
+	return id, nil
+}
+
+// ibanNormalisieren entfernt alle Leerzeichen und macht Großbuchstaben aus der
+// IBAN, damit dasselbe Konto in jeder Schreibweise derselbe Text ist. Eine
+// Formatprüfung ist das nicht (ADR-0006): was keine IBAN ist, bleibt, wie es ist,
+// nur ohne Leerraum.
+func ibanNormalisieren(iban string) string {
+	return strings.ToUpper(strings.Join(strings.Fields(iban), ""))
+}
+
+// zahlerSelbstAnlegen legt den Zahler an, bei dem das Mitglied selbst zahlt, und
+// liefert seine ID. Auch ein Mitglied ohne IBAN bekommt einen: jede
+// Mitgliedschaft zeigt auf genau einen Zahler.
+func zahlerSelbstAnlegen(tx *sql.Tx, mitgliedID int64, iban string) (int64, error) {
+	res, err := tx.Exec(
+		`INSERT INTO zahler (iban, mitglied_id) VALUES (?, ?)`,
+		ibanNormalisieren(iban), mitgliedID)
+	if err != nil {
+		return 0, fmt.Errorf("zahler für mitglied %d anlegen: %w", mitgliedID, err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("zahler-id lesen: %w", err)
 	}
 
 	return id, nil
@@ -802,6 +852,15 @@ func (s *MemberService) Update(id int64, patch MitgliedPatch) error {
 	if mitgliedschaft := patch.mitgliedschaftZuweisungen(); !mitgliedschaft.leer() {
 		if err := mitgliedschaftSchreiben(tx, id, mitgliedschaft); err != nil {
 			return err
+		}
+	}
+
+	if patch.IBAN != nil {
+		if _, err := tx.Exec(
+			`UPDATE zahler SET iban = ? WHERE id = (
+			 	SELECT zahler_id FROM mitgliedschaft WHERE id = (`+massgeblicheMitgliedschaft+`))`,
+			ibanNormalisieren(*patch.IBAN), id, heute()); err != nil {
+			return fmt.Errorf("iban von mitglied %d aktualisieren: %w", id, err)
 		}
 	}
 
@@ -952,9 +1011,6 @@ func (p MitgliedPatch) zuweisungen() zuweisungssatz {
 	if p.Telefon != nil {
 		z.setze("telefon", *p.Telefon)
 	}
-	if p.IBAN != nil {
-		z.setze("iban", *p.IBAN)
-	}
 	if p.Geschlecht != nil {
 		z.setze("geschlecht", *p.Geschlecht)
 	}
@@ -1016,9 +1072,13 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 
 	err := s.db.QueryRow(
 		`SELECT id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort,
-		 	email, telefon, iban, geschlecht, google_bewertung,
+		 	email, telefon,
+		 	COALESCE((SELECT z.iban FROM zahler z
+		 	          JOIN mitgliedschaft ms ON ms.zahler_id = z.id
+		 	          WHERE ms.id = (`+massgeblicheMitgliedschaft+`)), ''),
+		 	geschlecht, google_bewertung,
 		 	rueckstand, rueckstand_notiz
-		 FROM mitglied WHERE id = ?`, id).
+		 FROM mitglied WHERE id = ?`, id, heute(), id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
 			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
 			&m.Email, &m.Telefon,
@@ -1329,10 +1389,10 @@ func (s *MemberService) Rejoin(id int64, eintritt time.Time) error {
 	// galt dem alten. Die Spalten stehen deshalb gar nicht erst in der
 	// Anweisung — sie bekommen ihren Vorgabewert.
 	if _, err := tx.Exec(
-		`INSERT INTO mitgliedschaft (mitglied_id, eintritt, beitrag_monatlich_cents)
-		 VALUES (?, ?, (SELECT beitrag_monatlich_cents FROM mitgliedschaft
-		                WHERE mitglied_id = ? ORDER BY eintritt DESC, id DESC LIMIT 1))`,
-		id, eintrittsText, id); err != nil {
+		`INSERT INTO mitgliedschaft (mitglied_id, zahler_id, eintritt, beitrag_monatlich_cents)
+		 SELECT mitglied_id, zahler_id, ?, beitrag_monatlich_cents FROM mitgliedschaft
+		 WHERE mitglied_id = ? ORDER BY eintritt DESC, id DESC LIMIT 1`,
+		eintrittsText, id); err != nil {
 		return fmt.Errorf("wiedereintritt von mitglied %d eintragen: %w", id, err)
 	}
 

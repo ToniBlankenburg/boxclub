@@ -95,19 +95,24 @@ func TestCreate_OhneDieRestlichenStammdatenBleibtMoeglich(t *testing.T) {
 	}
 }
 
-// Die IBAN ist reiner Text: keine Prüfung, keine Formatierung (ADR-0006). Was
-// eingetippt wurde, steht hinterher da.
-func TestCreate_NimmtDieIBANUngeprueftEntgegen(t *testing.T) {
+// Die IBAN wird beim Schreiben normalisiert (Leerzeichen weg, Großbuchstaben),
+// aber nicht geprüft: was keine IBAN ist, bleibt stehen (ADR-0006, ADR-0020).
+func TestCreate_NormalisiertDieIBANOhneSiePruefen(t *testing.T) {
 	svc := neuerService(t)
 
-	for _, iban := range []string{"DE02 1203 0000 0000 2020 51", "keine iban", "DE02120300000000202051"} {
-		t.Run(iban, func(t *testing.T) {
+	for eingabe, erwartet := range map[string]string{
+		"DE02 1203 0000 0000 2020 51": "DE02120300000000202051",
+		"de02120300000000202051":      "DE02120300000000202051",
+		"keine iban":                  "KEINEIBAN",
+		"":                            "",
+	} {
+		t.Run(eingabe, func(t *testing.T) {
 			id, err := svc.Create(service.NeuesMitglied{
 				Vorname:      "Clara",
 				Nachname:     "Diaz",
 				Eintritt:     datum(t, "2026-01-01"),
 				BeitragCents: beitragImTest,
-				IBAN:         iban,
+				IBAN:         eingabe,
 			})
 			if err != nil {
 				t.Fatalf("Create: %v", err)
@@ -117,10 +122,89 @@ func TestCreate_NimmtDieIBANUngeprueftEntgegen(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Get: %v", err)
 			}
-			if m.IBAN != iban {
-				t.Errorf("IBAN = %q, erwartet %q", m.IBAN, iban)
+			if m.IBAN != erwartet {
+				t.Errorf("IBAN = %q, erwartet %q", m.IBAN, erwartet)
 			}
 		})
+	}
+}
+
+func TestUpdate_NormalisiertDieIBAN(t *testing.T) {
+	svc := neuerService(t)
+
+	id := moneyMoneyMitglied(t, svc, "Anna", "Berger", "DE02120300000000202051")
+	neu := "de89 3704 0044 0532 0130 00"
+	if err := svc.Update(id, service.MitgliedPatch{IBAN: &neu}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.IBAN != "DE89370400440532013000" {
+		t.Errorf("IBAN = %q, erwartet normalisiert", m.IBAN)
+	}
+}
+
+// Auch ein Mitglied ohne IBAN hat einen Zahler, und zwei davon teilen sich
+// keinen: die Umbenennung des einen darf den anderen nicht berühren, und beide
+// erscheinen im Export unter ihrem eigenen Namen.
+func TestZahler_MitgliederOhneIBANTeilenSichKeinen(t *testing.T) {
+	svc := neuerService(t)
+
+	a := moneyMoneyMitglied(t, svc, "Anna", "Berger", "")
+	b := moneyMoneyMitglied(t, svc, "Bernd", "Cramer", "")
+
+	neu := "DE02120300000000202051"
+	if err := svc.Update(a, service.MitgliedPatch{IBAN: &neu}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	export, err := svc.MoneyMoneyExportieren()
+	if err != nil {
+		t.Fatalf("MoneyMoneyExportieren: %v", err)
+	}
+	if za := zeileZuMitglied(t, export, a); za.IBAN != neu || za.Zahlungspflichtiger != "Anna Berger" {
+		t.Errorf("Zeile A = %+v", za)
+	}
+	if zb := zeileZuMitglied(t, export, b); zb.IBAN != "" || zb.Zahlungspflichtiger != "Bernd Cramer" {
+		t.Errorf("Zeile B = %+v, erwartet unberührt", zb)
+	}
+}
+
+// Wer selbst zahlt, erscheint nach einer Namensänderung unter dem neuen Namen
+// und behält beim Wiedereintritt sein Konto.
+func TestZahler_SelbstFolgtNamenUndBleibtBeimWiedereintritt(t *testing.T) {
+	svc := neuerService(t)
+
+	id := moneyMoneyMitglied(t, svc, "Anna", "Berger", "DE02 1203 0000 0000 2020 51")
+	nachname := "Weber"
+	if err := svc.Update(id, service.MitgliedPatch{Nachname: &nachname}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	export, err := svc.MoneyMoneyExportieren()
+	if err != nil {
+		t.Fatalf("MoneyMoneyExportieren: %v", err)
+	}
+	if z := zeileZuMitglied(t, export, id); z.Zahlungspflichtiger != "Anna Weber" {
+		t.Errorf("Zahlungspflichtiger = %q, erwartet %q", z.Zahlungspflichtiger, "Anna Weber")
+	}
+
+	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(-10))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+	if err := svc.Rejoin(id, heuteVersetzt(0)); err != nil {
+		t.Fatalf("Rejoin: %v", err)
+	}
+
+	export, err = svc.MoneyMoneyExportieren()
+	if err != nil {
+		t.Fatalf("MoneyMoneyExportieren: %v", err)
+	}
+	if z := zeileZuMitglied(t, export, id); z.IBAN != "DE02120300000000202051" {
+		t.Errorf("IBAN nach Wiedereintritt = %q", z.IBAN)
 	}
 }
 

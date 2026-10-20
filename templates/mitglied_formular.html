@@ -121,10 +121,10 @@
         <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4 sm:col-span-2">
             <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "mitglied.abschnitt_mitgliedschaft"}}</p>
             <div class="grid gap-3 sm:grid-cols-3">
-                {{/* Die IBAN wird als reiner Text gespeichert: keine
-                     Prüfziffer, kein Format, kein SEPA-Export (ADR-0006). Eine
-                     halb abgetippte IBAN soll sich festhalten lassen — die
-                     Excel kann das heute auch. */}}
+                {{/* Die IBAN wird nur normalisiert gespeichert (Leerzeichen weg,
+                     Großbuchstaben), nicht geprüft: keine Prüfziffer, kein
+                     Format, kein SEPA-Export (ADR-0006). Eine halb
+                     abgetippte IBAN soll sich festhalten lassen. */}}
                 {{template "feld" feld (t "feld.iban") "iban" "text" .Eingabe.IBAN false true}}
                 {{/* Das Anmeldedatum ist nicht der Eintritt und liegt in der
                      Regel davor (CONTEXT.md → Anmeldedatum). Anders als

@@ -452,3 +452,27 @@ func TestUebernehmen_NimmtEineMitgliedschaftOhneKuendigungAn(t *testing.T) {
 		t.Fatalf("Uebernehmen ohne Kündigung: %v", err)
 	}
 }
+
+func TestUebernehmen_LegtDenZahlerSelbstMitNormalisierterIBANAn(t *testing.T) {
+	svc := neuerService(t)
+
+	satz := importsatz(t, 47, "Erika", "Musterfrau")
+	satz.IBAN = "de02 1203 0000 0000 2020 51"
+	if _, err := svc.Uebernehmen(satz); err != nil {
+		t.Fatalf("erster Lauf: %v", err)
+	}
+
+	// Ein zweiter Lauf mit geänderter IBAN aktualisiert denselben Zahler.
+	satz.IBAN = "DE89 3704 0044 0532 0130 00"
+	if _, err := svc.Uebernehmen(satz); err != nil {
+		t.Fatalf("zweiter Lauf: %v", err)
+	}
+
+	m, err := svc.Get(47)
+	if err != nil {
+		t.Fatalf("Get(47): %v", err)
+	}
+	if m.IBAN != "DE89370400440532013000" {
+		t.Errorf("IBAN = %q, erwartet normalisiert und aktualisiert", m.IBAN)
+	}
+}

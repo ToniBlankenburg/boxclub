@@ -51,7 +51,9 @@ type MoneyMoneyExport struct {
 // Ehemaligen: für sie geht keine Lastschrift mehr los, laeuftNoch schließt
 // sie deshalb schon in der Abfrage aus statt erst beim Klassifizieren in Go.
 const moneyMoneyAbfrage = `
-	SELECT m.id, m.vorname, m.nachname, m.iban,
+	SELECT m.id,
+		CASE WHEN z.mitglied_id IS NULL THEN z.name ELSE m.vorname || ' ' || m.nachname END,
+		z.iban,
 		ms.id, ms.eintritt, ms.kuendigungsdatum, ms.austritt, ms.ruhend,
 		ms.beitrag_monatlich_cents,
 		ms.anmeldedatum, ms.anmeldegebuehr_cents, ms.anmeldegebuehr_eingezogen
@@ -61,7 +63,8 @@ const moneyMoneyAbfrage = `
 		WHERE mitglied_id = m.id AND ` + laeuftNoch + `
 		ORDER BY eintritt DESC, id DESC
 		LIMIT 1
-	)`
+	)
+	JOIN zahler z ON z.id = ms.zahler_id`
 
 // MoneyMoneyExportieren liefert die Zeilen des CSV-Exports: eine je
 // Mitgliedschaft, die diesen Monat auch tatsächlich einzieht — dieselbe Menge
@@ -96,7 +99,7 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 	for rows.Next() {
 		var (
 			mitgliedID, mitgliedschaftID int64
-			vorname, nachname, iban      string
+			zahler, iban                 string
 			eintrittText                 string
 			kuendigungsdatum, austritt   sql.NullString
 			ruhend                       bool
@@ -104,7 +107,7 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 			anmeldedatum                 sql.NullString
 			gebuehrEingezogen            bool
 		)
-		if err := rows.Scan(&mitgliedID, &vorname, &nachname, &iban,
+		if err := rows.Scan(&mitgliedID, &zahler, &iban,
 			&mitgliedschaftID, &eintrittText, &kuendigungsdatum, &austritt, &ruhend,
 			&beitragCents, &anmeldedatum, &gebuehrCents, &gebuehrEingezogen); err != nil {
 			return MoneyMoneyExport{}, fmt.Errorf("moneymoney-zeile lesen: %w", err)
@@ -151,7 +154,7 @@ func (s *MemberService) MoneyMoneyExportieren() (MoneyMoneyExport, error) {
 
 		export.Zeilen = append(export.Zeilen, MoneyMoneyZeile{
 			MitgliedID:          mitgliedID,
-			Zahlungspflichtiger: strings.TrimSpace(vorname + " " + nachname),
+			Zahlungspflichtiger: strings.TrimSpace(zahler),
 			IBAN:                iban,
 			BetragCents:         betragCents,
 			Verwendungszweck: moneyMoneyVerwendungszweck(

@@ -182,21 +182,26 @@ func (satz Importsatz) anlegen(tx *sql.Tx) error {
 	if _, err := tx.Exec(
 		`INSERT INTO mitglied
 		 	(id, vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
-		 	 iban, geschlecht, google_bewertung)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 geschlecht, google_bewertung)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		satz.ID, satz.Vorname, satz.Nachname, alsDatumsText(satz.Geburtsdatum),
 		satz.Anschrift.Adresse, satz.Anschrift.Postleitzahl, satz.Anschrift.Ort,
 		satz.Email, satz.Telefon,
-		satz.IBAN, satz.Geschlecht, bool(satz.GoogleBewertung)); err != nil {
+		satz.Geschlecht, bool(satz.GoogleBewertung)); err != nil {
 		return fmt.Errorf("mitglied %d anlegen: %w", satz.ID, err)
+	}
+
+	zahlerID, err := zahlerSelbstAnlegen(tx, satz.ID, satz.IBAN)
+	if err != nil {
+		return err
 	}
 
 	res, err := tx.Exec(
 		`INSERT INTO mitgliedschaft
-		 	(mitglied_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
+		 	(mitglied_id, zahler_id, anmeldedatum, eintritt, kuendigungsdatum, austritt,
 		 	 anmeldegebuehr_cents, anmeldegebuehr_eingezogen, beitrag_monatlich_cents, ruhend)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		satz.ID, alsDatumsText(satz.Anmeldung.Datum), satz.Eintritt.Format(isoDatum),
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		satz.ID, zahlerID, alsDatumsText(satz.Anmeldung.Datum), satz.Eintritt.Format(isoDatum),
 		alsDatumsText(satz.Kuendigung.Datum), alsDatumsText(satz.Kuendigung.Austritt),
 		satz.Anmeldung.GebuehrCents, satz.Anmeldung.GebuehrEingezogen, satz.BeitragCents, satz.Ruhend)
 	if err != nil {
@@ -237,14 +242,20 @@ func (satz Importsatz) aktualisieren(tx *sql.Tx, id int64) error {
 		`UPDATE mitglied SET
 		 	vorname = ?, nachname = ?, geburtsdatum = ?,
 		 	adresse = ?, postleitzahl = ?, ort = ?, email = ?, telefon = ?,
-		 	iban = ?, geschlecht = ?, google_bewertung = ?
+		 	geschlecht = ?, google_bewertung = ?
 		 WHERE id = ?`,
 		satz.Vorname, satz.Nachname, alsDatumsText(satz.Geburtsdatum),
 		satz.Anschrift.Adresse, satz.Anschrift.Postleitzahl, satz.Anschrift.Ort,
 		satz.Email, satz.Telefon,
-		satz.IBAN, satz.Geschlecht, bool(satz.GoogleBewertung),
+		satz.Geschlecht, bool(satz.GoogleBewertung),
 		id); err != nil {
 		return fmt.Errorf("mitglied %d aktualisieren: %w", id, err)
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE zahler SET iban = ? WHERE mitglied_id = ?`,
+		ibanNormalisieren(satz.IBAN), id); err != nil {
+		return fmt.Errorf("iban von mitglied %d aktualisieren: %w", id, err)
 	}
 
 	mitgliedschaftID, err := satz.zielMitgliedschaft(tx, id)
