@@ -131,6 +131,11 @@ type Mitgliedschaft struct {
 	// nicht versehentlich mitschleppen (ADR-0007). Ihn holt einzeln
 	// VertragInhalt.
 	Vertrag *Dokument
+
+	// Kontoinhaber ist der abweichende Zahler dieses Zeitraums; leer heißt
+	// „zahlt selbst“. Er hängt am Zeitraum: ein Wiedereintritt übernimmt den
+	// Zahler der Vorgängerin, ändert man ihn danach, bleibt die alte unberührt.
+	Kontoinhaber string
 }
 
 // Trainingsfrequenz ist die Anzahl der Trainingstermine dieses Zeitraums.
@@ -1261,7 +1266,13 @@ func (s *MemberService) anreichern(alle []Mitgliedschaft) ([]Mitgliedschaft, err
 		return nil, err
 	}
 
+	kontoinhaber, err := s.kontoinhaberLesen(ids)
+	if err != nil {
+		return nil, err
+	}
+
 	for i := range alle {
+		alle[i].Kontoinhaber = kontoinhaber[alle[i].ID]
 		alle[i].Trainingstermine = termine[alle[i].ID]
 		if vertrag, vorhanden := vertraege[alle[i].ID]; vorhanden {
 			alle[i].Vertrag = &vertrag

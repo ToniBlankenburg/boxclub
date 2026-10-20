@@ -33,6 +33,12 @@ func zahlerFremdenFinden(tx *sql.Tx, name, iban string) (int64, error) {
 		}
 	}
 
+	return zahlerNeuAnlegen(tx, name, iban)
+}
+
+// zahlerNeuAnlegen legt einen Zahler für jemand anderen an, ohne nach einem
+// bestehenden mit derselben IBAN zu suchen. Die IBAN ist schon normalisiert.
+func zahlerNeuAnlegen(tx *sql.Tx, name, iban string) (int64, error) {
 	res, err := tx.Exec(`INSERT INTO zahler (name, iban) VALUES (?, ?)`, name, iban)
 	if err != nil {
 		return 0, fmt.Errorf("zahler anlegen: %w", err)
@@ -44,6 +50,20 @@ func zahlerFremdenFinden(tx *sql.Tx, name, iban string) (int64, error) {
 	}
 
 	return id, nil
+}
+
+// zahlerMitFruehererMitgliedschaftGeteilt sagt, ob außer der maßgeblichen
+// Mitgliedschaft noch eine andere derselben Person auf diesen Zahler zeigt.
+func zahlerMitFruehererMitgliedschaftGeteilt(tx *sql.Tx, mitgliedID, mitgliedschaftID, zahlerID int64) (bool, error) {
+	var geteilt bool
+	if err := tx.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM mitgliedschaft
+		                WHERE mitglied_id = ? AND zahler_id = ? AND id <> ?)`,
+		mitgliedID, zahlerID, mitgliedschaftID).Scan(&geteilt); err != nil {
+		return false, fmt.Errorf("zahler von mitglied %d auf geteilte nutzung prüfen: %w", mitgliedID, err)
+	}
+
+	return geteilt, nil
 }
 
 // zahlerSelbstFinden liefert den Zahler „selbst“ des Mitglieds und legt ihn an,
@@ -114,8 +134,19 @@ func zahlerSchreiben(tx *sql.Tx, mitgliedID int64, ibanNeu, kontoinhaberNeu *str
 		}
 	}
 
+	// Zeigt auch eine frühere Mitgliedschaft derselben Person auf diesen Zahler
+	// (Wiedereintritt), gilt die Änderung nur der maßgeblichen: die alte behält
+	// ihren Zahler. Dafür bekommt die neue einen eigenen, statt den geteilten
+	// umzubenennen.
+	geteilt, err := zahlerMitFruehererMitgliedschaftGeteilt(tx, mitgliedID, mitgliedschaftID, aktuellerID)
+	if err != nil {
+		return err
+	}
+
 	var neuerID int64
 	switch {
+	case name != "" && !selbst && geteilt:
+		neuerID, err = zahlerNeuAnlegen(tx, name, iban)
 	case name == "":
 		neuerID, err = zahlerSelbstFinden(tx, mitgliedID, iban)
 	case !selbst && iban == "" && aktuelleIBAN == "":
@@ -173,4 +204,38 @@ func verwaisteZahlerLoeschen(tx *sql.Tx) error {
 	}
 
 	return nil
+}
+
+// kontoinhaberLesen liefert zu den angegebenen Mitgliedschaften den Namen des
+// abweichenden Zahlers. Wer selbst zahlt, hat keinen Eintrag.
+func (s *MemberService) kontoinhaberLesen(mitgliedschaftIDs []int64) (map[int64]string, error) {
+	namen := map[int64]string{}
+	if len(mitgliedschaftIDs) == 0 {
+		return namen, nil
+	}
+
+	platzhalter := strings.Repeat(", ?", len(mitgliedschaftIDs)-1)
+	werte := make([]any, 0, len(mitgliedschaftIDs))
+	for _, id := range mitgliedschaftIDs {
+		werte = append(werte, id)
+	}
+
+	zeilen, err := s.db.Query(
+		`SELECT ms.id, z.name FROM mitgliedschaft ms JOIN zahler z ON z.id = ms.zahler_id
+		 WHERE z.mitglied_id IS NULL AND ms.id IN (?`+platzhalter+`)`, werte...)
+	if err != nil {
+		return nil, fmt.Errorf("kontoinhaber der mitgliedschaften lesen: %w", err)
+	}
+	defer zeilen.Close()
+
+	for zeilen.Next() {
+		var id int64
+		var name string
+		if err := zeilen.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("kontoinhaber einer mitgliedschaft lesen: %w", err)
+		}
+		namen[id] = name
+	}
+
+	return namen, zeilen.Err()
 }

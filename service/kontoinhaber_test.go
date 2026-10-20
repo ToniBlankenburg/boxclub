@@ -211,6 +211,59 @@ func TestKontoinhaber_WiedereintrittUebernimmtDenZahler(t *testing.T) {
 	}
 }
 
+func TestKontoinhaber_AenderungNachWiedereintrittLaesstDieAlteMitgliedschaftUnveraendert(t *testing.T) {
+	svc := neuerService(t)
+
+	id := kindMitKontoinhaber(t, svc, "Lena", "Petra Berger", "DE02120300000000202051")
+	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(-10))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+	if err := svc.Rejoin(id, heuteVersetzt(0)); err != nil {
+		t.Fatalf("Rejoin: %v", err)
+	}
+
+	neu := "Paul Berger"
+	if err := svc.Update(id, service.MitgliedPatch{Kontoinhaber: &neu}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if len(m.Mitgliedschaften) != 2 {
+		t.Fatalf("Mitgliedschaften = %d, erwartet 2", len(m.Mitgliedschaften))
+	}
+	if alt, neue := m.Mitgliedschaften[0].Kontoinhaber, m.Mitgliedschaften[1].Kontoinhaber; alt != "Petra Berger" || neue != "Paul Berger" {
+		t.Errorf("Kontoinhaber alt = %q, neu = %q, erwartet %q und %q", alt, neue, "Petra Berger", "Paul Berger")
+	}
+}
+
+func TestKontoinhaber_WiedereintrittBehaeltKontoinhaberAuchBeiVolljaehrigem(t *testing.T) {
+	svc := neuerService(t)
+
+	id := kindMitKontoinhaber(t, svc, "Lena", "Petra Berger", "DE02120300000000202051")
+	// Das Handkennzeichen gilt nur ohne Geburtsdatum; ohne es ist Lena kein Kind mehr.
+	nein := false
+	if err := svc.Update(id, service.MitgliedPatch{KindManuell: &nein}); err != nil {
+		t.Fatalf("Update KindManuell: %v", err)
+	}
+	if err := svc.SetKuendigung(id, austrittZum(heuteVersetzt(-10))); err != nil {
+		t.Fatalf("SetKuendigung: %v", err)
+	}
+	if err := svc.Rejoin(id, heuteVersetzt(0)); err != nil {
+		t.Fatalf("Rejoin: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.IstKind() || m.Kontoinhaber != "Petra Berger" {
+		t.Errorf("IstKind = %v, Kontoinhaber = %q, erwartet erwachsen mit %q", m.IstKind(), m.Kontoinhaber, "Petra Berger")
+	}
+}
+
 func TestKontoinhaber_ZweiKinderDerselbenElternErgebenZweiZeilen(t *testing.T) {
 	svc := neuerService(t)
 
