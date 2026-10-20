@@ -104,11 +104,13 @@ func zahlerSchreiben(tx *sql.Tx, mitgliedID int64, ibanNeu, kontoinhaberNeu *str
 		name = strings.TrimSpace(*kontoinhaberNeu)
 	}
 
-	if name != aktuellerName {
-		if name != "" {
-			if err := kontoinhaberErlaubt(tx, mitgliedID); err != nil {
-				return err
-			}
+	if name == aktuellerName && iban == aktuelleIBAN {
+		return nil
+	}
+
+	if name != aktuellerName && name != "" {
+		if err := kontoinhaberErlaubt(tx, mitgliedID); err != nil {
+			return err
 		}
 	}
 

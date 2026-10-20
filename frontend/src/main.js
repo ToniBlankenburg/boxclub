@@ -448,7 +448,7 @@ function kontoinhaberAnwenden(formular) {
     }
 
     feld.disabled = !istKind;
-    if (!istKind && geburtsdatum) {
+    if (!istKind) {
         feld.value = '';
     }
 }

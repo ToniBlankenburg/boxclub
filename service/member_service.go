@@ -275,10 +275,12 @@ type NeuesMitglied struct {
 // kann. 0 € ist ausdrücklich erlaubt.
 var negativerBeitrag = meldung("validierung.mitglied.beitrag_negativ")
 
-// negativeGebuehr ist das Gegenstück für die Anmeldegebühr. 0 € heißt hier
-// "keine erhoben" und ist der Normalfall, nicht die Ausnahme.
+// kontoinhaberKeinKind lehnt einen abweichenden Kontoinhaber bei jemandem ab,
+// der kein Kind ist.
 var kontoinhaberKeinKind = meldung("validierung.mitglied.kontoinhaber_kein_kind")
 
+// negativeGebuehr ist das Gegenstück für die Anmeldegebühr. 0 € heißt hier
+// "keine erhoben" und ist der Normalfall, nicht die Ausnahme.
 var negativeGebuehr = meldung("validierung.mitglied.gebuehr_negativ")
 
 // ErrNichtGefunden meldet, dass zu einer ID kein Datensatz existiert.
