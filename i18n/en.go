@@ -33,6 +33,8 @@ var englisch = map[string]string{
 	"feld.anmeldegebuehr":        "Registration fee in € (one-off)",
 	"feld.beitrag":               "Monthly fee in €",
 	"feld.google_bewertung":      "Google review",
+	"feld.kind":                  "Child",
+	"feld.kind_text":             "Under 18 (no date of birth)",
 	"feld.training":              "Training",
 	"feld.nicht_aenderbar_titel": "Cannot be changed after it is created",
 

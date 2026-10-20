@@ -53,6 +53,10 @@ type Mitglied struct {
 	// GoogleBewertung ist zweiwertig (CONTEXT.md → Google-Bewertung).
 	GoogleBewertung GoogleBewertung
 
+	// KindManuell ist das von Hand gesetzte Kind-Kennzeichen. Es zählt nur,
+	// solange kein Geburtsdatum da ist (siehe IstKindAm).
+	KindManuell bool
+
 	// Rueckstand hängt am Mitglied und nicht an der Mitgliedschaft: ein Austritt
 	// erlässt keine Schulden (ADR-0006).
 	Rueckstand Rueckstand
@@ -241,6 +245,9 @@ type NeuesMitglied struct {
 	Geschlecht      string
 	GoogleBewertung GoogleBewertung
 
+	// KindManuell wie bei Mitglied; ein Geburtsdatum hat Vorrang.
+	KindManuell bool
+
 	// BeitragCents ist der individuell vereinbarte Monatsbeitrag in Cent. Er
 	// landet an der Mitgliedschaft, die mit dem Eintritt beginnt.
 	BeitragCents int64
@@ -321,6 +328,7 @@ CREATE TABLE IF NOT EXISTS mitglied (
 	telefon          TEXT    NOT NULL DEFAULT '',
 	geschlecht       TEXT    NOT NULL DEFAULT '',
 	google_bewertung INTEGER NOT NULL DEFAULT 0,
+	kind_manuell     INTEGER NOT NULL DEFAULT 0,
 	rueckstand       INTEGER NOT NULL DEFAULT 0,
 	rueckstand_notiz TEXT    NOT NULL DEFAULT ''
 );
@@ -521,6 +529,7 @@ var spaltenNachtraege = []struct {
 	{"mitglied", "ort", "TEXT NOT NULL DEFAULT ''"},
 	{"mitglied", "geschlecht", "TEXT NOT NULL DEFAULT ''"},
 	{"mitglied", "google_bewertung", "INTEGER NOT NULL DEFAULT 0"},
+	{"mitglied", "kind_manuell", "INTEGER NOT NULL DEFAULT 0"},
 
 	// mitgliedschaft: Anmeldedatum/-gebühr, Kündigungsdatum und Ruhend kamen
 	// nacheinander dazu, alle mit demselben Grundgedanken: ohne Angabe fehlt
@@ -664,12 +673,12 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
 		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
-		 	 geschlecht, google_bewertung)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 geschlecht, google_bewertung, kind_manuell)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
 		n.Anschrift.Adresse, n.Anschrift.Postleitzahl, n.Anschrift.Ort,
 		n.Email, n.Telefon,
-		n.Geschlecht, bool(n.GoogleBewertung))
+		n.Geschlecht, bool(n.GoogleBewertung), n.KindManuell)
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -786,6 +795,7 @@ type MitgliedPatch struct {
 	IBAN            *string
 	Geschlecht      *string
 	GoogleBewertung *GoogleBewertung
+	KindManuell     *bool
 
 	// Anschrift ändert sich als Ganzes und nicht feldweise: ein Umzug betrifft
 	// alle drei Angaben, und im Formular stehen sie zusammen. Wer nur den Ort
@@ -1017,6 +1027,9 @@ func (p MitgliedPatch) zuweisungen() zuweisungssatz {
 	if p.GoogleBewertung != nil {
 		z.setze("google_bewertung", bool(*p.GoogleBewertung))
 	}
+	if p.KindManuell != nil {
+		z.setze("kind_manuell", *p.KindManuell)
+	}
 
 	return z
 }
@@ -1076,13 +1089,13 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 		 	COALESCE((SELECT z.iban FROM zahler z
 		 	          JOIN mitgliedschaft ms ON ms.zahler_id = z.id
 		 	          WHERE ms.id = (`+massgeblicheMitgliedschaft+`)), ''),
-		 	geschlecht, google_bewertung,
+		 	geschlecht, google_bewertung, kind_manuell,
 		 	rueckstand, rueckstand_notiz
 		 FROM mitglied WHERE id = ?`, id, heute(), id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
 			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
 			&m.Email, &m.Telefon,
-			&m.IBAN, &m.Geschlecht, &m.GoogleBewertung,
+			&m.IBAN, &m.Geschlecht, &m.GoogleBewertung, &m.KindManuell,
 			&m.Rueckstand.Offen, &m.Rueckstand.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)

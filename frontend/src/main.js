@@ -356,3 +356,22 @@ document.body.addEventListener('input', (ereignis) => {
         frauentermineAnwenden(ereignis.target.form);
     }
 });
+
+// Das Handkennzeichen „Kind“ gilt nur ohne Geburtsdatum: sobald im
+// Anlegeformular eins getippt ist, wird das Kästchen gesperrt und abgehakt
+// zurückgenommen (service.Mitglied.IstKindAm).
+document.body.addEventListener('input', (ereignis) => {
+    if (!ereignis.target.matches || !ereignis.target.matches('input[name="geburtsdatum"]')) {
+        return;
+    }
+
+    const kaestchen = document.querySelector('[data-kind-kennzeichen] input[type="checkbox"]');
+    if (!kaestchen) {
+        return;
+    }
+
+    kaestchen.disabled = ereignis.target.value !== '';
+    if (kaestchen.disabled) {
+        kaestchen.checked = false;
+    }
+});

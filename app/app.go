@@ -221,6 +221,9 @@ type formularEingabe struct {
 	// GoogleBewertung kommt aus einem Kontrollkästchen und ist deshalb schon
 	// hier ein Wahrheitswert — parsen lässt sich daran nichts.
 	GoogleBewertung bool
+	// KindManuell ist das Handkennzeichen „Kind“; das Formular bietet es nur
+	// ohne Geburtsdatum an (service.Mitglied.IstKindAm).
+	KindManuell bool
 	// Beitrag ist der getippte Euro-Betrag, so wie er im Feld steht — umgerechnet
 	// wird er im Service (service.BeitragAusEuro).
 	Beitrag string
@@ -296,6 +299,11 @@ type formularDaten struct {
 	// formatiert, weil sie nur gelesen und nicht zurückgeschickt werden.
 	GeburtsdatumAnzeige string
 	EintrittAnzeige     string
+
+	// KindKennzeichenAnbieten zeigt das Handkennzeichen „Kind“: beim Anlegen
+	// immer (das Geburtsdatum kann noch leer bleiben, das Skript sperrt das
+	// Feld, sobald eines getippt ist), beim Bearbeiten nur ohne Geburtsdatum.
+	KindKennzeichenAnbieten bool
 
 	// Termine sind die Trainingstermine zum Ankreuzen, in Wochenreihenfolge.
 	// Sie stehen neben der Eingabe und nicht darin: welche Termine es gibt,
@@ -1045,9 +1053,10 @@ func (a *App) anlegenFormularRendern(w http.ResponseWriter, eingabe formularEing
 	}
 
 	a.rendern(w, "mitglied-formular", formularDaten{
-		Eingabe: eingabe,
-		Termine: auswahl,
-		Fehler:  fehler,
+		Eingabe:                 eingabe,
+		Termine:                 auswahl,
+		Fehler:                  fehler,
+		KindKennzeichenAnbieten: true,
 	})
 }
 
@@ -1155,6 +1164,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		terminIDs = terminIDsAlsText(letzte.Trainingstermine)
 	}
 
+			KindManuell:        m.KindManuell,
 	if eingabe == nil {
 		eingabe = &formularEingabe{
 			Vorname:            m.Vorname,
@@ -1190,11 +1200,13 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		Eingabe:             *eingabe,
 		GeburtsdatumAnzeige: datumAnzeige(m.Geburtsdatum),
 		EintrittAnzeige:     datumAnzeige(eintritt),
-		Termine:             auswahl,
-		Vertraege:           vertragsbloecke(m.Mitgliedschaften),
-		Rechnung:            rechnungBereichAmMitglied(m),
-		Status:              status,
-		Fehler:              fehler,
+
+		KindKennzeichenAnbieten: m.Geburtsdatum == nil,
+		Termine:                 auswahl,
+		Vertraege:               vertragsbloecke(m.Mitgliedschaften),
+		Rechnung:                rechnungBereichAmMitglied(m),
+		Status:                  status,
+		Fehler:                  fehler,
 	})
 }
 
@@ -1613,6 +1625,7 @@ func aufListeUmleiten(w http.ResponseWriter) {
 // formularEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
 func formularEingabeLesen(r *http.Request) formularEingabe {
 	return formularEingabe{
+		KindManuell:     r.FormValue("kind_manuell") != "",
 		Vorname:      r.FormValue("vorname"),
 		Nachname:     r.FormValue("nachname"),
 		Geburtsdatum: r.FormValue("geburtsdatum"),
@@ -1710,6 +1723,7 @@ func (e formularEingabe) alsAnmeldung() (service.Anmeldung, []string) {
 func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 	var fehler []string
 
+		KindManuell:        e.KindManuell,
 	anmeldung, anmeldungFehler := e.alsAnmeldung()
 	fehler = append(fehler, anmeldungFehler...)
 
@@ -1758,6 +1772,7 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 // Geburtsdatum und Eintritt gehören bewusst nicht dazu.
 func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 	var fehler []string
+		KindManuell:     &e.KindManuell,
 
 	anschrift := e.alsAnschrift()
 	googleBewertung := service.GoogleBewertung(e.GoogleBewertung)

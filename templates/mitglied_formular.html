@@ -100,6 +100,15 @@
                      Eintipphilfe und keine Einschränkung (Spec → keine
                      Wertelisten-Prüfung). */}}
                 {{template "feld-mit-vorschlaegen" vorschlagsfeld (t "feld.geschlecht") "geschlecht" .Eingabe.Geschlecht geschlechtVorschlaege}}
+                {{/* Kind ist, wer unter 18 ist — abgeleitet aus dem
+                     Geburtsdatum, nie gespeichert (CONTEXT.md → Kind). Nur
+                     ohne Geburtsdatum gibt es das Handkennzeichen; main.js
+                     sperrt es beim Anlegen, sobald ein Datum getippt ist. */}}
+                {{if .KindKennzeichenAnbieten}}
+                    <div data-kind-kennzeichen>
+                    {{template "feld-kontrollkaestchen" kontrollkaestchen (t "feld.kind") "kind_manuell" (t "feld.kind_text") .Eingabe.KindManuell}}
+                    </div>
+                {{end}}
             </div>
         </div>
 

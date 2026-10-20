@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Mit Geburtsdatum: Kind genau bis zum Tag vor dem 18. Geburtstag (Stichtagstests um den Geburtstag, Schaltjahr 29.02. eingeschlossen)
 - [ ] Ohne Geburtsdatum: Kind entspricht dem Handkennzeichen

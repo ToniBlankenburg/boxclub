@@ -43,6 +43,8 @@ var deutsch = map[string]string{
 	"feld.anmeldegebuehr":        "Anmeldegebühr in € (einmalig)",
 	"feld.beitrag":               "Beitrag in € pro Monat",
 	"feld.google_bewertung":      "Google-Bewertung",
+	"feld.kind":                  "Kind",
+	"feld.kind_text":             "Unter 18 (ohne Geburtsdatum)",
 	"feld.training":              "Training",
 	"feld.nicht_aenderbar_titel": "Nach der Anlage nicht mehr änderbar",
 
