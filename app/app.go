@@ -929,6 +929,12 @@ func (d listeDaten) BeitragBisAnzeige() string {
 	return strings.Replace(d.BeitragBisWert(), ".", ",", 1)
 }
 
+// beitragSchrittCents ist die Schrittweite des Beitrag-Reglers: 5 €. Die
+// Grenzen werden auf volle Schritte gerundet (unten ab, oben auf), damit jeder
+// Griff auf einem Vielfachen von 5 € einrastet und der Bestand trotzdem
+// vollständig im Bereich liegt.
+const beitragSchrittCents = 500
+
 // beitragAlsAttribut schreibt einen Cent-Betrag mit Punkt statt Komma — siehe
 // BeitragMinAttr.
 func beitragAlsAttribut(cents int64) string {
@@ -1052,8 +1058,8 @@ func (a *App) listeDatenLesen(w http.ResponseWriter, eingabe suchEingabe, m meld
 		Suche:            eingabe,
 		Navigation:       a.navigation(bereichMitglieder),
 		Sprache:          a.Sprache(),
-		BeitragMin:       beitragMin,
-		BeitragMax:       beitragMax,
+		BeitragMin:       beitragMin / beitragSchrittCents * beitragSchrittCents,
+		BeitragMax:       (beitragMax + beitragSchrittCents - 1) / beitragSchrittCents * beitragSchrittCents,
 		Geschlechtswerte: geschlechtswerte,
 		Termine:          termine,
 	}, true
