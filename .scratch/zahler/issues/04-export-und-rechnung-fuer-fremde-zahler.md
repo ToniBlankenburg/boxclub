@@ -4,10 +4,10 @@
 
 **Blocked by:** 03 (Abweichender Kontoinhaber)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Export: Zwei Kinder derselben Eltern ergeben zwei Zeilen mit demselben Zahlungspflichtigen und derselben IBAN, aber je eigener Mandatsreferenz und eigenem Betrag
-- [ ] Export: Ein Mitglied, das selbst zahlt, erscheint mit seinem aktuellen Namen (auch nach einer Namensänderung)
-- [ ] Rechnung: Name vom Zahler, Anschrift vom Mitglied, beides überschreibbar; Dokument hängt am Mitglied
-- [ ] Rückstand, Monatssoll und Dashboard bleiben unverändert
-- [ ] Tests nach dem Muster von `service/moneymoney_test.go` und `service/rechnung_test.go`; `go test ./...` grün
+- [x] Export: Zwei Kinder derselben Eltern ergeben zwei Zeilen mit demselben Zahlungspflichtigen und derselben IBAN, aber je eigener Mandatsreferenz und eigenem Betrag
+- [x] Export: Ein Mitglied, das selbst zahlt, erscheint mit seinem aktuellen Namen (auch nach einer Namensänderung)
+- [x] Rechnung: Name vom Zahler, Anschrift vom Mitglied, beides überschreibbar; Dokument hängt am Mitglied
+- [x] Rückstand, Monatssoll und Dashboard bleiben unverändert
+- [x] Tests nach dem Muster von `service/moneymoney_test.go` und `service/rechnung_test.go`; `go test ./...` grün

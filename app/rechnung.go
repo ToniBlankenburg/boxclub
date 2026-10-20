@@ -220,10 +220,15 @@ func rechnungEingabeLeer() rechnungEingabe {
 }
 
 // rechnungEingabeVorbelegt ist dasselbe mit dem Empfänger aus den Stammdaten
-// eines Mitglieds — frei überschreibbar (CONTEXT.md → Rechnung).
+// eines Mitglieds — frei überschreibbar (CONTEXT.md → Rechnung). Der Name kommt
+// vom Kontoinhaber, wenn jemand anderes zahlt, die Anschrift immer vom
+// Mitglied: der Zahler hat keine eigene (ADR-0013).
 func rechnungEingabeVorbelegt(m service.Mitglied) rechnungEingabe {
 	eingabe := rechnungEingabeLeer()
 	eingabe.Name = strings.TrimSpace(m.Vorname + " " + m.Nachname)
+	if m.Kontoinhaber != "" {
+		eingabe.Name = m.Kontoinhaber
+	}
 	eingabe.Adresse = m.Anschrift.Adresse
 	eingabe.Postleitzahl = m.Anschrift.Postleitzahl
 	eingabe.Ort = m.Anschrift.Ort

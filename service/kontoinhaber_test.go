@@ -210,3 +210,38 @@ func TestKontoinhaber_WiedereintrittUebernimmtDenZahler(t *testing.T) {
 		t.Errorf("Zahlungspflichtiger = %q", z.Zahlungspflichtiger)
 	}
 }
+
+func TestKontoinhaber_ZweiKinderDerselbenElternErgebenZweiZeilen(t *testing.T) {
+	svc := neuerService(t)
+
+	a := kindMitKontoinhaber(t, svc, "Lena", "Petra Berger", "DE02 1203 0000 0000 2020 51")
+	b := kindMitKontoinhaber(t, svc, "Tom", "Petra Berger", "de02120300000000202051")
+
+	export := exportLesen(t, svc)
+	if len(export.Zeilen) != 2 {
+		t.Fatalf("Zeilen = %d, erwartet 2", len(export.Zeilen))
+	}
+
+	za, zb := zeileZuMitglied(t, export, a), zeileZuMitglied(t, export, b)
+	if za.Zahlungspflichtiger != zb.Zahlungspflichtiger || za.IBAN != zb.IBAN {
+		t.Errorf("Zeilen %+v und %+v, erwartet derselbe Zahlungspflichtige und dieselbe IBAN", za, zb)
+	}
+	if za.MitgliedID == zb.MitgliedID || za.BetragCents != beitragImTest || zb.BetragCents != beitragImTest {
+		t.Errorf("Zeilen %+v und %+v, erwartet je eigene Referenz und eigener Betrag", za, zb)
+	}
+}
+
+func TestKontoinhaber_SelbstZahlerErscheintNachUmbenennungMitNeuemNamen(t *testing.T) {
+	svc := neuerService(t)
+
+	id := moneyMoneyMitglied(t, svc, "Anna", "Alt", "DE89370400440532013000")
+
+	neu := "Neu"
+	if err := svc.Update(id, service.MitgliedPatch{Nachname: &neu}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	if z := zeileZuMitglied(t, exportLesen(t, svc), id); z.Zahlungspflichtiger != "Anna Neu" {
+		t.Errorf("Zahlungspflichtiger = %q, erwartet %q", z.Zahlungspflichtiger, "Anna Neu")
+	}
+}
