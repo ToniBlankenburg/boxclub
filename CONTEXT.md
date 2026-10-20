@@ -54,7 +54,7 @@ Ein Termin, den es nicht mehr gibt, wird **archiviert**: er verschwindet aus der
 
 Die Mitglieder, die für einen Trainingstermin angemeldet sind — die Antwort auf „wer trainiert samstags um 10:30?". Sie wird **abgelesen, nicht geführt**: es gibt keine Liste, die jemand pflegt, sondern nur die Anmeldungen der Mitgliedschaften, nach Termin gelesen.
 
-Aufgenommen ist, wer **Neu**, **Aktiv** oder **In Kündigungsfrist** ist und dessen Mitgliedschaft **nicht ruhend** ist. Maßgeblich ist die Mitgliedschaft, die auch die Mitgliederliste zeigt; ein früherer Zeitraum mit denselben Terminen zählt nicht. Ein Ausgetretener steht nicht darin, seine Anmeldung bleibt nur Historie. Ein *Neuer* steht schon darin, obwohl er noch nicht trainiert — bewusst, weil er sich für den Termin verbindlich angemeldet hat. Die Liste zeigt nur die Namen, alphabetisch nach Nachname und Vorname, dazu die Anzahl je Termin; der Anzahl steht keine Obergrenze gegenüber (siehe [ADR-0008](docs/adr/0008-trainingstermine-als-wochenplan.md)).
+Aufgenommen ist, wer **Neu**, **Aktiv** oder **In Kündigungsfrist** ist und dessen Mitgliedschaft **heute nicht stillgelegt** ist. Maßgeblich ist die Mitgliedschaft, die auch die Mitgliederliste zeigt; ein früherer Zeitraum mit denselben Terminen zählt nicht. Ein Ausgetretener steht nicht darin, seine Anmeldung bleibt nur Historie. Ein *Neuer* steht schon darin, obwohl er noch nicht trainiert — bewusst, weil er sich für den Termin verbindlich angemeldet hat. Die Liste zeigt nur die Namen, alphabetisch nach Nachname und Vorname, dazu die Anzahl je Termin; der Anzahl steht keine Obergrenze gegenüber (siehe [ADR-0008](docs/adr/0008-trainingstermine-als-wochenplan.md)).
 
 **Nicht zu verwechseln mit:** einer Anwesenheitsliste. Die Teilnehmerliste sagt, wer *angemeldet* ist, nie, wer an einem bestimmten Tag *da war* — das wäre Anwesenheit und ist aus v1 ausgeschlossen. _Vermeiden:_ Anwesenheitsliste, „wer da ist", Belegung; die beiden ersten behaupten Anwesenheit, das dritte eine Platzzahl.
 
@@ -96,15 +96,35 @@ Die **reguläre** Frist der Satzung sind drei Monate zum Monatsende: eine am 12.
 
 ## Status
 
-Der Lebenszyklus-Zustand eines Mitglieds. Er wird **nicht gepflegt, sondern abgelesen**: *Neu* (Eintritt liegt in der Zukunft), *Aktiv* (Eintritt erreicht, Austritt nicht erreicht und keine Kündigung erfasst), *In Kündigungsfrist* (eine Kündigung ist erfasst, der Austritt aber noch nicht erreicht), *Ausgetreten* (Austritt erreicht). Einzige Ausnahme ist *ruhend*, das sich aus keinem Datum ergibt.
+Der Lebenszyklus-Zustand eines Mitglieds. Er wird **nicht gepflegt, sondern abgelesen**: *Neu* (Eintritt liegt in der Zukunft), *Aktiv* (Eintritt erreicht, Austritt nicht erreicht und keine Kündigung erfasst), *In Kündigungsfrist* (eine Kündigung ist erfasst, der Austritt aber noch nicht erreicht), *Ausgetreten* (Austritt erreicht). Auch *stillgelegt* ist kein Zustand dieser Reihe, sondern ein Merkmal daneben, das ebenfalls abgelesen wird — aus den *Stilllegungen* der Mitgliedschaft.
 
 Beide Ränder zählen einschließend: am Eintrittstag ist das Mitglied aktiv, am Austrittstag bereits ausgetreten. *Aktiv* heißt dabei „Austritt nicht erreicht" und nicht „kein Austrittsdatum gesetzt" — wer in der Kündigungsfrist steht, hat eines und bleibt trotzdem in der Standardansicht. Erfasst ist eine Kündigung, sobald **eines** der beiden Daten steht: ein Kündigungsdatum ohne Termin heißt „erklärt, Termin offen", ein Austritt ohne Kündigungsdatum ist der Normalfall der Altbestände.
 
-_Vermeiden:_ „Mitglied" und „Aktiv" als zwei verschiedene Zustände — das ist derselbe. Ebenso „Inaktiv" für ein ruhendes Mitglied.
+_Vermeiden:_ „Mitglied" und „Aktiv" als zwei verschiedene Zustände — das ist derselbe. Ebenso „Inaktiv" für ein stillgelegtes Mitglied.
 
-## Ruhend
+## Stilllegung
 
-Ein Mitglied, das vorübergehend nicht trainiert (Verletzung, Auslandsaufenthalt), ohne zu kündigen. Die Mitgliedschaft läuft weiter, der Beitrag wird in dieser Zeit **nicht eingezogen**. _Vermeiden:_ Stillgelegt, Inaktiv, Pausiert.
+Ein **Zeitraum**, in dem ein Mitglied vorübergehend nicht trainiert (Verletzung, Auslandsaufenthalt), ohne zu kündigen. Er hat ein `von` und ein `bis` — beide Pflicht, kein „bis auf Weiteres" — und optional einen Grund als Freitext. Die Mitgliedschaft läuft weiter, der Beitrag wird für die Zeit **nicht eingezogen**.
+
+Sie hängt an der **Mitgliedschaft**: eine Mitgliedschaft kann mehrere Stilllegungen haben, die zusammen ihre Historie bilden. Bei einem Wiedereintritt bleiben sie bei der alten Mitgliedschaft, die neue beginnt ohne. Ein Mitglied ist **stillgelegt**, wenn der heutige Tag in einer Stilllegung liegt — das wird abgelesen, nicht gepflegt; es gibt keinen Schalter. Beide Ränder zählen einschließend.
+
+Zwei Stilllegungen einer Mitgliedschaft **überlappen nie**. Solange jemand stillgelegt ist, kommt keine neue hinzu; erst nach „wieder aktiv" (das setzt `bis` auf heute, eine noch nicht begonnene Stilllegung wird dabei gelöscht). Eine Stilllegung darf über den Austritt hinausreichen; gespeichert wird, was eingetragen ist, nach dem Austritt wirkt sie nicht mehr.
+
+**Wirkung auf den Beitrag:** ein Kalendermonat gilt als *Stilllegungsmonat*, sobald **irgendein Tag** darin in einer Stilllegung liegt — der Zeitraum 20.03. bis 05.04. macht März **und** April zu Stilllegungsmonaten. Für sie wird kein Beitrag eingezogen; Monatssoll und Lastschriftexport folgen derselben Regel. Es gibt keine anteilige Berechnung.
+
+**Wirkung auf die Laufzeit:** jeder Stilllegungsmonat verlängert die *Mindestlaufzeit*. Eine **Kündigung** lässt sich in einer Stilllegung nicht erfassen; die Schaltfläche erklärt das beim Darüberfahren. Das Gegenteil gilt nicht: wer schon gekündigt hat, kann stillgelegt werden.
+
+Unabhängig vom *Rückstand*: für einen Stillgelegten geht keine Lastschrift raus, es kann also kein neuer Rückstand entstehen, ein bestehender bleibt (ADR-0006). Eine Stilllegung ist **keine Anwesenheitsangabe** und kein Zahlungsvorgang.
+
+_Vermeiden:_ Ruhend, Ruhezeit, Inaktiv, Pausiert. Die Excel-Werte `Stillgelegt` und `Inakiv` beschreiben denselben Sachverhalt, tragen aber keinen Zeitraum; der Import legt daraus keine Stilllegung an, sondern meldet sie im Fehlerbericht (siehe [ADR-0022](docs/adr/0022-stilllegung-als-zeitraum.md)).
+
+## Mindestlaufzeit
+
+Die Zahl der Monate ab Eintritt, für die sich ein Mitglied mit einer Mitgliedschaft gebunden hat. Optional; leer heißt: keine Bindung. Sie hängt an der **Mitgliedschaft** — wie Beitrag und Anmeldegebühr gilt sie für genau diesen Vertrag, ein Wiedereintritt beginnt ohne und bekommt eine neue.
+
+Das **Ende der Mindestlaufzeit** wird abgelesen: Eintritt plus Mindestlaufzeit plus die Zahl der *Stilllegungsmonate* der Mitgliedschaft. Es wird nie gespeichert. Es bindet nichts: liegt ein erfasster Austritt davor, **warnt** das Kündigungsformular, speichert aber. Der Vorschlag dort (drei Monate zum Monatsende, siehe *Kündigungsfrist*) bleibt unverändert.
+
+_Vermeiden:_ Vertragslaufzeit, Bindefrist.
 
 ## Lastschrift
 
@@ -192,6 +212,6 @@ Der Verwendungszweck ist zum Teil überschreibbar: die *Vereinsdaten* tragen daf
 
 ## Monatssoll
 
-Die Summe der Beiträge, die im laufenden Monat eingezogen werden: alle aktiven Mitgliedschaften **einschließlich** derer in der Kündigungsfrist, **ohne** ruhende und ohne solche, deren Eintritt noch bevorsteht.
+Die Summe der Beiträge, die im laufenden Monat eingezogen werden: alle aktiven Mitgliedschaften **einschließlich** derer in der Kündigungsfrist, **ohne** Mitgliedschaften, für die der laufende Monat ein *Stilllegungsmonat* ist, und ohne solche, deren Eintritt noch bevorsteht.
 
 Es ist ein **Soll und kein Ist**. Was tatsächlich einging, weiß die Bank; v1 kennt keine Zahlungen. Deshalb gibt es auch keinen Verlauf über Monate: die Datenbank führt je Mitgliedschaft einen Beitrag, den heutigen, und eine Kurve daraus wäre eine Hochrechnung im Gewand einer Messung. Siehe [ADR-0009](docs/adr/0009-rechnungen-und-monatssoll-ohne-zahlungsmodell.md). _Vermeiden:_ Einnahmen, Umsatz, Beitragsaufkommen.
