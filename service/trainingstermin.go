@@ -129,6 +129,11 @@ type Trainingstermin struct {
 	// angemeldet ist, bleibt es auch, wenn sich die Angabe später ändert —
 	// dieselbe Haltung wie beim archivierten Termin.
 	NurFrauen bool
+
+	// NurKinder heißt: zu diesem Termin werden nur Mitglieder angemeldet, die
+	// beim Anmelden ein Kind sind (Mitglied.IstKind). Sonst wie NurFrauen — und
+	// nie zugleich mit ihm: ein Termin hat eine Zielgruppe.
+	NurKinder bool
 }
 
 // KurzeAnzeige ist der Termin auf seine beiden Pflichtangaben verkürzt:
@@ -173,6 +178,7 @@ type Trainingsterminangabe struct {
 	Ende        string
 	Bezeichnung string
 	NurFrauen   bool
+	NurKinder   bool
 }
 
 // Die Meldungen zu den Regeln, die ein Termin kennt.
@@ -182,6 +188,7 @@ var (
 	unlesbarerBeginn   = meldung("validierung.trainingstermin.beginn_unlesbar")
 	unlesbaresEnde     = meldung("validierung.trainingstermin.ende_unlesbar")
 	endeVorBeginn      = meldung("validierung.trainingstermin.ende_vor_beginn")
+	zweiZielgruppen    = meldung("validierung.trainingstermin.zielgruppe")
 )
 
 // pruefen macht aus den Rohwerten einen Termin oder sammelt alle Verstöße auf
@@ -199,9 +206,14 @@ func (a Trainingsterminangabe) pruefen() (Trainingstermin, error) {
 		Wochentag:   a.Wochentag,
 		Bezeichnung: strings.TrimSpace(a.Bezeichnung),
 		NurFrauen:   a.NurFrauen,
+		NurKinder:   a.NurKinder,
 	}
 
 	var meldungen []Meldung
+
+	if a.NurFrauen && a.NurKinder {
+		meldungen = append(meldungen, zweiZielgruppen)
+	}
 
 	if !a.Wochentag.gueltig() {
 		meldungen = append(meldungen, fehlenderWochentag)
@@ -250,10 +262,10 @@ func (s *MemberService) CreateTrainingstermin(a Trainingsterminangabe) (int64, e
 	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO trainingstermin (wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen)
-		 VALUES (?, ?, ?, ?, 0, ?)`,
+		`INSERT INTO trainingstermin (wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen, nur_kinder)
+		 VALUES (?, ?, ?, ?, 0, ?, ?)`,
 		int(termin.Wochentag), string(termin.Beginn), alsUhrzeitText(termin.Ende), termin.Bezeichnung,
-		termin.NurFrauen)
+		termin.NurFrauen, termin.NurKinder)
 	if err != nil {
 		return 0, fmt.Errorf("trainingstermin anlegen: %w", err)
 	}
@@ -283,9 +295,9 @@ func (s *MemberService) UpdateTrainingstermin(id int64, a Trainingsterminangabe)
 	}
 
 	res, err := s.db.Exec(
-		`UPDATE trainingstermin SET wochentag = ?, beginn = ?, ende = ?, bezeichnung = ?, nur_frauen = ? WHERE id = ?`,
+		`UPDATE trainingstermin SET wochentag = ?, beginn = ?, ende = ?, bezeichnung = ?, nur_frauen = ?, nur_kinder = ? WHERE id = ?`,
 		int(termin.Wochentag), string(termin.Beginn), alsUhrzeitText(termin.Ende), termin.Bezeichnung,
-		termin.NurFrauen, id)
+		termin.NurFrauen, termin.NurKinder, id)
 	if err != nil {
 		return fmt.Errorf("trainingstermin %d ändern: %w", id, err)
 	}
@@ -314,7 +326,7 @@ func (s *MemberService) SetTrainingsterminArchiviert(id int64, archiviert bool) 
 // kann.
 func (s *MemberService) GetTrainingstermin(id int64) (Trainingstermin, error) {
 	termin, err := trainingsterminLesen(s.db.QueryRow(
-		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen
+		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen, nur_kinder
 		 FROM trainingstermin WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Trainingstermin{}, fmt.Errorf("trainingstermin %d: %w", id, ErrNichtGefunden)
@@ -342,7 +354,7 @@ func (s *MemberService) ListTrainingstermine(auchArchivierte bool) ([]Trainingst
 	}
 
 	zeilen, err := s.db.Query(fmt.Sprintf(
-		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen
+		`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen, nur_kinder
 		 FROM trainingstermin %s
 		 ORDER BY wochentag, beginn, bezeichnung, id`, bedingung))
 	if err != nil {
@@ -376,7 +388,7 @@ func trainingsterminLesen(zeile interface{ Scan(...any) error }) (Trainingstermi
 	)
 
 	if err := zeile.Scan(&termin.ID, &termin.Wochentag, &termin.Beginn, &ende,
-		&termin.Bezeichnung, &termin.Archiviert, &termin.NurFrauen); err != nil {
+		&termin.Bezeichnung, &termin.Archiviert, &termin.NurFrauen, &termin.NurKinder); err != nil {
 		return Trainingstermin{}, err
 	}
 

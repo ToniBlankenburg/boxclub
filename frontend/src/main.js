@@ -421,29 +421,55 @@ document.body.addEventListener('input', (ereignis) => {
     }
 });
 
-// Der abweichende Kontoinhaber gilt nur für ein Kind (service.Mitglied.IstKindAm).
-// Beim Anlegen entscheidet das Geburtsdatum, sonst das Handkennzeichen. Im
+// Ob das Mitglied im Formular ein Kind ist (service.Mitglied.IstKindAm). Beim
+// Anlegen entscheidet das Geburtsdatum, sonst das Handkennzeichen. Im
 // Bearbeitenformular gibt es kein Geburtsdatumfeld: dort steht der Zustand
-// schon vom Server fest, nur das Handkennzeichen ändert ihn.
+// schon vom Server fest, nur das Handkennzeichen ändert ihn. null heißt: das
+// Formular sagt nichts darüber.
+function istKindImFormular(formular) {
+    const geburtsdatum = formular.querySelector('input[name="geburtsdatum"]');
+    const kaestchen = formular.querySelector('[data-kind-kennzeichen] input[type="checkbox"]');
+
+    if (geburtsdatum && geburtsdatum.value !== '') {
+        const volljaehrig = new Date(geburtsdatum.value + 'T00:00:00');
+        volljaehrig.setFullYear(volljaehrig.getFullYear() + 18);
+        const heute = new Date();
+        heute.setHours(0, 0, 0, 0);
+        return heute < volljaehrig;
+    }
+    if (kaestchen) {
+        return kaestchen.checked;
+    }
+
+    return null;
+}
+
+// Termine nur für Kinder sind im Mitgliedsformular nur sichtbar, solange das
+// Mitglied ein Kind ist — oder der Termin schon angekreuzt ist. Wie
+// frauentermineAnwenden; der Service prüft dasselbe beim Speichern.
+function kindertermineAnwenden(formular) {
+    const istKind = istKindImFormular(formular);
+    if (istKind === null) {
+        return;
+    }
+
+    formular.querySelectorAll('[data-nur-kinder]').forEach((zeile) => {
+        const kaestchen = zeile.querySelector('input[type="checkbox"]');
+        const sichtbar = istKind || kaestchen.checked;
+        zeile.hidden = !sichtbar;
+        kaestchen.disabled = !sichtbar;
+    });
+}
+
+// Der abweichende Kontoinhaber gilt nur für ein Kind.
 function kontoinhaberAnwenden(formular) {
     const feld = formular.querySelector('[data-kontoinhaber] input');
     if (!feld) {
         return;
     }
 
-    const geburtsdatum = formular.querySelector('input[name="geburtsdatum"]');
-    const kaestchen = formular.querySelector('[data-kind-kennzeichen] input[type="checkbox"]');
-
-    let istKind;
-    if (geburtsdatum && geburtsdatum.value !== '') {
-        const volljaehrig = new Date(geburtsdatum.value + 'T00:00:00');
-        volljaehrig.setFullYear(volljaehrig.getFullYear() + 18);
-        const heute = new Date();
-        heute.setHours(0, 0, 0, 0);
-        istKind = heute < volljaehrig;
-    } else if (kaestchen) {
-        istKind = kaestchen.checked;
-    } else {
+    const istKind = istKindImFormular(formular);
+    if (istKind === null) {
         return;
     }
 
@@ -456,5 +482,6 @@ function kontoinhaberAnwenden(formular) {
 document.body.addEventListener('input', (ereignis) => {
     if (ereignis.target.matches && ereignis.target.matches('input[name="geburtsdatum"], input[name="kind_manuell"]')) {
         kontoinhaberAnwenden(ereignis.target.form);
+        kindertermineAnwenden(ereignis.target.form);
     }
 });

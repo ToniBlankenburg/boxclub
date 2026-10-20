@@ -175,6 +175,7 @@ var deutsch = map[string]string{
 	"mitglied.stundenplan_leer_vor": "Der Stundenplan ist noch leer — Trainingszeiten lassen sich erst " +
 		"zuordnen, wenn im Bereich ",
 	"mitglied.stundenplan_leer_nach": " welche angelegt sind.",
+	"mitglied.kindertermin_pruefen":  "Das Mitglied ist kein Kind mehr, aber noch für »%s« angemeldet. Die Anmeldung bleibt bestehen – bitte prüfen, ob es dort weiter trainieren soll.",
 
 	// meldung.* sind die Rückmeldungen nach einer abgeschlossenen Aktion an
 	// der Mitgliederliste (Ticket 02, app.meldung).
@@ -223,8 +224,13 @@ var deutsch = map[string]string{
 	"trainingstermine.archiviert_abzeichen":      "archiviert",
 	"trainingstermine.nur_frauen_abzeichen":      "nur Frauen",
 	"trainingstermine.bereich_frauen":            "Frauen-Boxeinheiten",
-	"trainingstermine.nur_frauen_feld":           "Nur für Frauen",
-	"trainingstermine.nur_frauen_hinweis":        "Angemeldet werden dann nur Mitglieder mit dem Geschlecht „Frau“. Wer schon angemeldet ist, bleibt es.",
+	"trainingstermine.bereich_kinder":            "Kinder-Boxeinheiten",
+	"trainingstermine.nur_kinder_abzeichen":      "nur Kinder",
+	"trainingstermine.zielgruppe_feld":           "Zielgruppe",
+	"trainingstermine.zielgruppe_alle":           "Alle",
+	"trainingstermine.zielgruppe_frauen":         "Nur für Frauen",
+	"trainingstermine.zielgruppe_kinder":         "Nur für Kinder",
+	"trainingstermine.zielgruppe_hinweis":        "Bei „Nur für Frauen“ werden nur Mitglieder mit dem Geschlecht „Frau“ angemeldet, bei „Nur für Kinder“ nur Kinder (unter 18). Wer schon angemeldet ist, bleibt es.",
 	"trainingstermine.archiviert_titel":          "Archiviert — nicht mehr im Stundenplan und in keiner Auswahl. Bestehende Anmeldungen bleiben bestehen.",
 	"trainingstermine.angemeldet_anzahl":         "%d angemeldet",
 	"trainingstermine.niemand_angemeldet":        "niemand angemeldet",
@@ -509,6 +515,7 @@ var deutsch = map[string]string{
 	"validierung.termin.zu_viele":   "Es sind höchstens %d Trainingstermine möglich.",
 	"validierung.termin.unbekannt":  "Einen ausgewählten Trainingstermin gibt es nicht.",
 	"validierung.termin.archiviert": "»%s« ist archiviert und kann nicht neu vergeben werden.",
+	"validierung.termin.nur_kinder": "»%s« ist nur für Kinder. Das Mitglied muss ein Kind sein (unter 18 oder als Kind gekennzeichnet).",
 	"validierung.termin.nur_frauen": "»%s« ist nur für Frauen. Das Geschlecht des Mitglieds muss „Frau“ sein.",
 
 	"validierung.kuendigung.fehlendes_datum":       "Bitte ein Kündigungsdatum oder ein Austrittsdatum angeben.",
@@ -549,6 +556,7 @@ var deutsch = map[string]string{
 	"validierung.trainingstermin.beginn_unlesbar": "Der Beginn ist keine gültige Uhrzeit.",
 	"validierung.trainingstermin.ende_unlesbar":   "Das Ende ist keine gültige Uhrzeit.",
 	"validierung.trainingstermin.ende_vor_beginn": "Das Ende darf nicht vor dem Beginn liegen.",
+	"validierung.trainingstermin.zielgruppe":      "Ein Termin kann nicht zugleich nur für Frauen und nur für Kinder sein.",
 
 	"validierung.uebernahme.id_ungueltig": "Die Mitglieds-ID muss eine positive Zahl sein.",
 	"validierung.uebernahme.id_gehoert_anderem": "Die Mitglieds-ID %d gehört in der App bereits zu %s %s. " +

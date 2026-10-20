@@ -399,7 +399,8 @@ CREATE TABLE IF NOT EXISTS trainingstermin (
 	ende        TEXT,
 	bezeichnung TEXT    NOT NULL DEFAULT '',
 	archiviert  INTEGER NOT NULL DEFAULT 0,
-	nur_frauen  INTEGER NOT NULL DEFAULT 0
+	nur_frauen  INTEGER NOT NULL DEFAULT 0,
+	nur_kinder  INTEGER NOT NULL DEFAULT 0
 );
 
 -- Wofür eine Mitgliedschaft angemeldet ist (ADR-0008). Der Schlüssel aus beiden
@@ -560,6 +561,10 @@ var spaltenNachtraege = []struct {
 	// trainingstermin: ein Termin, zu dem nur Frauen angemeldet werden. Der
 	// Default 0 ist genau der Stand davor: jeder bestehende Termin stand allen offen.
 	{"trainingstermin", "nur_frauen", "INTEGER NOT NULL DEFAULT 0"},
+
+	// trainingstermin: ein Termin, zu dem nur Kinder angemeldet werden. Wie
+	// nur_frauen: der Default 0 ist der Stand davor, jeder Termin stand allen offen.
+	{"trainingstermin", "nur_kinder", "INTEGER NOT NULL DEFAULT 0"},
 
 	// vereinsdaten: Logo (ADR-0012) und eigener MoneyMoney-Verwendungszweck
 	// (ADR-0016) kamen zuletzt dazu — der ursprüngliche Auslöser dieses Fixes

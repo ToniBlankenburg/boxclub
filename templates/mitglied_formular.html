@@ -236,11 +236,14 @@
     {{if .Termine}}
         <div class="grid gap-x-4 gap-y-2 sm:grid-cols-2">
             {{range .Termine}}
-                <label class="flex items-center gap-2" {{if .NurFrauen}}data-nur-frauen{{end}} {{if .Verborgen}}hidden{{end}}>
+                <label class="flex items-center gap-2" {{if .NurFrauen}}data-nur-frauen{{end}} {{if .NurKinder}}data-nur-kinder{{end}} {{if .Verborgen}}hidden{{end}}>
                     <input name="trainingstermin" type="checkbox" value="{{.ID}}" {{if .Gewaehlt}}checked{{end}} {{if .Verborgen}}disabled{{end}}
                            class="size-4 rounded border-neutral-300 text-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none">
-                    <span>{{.Anzeige}}{{if .Archiviert}} <span class="text-neutral-400">{{t "mitglieder.archiviert_suffix"}}</span>{{end}}{{if .NurFrauen}} <span class="text-neutral-400">· {{t "trainingstermine.nur_frauen_abzeichen"}}</span>{{end}}</span>
+                    <span>{{.Anzeige}}{{if .Archiviert}} <span class="text-neutral-400">{{t "mitglieder.archiviert_suffix"}}</span>{{end}}{{if .NurFrauen}} <span class="text-neutral-400">· {{t "trainingstermine.nur_frauen_abzeichen"}}</span>{{end}}{{if .NurKinder}} <span class="text-neutral-400">· {{t "trainingstermine.nur_kinder_abzeichen"}}</span>{{end}}</span>
                 </label>
+                {{if .Pruefen}}
+                    <p class="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-sm text-amber-900 sm:col-span-2" role="status">{{t "mitglied.kindertermin_pruefen" .Anzeige}}</p>
+                {{end}}
             {{end}}
         </div>
         {{/* Die Frequenz steht nicht im Formular: sie ist die Anzahl der

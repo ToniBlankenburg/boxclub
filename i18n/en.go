@@ -147,6 +147,7 @@ var englisch = map[string]string{
 	"mitglied.stundenplan_leer_vor": "The schedule is still empty — training times can only be " +
 		"assigned once some exist under ",
 	"mitglied.stundenplan_leer_nach": ".",
+	"mitglied.kindertermin_pruefen":  "This member is no longer a child but is still assigned to \"%s\". The assignment stays – please check whether they should keep training there.",
 
 	"meldung.angelegt":            "%s %s was added.",
 	"meldung.gespeichert":         "%s %s was saved.",
@@ -182,8 +183,13 @@ var englisch = map[string]string{
 	"trainingstermine.archiviert_abzeichen":      "archived",
 	"trainingstermine.nur_frauen_abzeichen":      "women only",
 	"trainingstermine.bereich_frauen":            "Women’s boxing sessions",
-	"trainingstermine.nur_frauen_feld":           "Women only",
-	"trainingstermine.nur_frauen_hinweis":        "Only members whose gender is \"Frau\" can be assigned. Members already assigned stay assigned.",
+	"trainingstermine.bereich_kinder":            "Children’s boxing sessions",
+	"trainingstermine.nur_kinder_abzeichen":      "children only",
+	"trainingstermine.zielgruppe_feld":           "Target group",
+	"trainingstermine.zielgruppe_alle":           "Everyone",
+	"trainingstermine.zielgruppe_frauen":         "Women only",
+	"trainingstermine.zielgruppe_kinder":         "Children only",
+	"trainingstermine.zielgruppe_hinweis":        "\"Women only\" assigns only members whose gender is \"Frau\", \"Children only\" only children (under 18). Members already assigned stay assigned.",
 	"trainingstermine.archiviert_titel":          "Archived — no longer in the schedule or any selection. Existing sign-ups remain.",
 	"trainingstermine.angemeldet_anzahl":         "%d signed up",
 	"trainingstermine.niemand_angemeldet":        "nobody signed up",
@@ -409,6 +415,7 @@ var englisch = map[string]string{
 	"validierung.termin.zu_viele":   "At most %d training sessions are possible.",
 	"validierung.termin.unbekannt":  "One of the selected training sessions does not exist.",
 	"validierung.termin.archiviert": "\"%s\" is archived and cannot be assigned again.",
+	"validierung.termin.nur_kinder": "\"%s\" is children only. The member must be a child (under 18 or marked as a child).",
 	"validierung.termin.nur_frauen": "\"%s\" is women only. The member's gender must be \"Frau\".",
 
 	"validierung.kuendigung.fehlendes_datum":       "Please enter a cancellation date or an exit date.",
@@ -448,6 +455,7 @@ var englisch = map[string]string{
 	"validierung.trainingstermin.beginn_unlesbar": "The start time is not a valid time.",
 	"validierung.trainingstermin.ende_unlesbar":   "The end time is not a valid time.",
 	"validierung.trainingstermin.ende_vor_beginn": "The end time must not be before the start time.",
+	"validierung.trainingstermin.zielgruppe":      "A slot cannot be women only and children only at the same time.",
 
 	"validierung.uebernahme.id_ungueltig": "The member ID must be a positive number.",
 	"validierung.uebernahme.id_gehoert_anderem": "Member ID %d already belongs to %s %s in the app. " +

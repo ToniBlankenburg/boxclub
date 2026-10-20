@@ -291,6 +291,11 @@ type terminauswahl struct {
 	// zeigt — das Geschlecht ist nicht „Frau“ und er ist nicht angekreuzt. Er
 	// bleibt im Dokument, damit das Tippen des Geschlechts ihn einblenden kann.
 	Verborgen bool
+
+	// Pruefen: ein angekreuzter Termin nur für Kinder, obwohl das Mitglied kein
+	// Kind mehr ist. Reine Anzeige — die Anmeldung bleibt (CONTEXT.md →
+	// Trainingstermin), das Formular weist nur darauf hin.
+	Pruefen bool
 }
 
 // formularDaten speist das Formular-Template. Bearbeiten unterscheidet die
@@ -1050,7 +1055,7 @@ func (a *App) mitgliedFormular(w http.ResponseWriter, r *http.Request) {
 // Beide Wege gehen hier durch, damit die Terminauswahl nicht an einem von
 // beiden fehlt.
 func (a *App) anlegenFormularRendern(w http.ResponseWriter, eingabe formularEingabe, fehler []string) {
-	auswahl, ok := a.terminauswahlLesen(w, eingabe)
+	auswahl, ok := a.terminauswahlLesen(w, eingabe, eingabe.alsMitglied().IstKind())
 	if !ok {
 		return
 	}
@@ -1189,7 +1194,9 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 		}
 	}
 
-	auswahl, ok := a.terminauswahlLesen(w, *eingabe)
+	istKind := service.Mitglied{Geburtsdatum: m.Geburtsdatum, KindManuell: eingabe.KindManuell}.IstKind()
+
+	auswahl, ok := a.terminauswahlLesen(w, *eingabe, istKind)
 	if !ok {
 		return
 	}
@@ -1229,7 +1236,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 // Angekreuzt wird gegen die Eingabe und nicht gegen den gespeicherten Stand:
 // nach einer abgelehnten Eingabe soll dastehen, was der Nutzer gewählt hat, und
 // beim ersten Aufruf trägt die Eingabe ohnehin den gespeicherten Stand.
-func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe) ([]terminauswahl, bool) {
+func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe, istKind bool) ([]terminauswahl, bool) {
 	gewaehlt := eingabe.alsTrainingsterminIDs()
 
 	termine, err := a.svc.Terminauswahl(gewaehlt)
@@ -1241,11 +1248,13 @@ func (a *App) terminauswahlLesen(w http.ResponseWriter, eingabe formularEingabe)
 
 	auswahl := make([]terminauswahl, 0, len(termine))
 	for _, termin := range termine {
+		angekreuzt := slices.Contains(gewaehlt, termin.ID)
 		auswahl = append(auswahl, terminauswahl{
 			Trainingstermin: termin,
-			Gewaehlt:        slices.Contains(gewaehlt, termin.ID),
-			Verborgen: termin.NurFrauen && !service.IstFrau(eingabe.Geschlecht) &&
-				!slices.Contains(gewaehlt, termin.ID),
+			Gewaehlt:        angekreuzt,
+			Verborgen: !angekreuzt && ((termin.NurFrauen && !service.IstFrau(eingabe.Geschlecht)) ||
+				(termin.NurKinder && !istKind)),
+			Pruefen: angekreuzt && termin.NurKinder && !istKind,
 		})
 	}
 

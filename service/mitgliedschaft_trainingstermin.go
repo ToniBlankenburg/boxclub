@@ -45,6 +45,12 @@ func nurFrauenTermin(t Trainingstermin) Meldung {
 	return meldung("validierung.termin.nur_frauen", t.Anzeige())
 }
 
+// nurKinderTermin sagt, warum ein Termin nur für Kinder dem Mitglied nicht
+// zugewiesen werden kann.
+func nurKinderTermin(t Trainingstermin) Meldung {
+	return meldung("validierung.termin.nur_kinder", t.Anzeige())
+}
+
 // IstFrau sagt, ob die Geschlechtsangabe eines Mitglieds „Frau“ ist — der Wert
 // aus den Eintipphilfen (GeschlechtVorschlaege). Das Feld ist Freitext, deshalb
 // gilt Groß- und Kleinschreibung nicht und umschließender Leerraum fällt weg;
@@ -155,7 +161,7 @@ func trainingsterminIDsPruefen(ids []int64) []Meldung {
 //
 // Drei Regeln prüft erst diese Stelle, weil alle die Datenbank brauchen: es
 // muss den Termin geben, ein archivierter lässt sich nicht neu vergeben, und ein
-// Termin nur für Frauen nimmt nur Frauen neu auf.
+// Termin nur für Frauen nimmt nur Frauen neu auf, einer nur für Kinder nur Kinder.
 // Bereits zugeordnet bleibt er dagegen erlaubt — sonst wäre eine beliebige
 // Änderung am Mitglied nicht mehr speicherbar, solange ein alter Termin
 // angekreuzt ist, und das Aufräumen des Stundenplans risse Löcher in Formulare,
@@ -198,26 +204,38 @@ func trainingstermineSchreiben(tx *sql.Tx, mitgliedschaftID int64, ids []int64) 
 // nacheinander erfahren.
 //
 // bisher sind die Termine, für die die Mitgliedschaft schon angemeldet ist. Nur
-// sie dürfen archiviert sein oder nur für Frauen, obwohl das Mitglied keine ist
-// (die Angabe kann sich nachträglich geändert haben).
+// sie dürfen archiviert sein oder nur für Frauen bzw. Kinder, obwohl das
+// Mitglied keine ist (die Angabe kann sich nachträglich geändert haben, ein
+// Kind ist irgendwann 18).
 //
-// Das Geschlecht wird hier aus der Transaktion gelesen und nicht vom Aufrufer
-// übergeben: Anlegen und Ändern schreiben es in derselben Transaktion vorher,
-// geprüft wird also immer der Stand, der gleich gespeichert wird.
+// Geschlecht und Kind-Status werden hier aus der Transaktion gelesen und nicht
+// vom Aufrufer übergeben: Anlegen und Ändern schreiben sie in derselben
+// Transaktion vorher, geprüft wird also immer der Stand, der gleich gespeichert
+// wird.
 func terminzuordnungPruefen(tx *sql.Tx, mitgliedschaftID int64, ids []int64, bisher []int64) error {
 	var meldungen []Meldung
 
-	var geschlecht string
+	var (
+		geschlecht   string
+		geburtsdatum sql.NullString
+		kindManuell  bool
+	)
 	if err := tx.QueryRow(
-		`SELECT m.geschlecht FROM mitglied m
+		`SELECT m.geschlecht, m.geburtsdatum, m.kind_manuell FROM mitglied m
 		 JOIN mitgliedschaft ms ON ms.mitglied_id = m.id
-		 WHERE ms.id = ?`, mitgliedschaftID).Scan(&geschlecht); err != nil {
-		return fmt.Errorf("geschlecht zu mitgliedschaft %d lesen: %w", mitgliedschaftID, err)
+		 WHERE ms.id = ?`, mitgliedschaftID).Scan(&geschlecht, &geburtsdatum, &kindManuell); err != nil {
+		return fmt.Errorf("geschlecht und kind-status zu mitgliedschaft %d lesen: %w", mitgliedschaftID, err)
 	}
+
+	geboren, err := ausDatumsText(geburtsdatum)
+	if err != nil {
+		return fmt.Errorf("geburtsdatum zu mitgliedschaft %d lesen: %w", mitgliedschaftID, err)
+	}
+	istKind := Mitglied{Geburtsdatum: geboren, KindManuell: kindManuell}.IstKind()
 
 	for _, id := range ids {
 		termin, err := trainingsterminLesen(tx.QueryRow(
-			`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen
+			`SELECT id, wochentag, beginn, ende, bezeichnung, archiviert, nur_frauen, nur_kinder
 			 FROM trainingstermin WHERE id = ?`, id))
 		if errors.Is(err, sql.ErrNoRows) {
 			meldungen = append(meldungen, unbekannterTermin)
@@ -234,6 +252,10 @@ func terminzuordnungPruefen(tx *sql.Tx, mitgliedschaftID int64, ids []int64, bis
 
 		if termin.NurFrauen && !IstFrau(geschlecht) && !slices.Contains(bisher, id) {
 			meldungen = append(meldungen, nurFrauenTermin(termin))
+		}
+
+		if termin.NurKinder && !istKind && !slices.Contains(bisher, id) {
+			meldungen = append(meldungen, nurKinderTermin(termin))
 		}
 	}
 

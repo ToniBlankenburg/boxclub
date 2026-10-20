@@ -32,9 +32,17 @@ type terminEingabe struct {
 	Ende        string
 	Bezeichnung string
 
-	// NurFrauen ist das Kontrollkästchen: nur gesetzt wird es mitgeschickt.
-	NurFrauen bool
+	// Zielgruppe ist der Wert der Auswahl: leer (alle), zielgruppeFrauen oder
+	// zielgruppeKinder. Im Service sind es zwei Kennzeichen, die sich
+	// ausschließen; das Formular bietet nur die eine Auswahl an.
+	Zielgruppe string
 }
+
+// Die Werte der Zielgruppen-Auswahl.
+const (
+	zielgruppeFrauen = "frauen"
+	zielgruppeKinder = "kinder"
+)
 
 // terminEingabeLesen sammelt die Rohwerte des abgeschickten Formulars ein.
 func terminEingabeLesen(r *http.Request) terminEingabe {
@@ -43,7 +51,7 @@ func terminEingabeLesen(r *http.Request) terminEingabe {
 		Beginn:      r.FormValue("beginn"),
 		Ende:        r.FormValue("ende"),
 		Bezeichnung: r.FormValue("bezeichnung"),
-		NurFrauen:   r.FormValue("nur_frauen") != "",
+		Zielgruppe:  r.FormValue("zielgruppe"),
 	}
 }
 
@@ -58,7 +66,8 @@ func (e terminEingabe) alsAngabe() service.Trainingsterminangabe {
 		Beginn:      e.Beginn,
 		Ende:        e.Ende,
 		Bezeichnung: e.Bezeichnung,
-		NurFrauen:   e.NurFrauen,
+		NurFrauen:   e.Zielgruppe == zielgruppeFrauen,
+		NurKinder:   e.Zielgruppe == zielgruppeKinder,
 	}
 }
 
@@ -69,8 +78,29 @@ func terminEingabeAus(t service.Trainingstermin) terminEingabe {
 		Beginn:      string(t.Beginn),
 		Ende:        string(t.Ende),
 		Bezeichnung: t.Bezeichnung,
-		NurFrauen:   t.NurFrauen,
+		Zielgruppe:  zielgruppeAus(t),
 	}
+}
+
+// zielgruppeAus ist der Auswahlwert eines gespeicherten Termins.
+func zielgruppeAus(t service.Trainingstermin) string {
+	switch {
+	case t.NurFrauen:
+		return zielgruppeFrauen
+	case t.NurKinder:
+		return zielgruppeKinder
+	}
+
+	return ""
+}
+
+// Zielgruppenoptionen sind die drei Möglichkeiten, die gespeicherte markiert.
+func (d terminformularDaten) Zielgruppenoptionen() []filteroption {
+	return gewaehlteOption([]filteroption{
+		{Wert: "", Beschriftung: i18n.Text(d.Sprache, "trainingstermine.zielgruppe_alle")},
+		{Wert: zielgruppeFrauen, Beschriftung: i18n.Text(d.Sprache, "trainingstermine.zielgruppe_frauen")},
+		{Wert: zielgruppeKinder, Beschriftung: i18n.Text(d.Sprache, "trainingstermine.zielgruppe_kinder")},
+	}, d.Eingabe.Zielgruppe)
 }
 
 // wochentagsoptionenBauen sind die Einträge der Wochentagsauswahl. Wie die
@@ -134,6 +164,7 @@ func (d terminformularDaten) Wochentagsoptionen() []filteroption {
 type trainingstermineDaten struct {
 	Termine         []terminzeile
 	Frauentermine   []terminzeile
+	Kindertermine   []terminzeile
 	AuchArchivierte bool
 	Meldung         meldung
 	Navigation      []navigationseintrag
@@ -182,23 +213,26 @@ func (z terminzeile) Anzahl() int {
 	return len(z.Teilnehmer)
 }
 
-// Gesamt ist die Zahl aller Termine beider Bereiche.
+// Gesamt ist die Zahl aller Termine aller Bereiche.
 func (d trainingstermineDaten) Gesamt() int {
-	return len(d.Termine) + len(d.Frauentermine)
+	return len(d.Termine) + len(d.Frauentermine) + len(d.Kindertermine)
 }
 
-// terminzeilenTeilen trennt die Termine nur für Frauen von den übrigen; die
-// Wochenreihenfolge bleibt in beiden erhalten.
-func terminzeilenTeilen(zeilen []terminzeile) (allgemein, frauen []terminzeile) {
+// terminzeilenTeilen trennt die Termine nur für Frauen und nur für Kinder von
+// den übrigen; die Wochenreihenfolge bleibt in allen erhalten.
+func terminzeilenTeilen(zeilen []terminzeile) (allgemein, frauen, kinder []terminzeile) {
 	for _, z := range zeilen {
-		if z.NurFrauen {
+		switch {
+		case z.NurFrauen:
 			frauen = append(frauen, z)
-		} else {
+		case z.NurKinder:
+			kinder = append(kinder, z)
+		default:
 			allgemein = append(allgemein, z)
 		}
 	}
 
-	return allgemein, frauen
+	return allgemein, frauen, kinder
 }
 
 // terminzeilen ergänzt jeden Termin um seine Teilnehmer und seine Archiv-Adresse.
@@ -292,11 +326,12 @@ func (a *App) trainingstermineRendern(w http.ResponseWriter, auchArchivierte boo
 		return
 	}
 
-	allgemein, frauen := terminzeilenTeilen(terminzeilen(listen, auchArchivierte))
+	allgemein, frauen, kinder := terminzeilenTeilen(terminzeilen(listen, auchArchivierte))
 
 	a.rendern(w, "trainingstermine", trainingstermineDaten{
 		Termine:         allgemein,
 		Frauentermine:   frauen,
+		Kindertermine:   kinder,
 		AuchArchivierte: auchArchivierte,
 		Meldung:         m,
 		Navigation:      a.navigation(bereichTrainingstermine),
