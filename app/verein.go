@@ -35,6 +35,11 @@ type vereinDaten struct {
 	// angenommen wurde — dieselbe Art Auskunft wie beim Vertrag (app/dokument.go):
 	// zu groß und falsches Format können beide zugleich zutreffen.
 	Fehler []string
+
+	// Registerkarte ist die Karte, die offen steht; leer heißt die erste. Die
+	// Datenvorgänge (Sicherung, Export) setzen "daten", damit die Ansicht nach
+	// dem Klick nicht auf die Anschrift zurückspringt.
+	Registerkarte string
 }
 
 // vereinsdatenLesen sammelt die Felder des abgeschickten Formulars ein. Die
@@ -199,6 +204,11 @@ func (a *App) vereinLogo(w http.ResponseWriter, r *http.Request) {
 // Formular soll zeigen, was tatsächlich gespeichert ist, und nicht, was getippt
 // wurde.
 func (a *App) vereinRendern(w http.ResponseWriter, m meldung, fehler []string) {
+	a.vereinRendernMitKarte(w, m, fehler, "")
+}
+
+// vereinRendernMitKarte ist vereinRendern mit einer vorgewählten Registerkarte.
+func (a *App) vereinRendernMitKarte(w http.ResponseWriter, m meldung, fehler []string, karte string) {
 	daten, err := a.svc.GetVereinsdaten()
 	if err != nil {
 		fehlerAntwort(w, err)
@@ -206,9 +216,10 @@ func (a *App) vereinRendern(w http.ResponseWriter, m meldung, fehler []string) {
 	}
 
 	a.rendern(w, "verein", vereinDaten{
-		Vereinsdaten: daten,
-		Meldung:      m,
-		Fehler:       fehler,
-		Navigation:   a.navigation(bereichVerein),
+		Vereinsdaten:  daten,
+		Meldung:       m,
+		Fehler:        fehler,
+		Navigation:    a.navigation(bereichVerein),
+		Registerkarte: karte,
 	})
 }

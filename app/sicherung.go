@@ -40,7 +40,7 @@ func (a *App) BeendenSetzen(beenden func()) {
 func (a *App) sicherungErstellen(w http.ResponseWriter, r *http.Request) {
 	sprache := a.Sprache()
 	if a.speicherziel == nil {
-		a.vereinRendern(w, meldung{Text: i18n.Text(sprache, "verein.dialog_fehlt"), Warnung: true}, nil)
+		a.datenRendern(w, meldung{Text: i18n.Text(sprache, "verein.dialog_fehlt"), Warnung: true})
 		return
 	}
 
@@ -51,18 +51,18 @@ func (a *App) sicherungErstellen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ziel == "" {
-		a.vereinRendern(w, meldung{}, nil)
+		a.datenRendern(w, meldung{})
 		return
 	}
 
 	if err := a.svc.SicherungErstellen(ziel); err != nil {
-		a.vereinRendern(w, meldung{
+		a.datenRendern(w, meldung{
 			Text: i18n.Text(sprache, "verein.sicherung_fehler", err), Warnung: true,
-		}, nil)
+		})
 		return
 	}
 
-	a.vereinRendern(w, meldung{Text: i18n.Text(sprache, "verein.sicherung_erstellt", ziel)}, nil)
+	a.datenRendern(w, meldung{Text: i18n.Text(sprache, "verein.sicherung_erstellt", ziel)})
 }
 
 // sicherungWiederherstellen ersetzt die Datenbank durch eine gewählte Sicherung
@@ -71,7 +71,7 @@ func (a *App) sicherungErstellen(w http.ResponseWriter, r *http.Request) {
 func (a *App) sicherungWiederherstellen(w http.ResponseWriter, r *http.Request) {
 	sprache := a.Sprache()
 	if a.oeffnenziel == nil || a.rueckfrage == nil || a.beenden == nil {
-		a.vereinRendern(w, meldung{Text: i18n.Text(sprache, "verein.dialog_fehlt"), Warnung: true}, nil)
+		a.datenRendern(w, meldung{Text: i18n.Text(sprache, "verein.dialog_fehlt"), Warnung: true})
 		return
 	}
 
@@ -81,7 +81,7 @@ func (a *App) sicherungWiederherstellen(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if quelle == "" {
-		a.vereinRendern(w, meldung{}, nil)
+		a.datenRendern(w, meldung{})
 		return
 	}
 
@@ -93,7 +93,7 @@ func (a *App) sicherungWiederherstellen(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if !ja {
-		a.vereinRendern(w, meldung{}, nil)
+		a.datenRendern(w, meldung{})
 		return
 	}
 
@@ -102,7 +102,7 @@ func (a *App) sicherungWiederherstellen(w http.ResponseWriter, r *http.Request) 
 		if errors.Is(err, service.ErrKeineSicherung) {
 			schluessel = "verein.wiederherstellen_keine_sicherung"
 		}
-		a.vereinRendern(w, meldung{Text: i18n.Text(sprache, schluessel, err), Warnung: true}, nil)
+		a.datenRendern(w, meldung{Text: i18n.Text(sprache, schluessel, err), Warnung: true})
 		return
 	}
 
@@ -116,7 +116,7 @@ func (a *App) sicherungWiederherstellen(w http.ResponseWriter, r *http.Request) 
 func (a *App) mitgliederExportieren(w http.ResponseWriter, r *http.Request) {
 	sprache := a.Sprache()
 	if a.speicherziel == nil {
-		a.vereinRendern(w, meldung{Text: i18n.Text(sprache, "verein.dialog_fehlt"), Warnung: true}, nil)
+		a.datenRendern(w, meldung{Text: i18n.Text(sprache, "verein.dialog_fehlt"), Warnung: true})
 		return
 	}
 
@@ -139,17 +139,22 @@ func (a *App) mitgliederExportieren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ziel == "" {
-		a.vereinRendern(w, meldung{}, nil)
+		a.datenRendern(w, meldung{})
 		return
 	}
 
 	// 0600: IBANs und Anschriften sind personenbezogen wie die Datenbank.
 	if err := os.WriteFile(ziel, daten, 0o600); err != nil {
-		a.vereinRendern(w, meldung{
+		a.datenRendern(w, meldung{
 			Text: i18n.Text(sprache, "verein.export_fehler", err), Warnung: true,
-		}, nil)
+		})
 		return
 	}
 
-	a.vereinRendern(w, meldung{Text: i18n.Text(sprache, "verein.export_gespeichert", len(zeilen), ziel)}, nil)
+	a.datenRendern(w, meldung{Text: i18n.Text(sprache, "verein.export_gespeichert", len(zeilen), ziel)})
+}
+
+// datenRendern zeigt die Verein-Seite mit offener Karte "Daten".
+func (a *App) datenRendern(w http.ResponseWriter, m meldung) {
+	a.vereinRendernMitKarte(w, m, nil, "daten")
 }

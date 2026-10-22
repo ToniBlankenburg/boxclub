@@ -515,7 +515,7 @@ var deutsch = map[string]string{
 		"größer als %s.",
 
 	// Daten: Sicherung, Wiederherstellung und Export (CONTEXT.md → Sicherung).
-	"verein.daten_titel": "Daten",
+	"verein.tab_daten": "Daten",
 	"verein.sicherung_beschreibung": "Die Sicherung ist eine vollständige Kopie der Datenbank mit Dokumenten " +
 		"und Vereinsdaten. Lege sie regelmäßig an einem anderen Ort ab, zum Beispiel auf einem USB-Stick.",
 	"verein.sicherung_knopf":        "Sicherung erstellen",

@@ -21,6 +21,7 @@
 
      Die Daten sind vereinDaten. */}}
 {{define "verein"}}
+{{$karte := or .Registerkarte "anschrift"}}
 {{with .Navigation}}{{template "navigation" .}}{{end}}
 <div>
     <p class="mb-5 max-w-2xl text-sm text-neutral-600">
@@ -61,21 +62,25 @@
         <div class="flex items-stretch gap-6" data-registerkarten>
             <div class="flex w-44 flex-shrink-0 flex-col gap-0.5 rounded-md border border-neutral-200 bg-neutral-50 p-1"
                  role="tablist" aria-label="{{t "verein.bereiche_aria"}}">
-                <button type="button" role="tab" data-rk-tab="anschrift" aria-selected="true"
+                <button type="button" role="tab" data-rk-tab="anschrift" aria-selected="{{if eq $karte "anschrift"}}true{{else}}false{{end}}"
                         class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
                     {{t "verein.tab_anschrift"}}
                 </button>
-                <button type="button" role="tab" data-rk-tab="bank" aria-selected="false"
+                <button type="button" role="tab" data-rk-tab="bank" aria-selected="{{if eq $karte "bank"}}true{{else}}false{{end}}"
                         class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
                     {{t "verein.tab_bank"}}
                 </button>
-                <button type="button" role="tab" data-rk-tab="rechnungstext" aria-selected="false"
+                <button type="button" role="tab" data-rk-tab="rechnungstext" aria-selected="{{if eq $karte "rechnungstext"}}true{{else}}false{{end}}"
                         class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
                     {{t "verein.tab_rechnungstext"}}
                 </button>
+                <button type="button" role="tab" data-rk-tab="daten" aria-selected="{{if eq $karte "daten"}}true{{else}}false{{end}}"
+                        class="rounded-md border-l-[3px] border-l-transparent px-3 py-2 text-left text-sm font-semibold text-neutral-600 aria-selected:border-l-[var(--akzent)] aria-selected:bg-white aria-selected:text-[var(--akzent)] aria-selected:shadow-sm">
+                    {{t "verein.tab_daten"}}
+                </button>
             </div>
 
-            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="anschrift">
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="anschrift"{{if ne $karte "anschrift"}} hidden{{end}}>
                 <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
                     <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_anschrift"}}</p>
                     <div class="grid gap-3 sm:grid-cols-2">
@@ -120,7 +125,7 @@
                 </div>
             </div>
 
-            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="bank" hidden>
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="bank"{{if ne $karte "bank"}} hidden{{end}}>
                 <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
                     <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_bank"}}</p>
                     <div class="grid gap-3 sm:grid-cols-2">
@@ -156,7 +161,7 @@
                 </div>
             </div>
 
-            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="rechnungstext" hidden>
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="rechnungstext"{{if ne $karte "rechnungstext"}} hidden{{end}}>
                 <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
                     <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_rechnungstext"}}</p>
                     {{/* Die Fußzeile ist mehrzeiliger Freitext und steht deshalb
@@ -178,6 +183,32 @@
                     </label>
                 </div>
             </div>
+
+            {{/* Daten: Sicherung, Wiederherstellen, Export (CONTEXT.md →
+                 Sicherung). Die Knöpfe sind eigene Vorgänge und schicken keine
+                 Formularfelder mit (hx-params="none"); die Dialoge laufen
+                 serverseitig (app.Speicherziel, app.Oeffnenziel). */}}
+            <div class="min-w-0 flex-1" role="tabpanel" data-rk-panel="daten"{{if ne $karte "daten"}} hidden{{end}}>
+                <div class="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                    <p class="mb-3 text-xs font-semibold tracking-wide text-neutral-500 uppercase">{{t "verein.tab_daten"}}</p>
+                    <p class="mb-3 max-w-2xl text-sm text-neutral-600">{{t "verein.sicherung_beschreibung"}}</p>
+                    <div class="mb-5 flex flex-wrap gap-3">
+                        <button type="button" class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                hx-post="/api/verein/sicherung" hx-params="none" hx-target="#inhalt" hx-swap="innerHTML">
+                            {{t "verein.sicherung_knopf"}}
+                        </button>
+                        <button type="button" class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                                hx-post="/api/verein/wiederherstellen" hx-params="none" hx-target="#inhalt" hx-swap="innerHTML">
+                            {{t "verein.wiederherstellen_knopf"}}
+                        </button>
+                    </div>
+                    <p class="mb-3 max-w-2xl text-sm text-neutral-600">{{t "verein.export_beschreibung"}}</p>
+                    <button type="button" class="rounded-md border border-neutral-300 bg-white px-4 py-2 font-semibold hover:bg-neutral-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                            hx-post="/api/verein/mitgliederexport" hx-params="none" hx-target="#inhalt" hx-swap="innerHTML">
+                        {{t "verein.export_knopf"}}
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="mt-6">
@@ -187,32 +218,6 @@
             </button>
         </div>
     </form>
-
-    {{/* Daten: Sicherung, Wiederherstellen, Export (CONTEXT.md → Sicherung).
-         Jeder Knopf ist ein eigener Vorgang außerhalb des Formulars; die
-         Dialoge laufen serverseitig (app.Speicherziel, app.Oeffnenziel). */}}
-    <div class="mt-5 rounded-lg border border-slate-300 bg-white p-4">
-        <p class="mb-3 text-sm font-semibold">{{t "verein.daten_titel"}}</p>
-        <p class="mb-3 max-w-2xl text-sm">{{t "verein.sicherung_beschreibung"}}</p>
-        <div class="mb-4 flex flex-wrap gap-3">
-            <button type="button"
-                    class="rounded-md border border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                    hx-post="/api/verein/sicherung" hx-target="#inhalt" hx-swap="innerHTML">
-                {{t "verein.sicherung_knopf"}}
-            </button>
-            <button type="button"
-                    class="rounded-md border border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                    hx-post="/api/verein/wiederherstellen" hx-target="#inhalt" hx-swap="innerHTML">
-                {{t "verein.wiederherstellen_knopf"}}
-            </button>
-        </div>
-        <p class="mb-3 max-w-2xl text-sm">{{t "verein.export_beschreibung"}}</p>
-        <button type="button"
-                class="rounded-md border border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
-                hx-post="/api/verein/mitgliederexport" hx-target="#inhalt" hx-swap="innerHTML">
-            {{t "verein.export_knopf"}}
-        </button>
-    </div>
 
     {{/* Die Gefahrenzone steht außerhalb des Formulars wie der
          Sprachumschalter oben — ein eigener Vorgang, der nicht mit
