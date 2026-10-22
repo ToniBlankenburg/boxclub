@@ -196,6 +196,14 @@
                      Google-Bewertung). Die Beschriftung des Hakens kommt aus
                      dem Service. */}}
                 {{template "feld-kontrollkaestchen" kontrollkaestchen (t "feld.google_bewertung") "google_bewertung" beschriftungHatBewertet .Eingabe.GoogleBewertung}}
+                {{/* Freier Text an der Person, ohne Prüfung (CONTEXT.md →
+                     Notiz). Er steht nur hier, nicht in Liste, Suche oder
+                     Export. */}}
+                <label class="flex flex-col gap-1.5 sm:col-span-2">
+                    <span class="text-sm text-neutral-600">{{t "feld.notiz"}}</span>
+                    <textarea name="notiz" rows="4"
+                              class="rounded-md border border-neutral-300 bg-white px-2.5 py-2 focus:border-[var(--akzent)] focus:ring-2 focus:ring-[var(--akzent-ring-15)] focus:outline-none">{{.Eingabe.Notiz}}</textarea>
+                </label>
             </div>
         </div>
     </div>

@@ -36,6 +36,7 @@ var deutsch = map[string]string{
 	"feld.postleitzahl":                            "Postleitzahl",
 	"feld.ort":                                     "Ort",
 	"feld.email":                                   "E-Mail",
+	"feld.notiz":                                   "Notiz",
 	"feld.telefon":                                 "Telefon",
 	"feld.iban":                                    "IBAN",
 	"feld.anmeldedatum":                            "Anmeldedatum",

@@ -40,6 +40,10 @@ type Mitglied struct {
 	Email        string
 	Telefon      string
 
+	// Notiz ist ein freier, mehrzeiliger Text an der Person (CONTEXT.md →
+	// Notiz); geprüft wird nichts.
+	Notiz string
+
 	// IBAN liegt am Zahler (CONTEXT.md → Zahler) und wird beim Schreiben nur
 	// normalisiert: Leerzeichen weg, Großbuchstaben. Geprüft wird sie nicht
 	// (ADR-0006) — eine Prüfziffer zu verlangen hieße, eine unvollständig
@@ -247,6 +251,7 @@ type NeuesMitglied struct {
 	Anschrift    Anschrift
 	Email        string
 	Telefon      string
+	Notiz        string
 	Eintritt     time.Time
 
 	// Die drei freiwilligen Angaben am Mitglied — siehe Mitglied.
@@ -364,7 +369,8 @@ CREATE TABLE IF NOT EXISTS mitglied (
 	google_bewertung INTEGER NOT NULL DEFAULT 0,
 	kind_manuell     INTEGER NOT NULL DEFAULT 0,
 	rueckstand       INTEGER NOT NULL DEFAULT 0,
-	rueckstand_notiz TEXT    NOT NULL DEFAULT ''
+	rueckstand_notiz TEXT    NOT NULL DEFAULT '',
+	notiz            TEXT    NOT NULL DEFAULT ''
 );
 
 -- Wer zahlt (CONTEXT.md → Zahler), getrennt von der Frage, wer trainiert. Rein
@@ -572,6 +578,8 @@ var spaltenNachtraege = []struct {
 	// mitglied: vor ADR-0006 gab es bezahlt_bis statt Rückstand.
 	{"mitglied", "rueckstand", "INTEGER NOT NULL DEFAULT 0"},
 	{"mitglied", "rueckstand_notiz", "TEXT NOT NULL DEFAULT ''"},
+	// mitglied: die allgemeine Notiz kam später dazu (CONTEXT.md → Notiz).
+	{"mitglied", "notiz", "TEXT NOT NULL DEFAULT ''"},
 	// mitglied: die Anschrift war ursprünglich ein einzelnes Feld
 	// (CONTEXT.md → Anschrift).
 	{"mitglied", "postleitzahl", "TEXT NOT NULL DEFAULT ''"},
@@ -726,12 +734,12 @@ func (s *MemberService) Create(n NeuesMitglied) (int64, error) {
 	res, err := tx.Exec(
 		`INSERT INTO mitglied
 		 	(vorname, nachname, geburtsdatum, adresse, postleitzahl, ort, email, telefon,
-		 	 geschlecht, google_bewertung, kind_manuell)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 	 notiz, geschlecht, google_bewertung, kind_manuell)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		n.Vorname, n.Nachname, alsDatumsText(n.Geburtsdatum),
 		n.Anschrift.Adresse, n.Anschrift.Postleitzahl, n.Anschrift.Ort,
 		n.Email, n.Telefon,
-		n.Geschlecht, bool(n.GoogleBewertung), n.KindManuell)
+		n.Notiz, n.Geschlecht, bool(n.GoogleBewertung), n.KindManuell)
 	if err != nil {
 		return 0, fmt.Errorf("mitglied anlegen: %w", err)
 	}
@@ -855,6 +863,7 @@ type MitgliedPatch struct {
 	Nachname *string
 	Email    *string
 	Telefon  *string
+	Notiz    *string
 
 	// Die drei freiwilligen Angaben am Mitglied — siehe Mitglied. Ein Zeiger
 	// auf den leeren Wert heißt "leeren", nil heißt "nicht angerührt".
@@ -1097,6 +1106,9 @@ func (p MitgliedPatch) zuweisungen() zuweisungssatz {
 	if p.Telefon != nil {
 		z.setze("telefon", *p.Telefon)
 	}
+	if p.Notiz != nil {
+		z.setze("notiz", *p.Notiz)
+	}
 	if p.Geschlecht != nil {
 		z.setze("geschlecht", *p.Geschlecht)
 	}
@@ -1172,13 +1184,13 @@ func (s *MemberService) Get(id int64) (Mitglied, error) {
 		 	          JOIN mitgliedschaft ms ON ms.zahler_id = z.id
 		 	          WHERE z.mitglied_id IS NULL AND ms.id = (`+massgeblicheMitgliedschaft+`)), ''),
 		 	geschlecht, google_bewertung, kind_manuell,
-		 	rueckstand, rueckstand_notiz
+		 	rueckstand, rueckstand_notiz, notiz
 		 FROM mitglied WHERE id = ?`, id, heute(), id, heute(), id).
 		Scan(&m.ID, &m.Vorname, &m.Nachname, &geburtsdatum,
 			&m.Anschrift.Adresse, &m.Anschrift.Postleitzahl, &m.Anschrift.Ort,
 			&m.Email, &m.Telefon,
 			&m.IBAN, &m.Kontoinhaber, &m.Geschlecht, &m.GoogleBewertung, &m.KindManuell,
-			&m.Rueckstand.Offen, &m.Rueckstand.Notiz)
+			&m.Rueckstand.Offen, &m.Rueckstand.Notiz, &m.Notiz)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Mitglied{}, fmt.Errorf("mitglied %d: %w", id, ErrNichtGefunden)
 	}

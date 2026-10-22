@@ -26,6 +26,7 @@ var englisch = map[string]string{
 	"feld.postleitzahl":                            "Postal code",
 	"feld.ort":                                     "City",
 	"feld.email":                                   "Email",
+	"feld.notiz":                                   "Notes",
 	"feld.telefon":                                 "Phone",
 	"feld.iban":                                    "IBAN",
 	"feld.anmeldedatum":                            "Registration date",

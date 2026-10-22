@@ -140,6 +140,12 @@ Das Kennzeichen, dass bei einem Mitglied nach einer Rücklastschrift Geld offen 
 
 **Abgelöst:** *bezahlt_bis* — ein Datum, bis zu dem der Beitrag als bezahlt gilt. Das Konzept setzt voraus, dass Mitglieder von sich aus zahlen und der Verein hinterherschaut; siehe [ADR-0006](docs/adr/0006-rueckstand-statt-bezahlt-bis.md). _Vermeiden:_ bezahlt_bis, Zahlungsstatus, „nicht bezahlt".
 
+## Notiz
+
+Ein freies, mehrzeiliges Textfeld an der **Person** für alles, was der Verein über ein Mitglied festhalten will und sonst nirgends hinpasst. Es überdauert Austritt und Wiedereintritt. Genau ein Feld, ohne Verlauf, Zeitstempel oder Autor. Es steht nur im Mitgliedsformular auf der Registerkarte *Stammdaten* und kommt weder in der Mitgliederliste noch in Suche, Filter oder Excel-Export vor.
+
+**Nicht zu verwechseln mit:** der Notiz zum *Rückstand* (gehört zum Vorgang einer Rücklastschrift) und dem Grund einer *Stilllegung*. _Vermeiden:_ Bemerkung, Kommentar, Info.
+
 ## Zahler
 
 Wer die Lastschrift zahlt, getrennt von der Frage, wer trainiert. Eine rein technische Entität mit Name und IBAN; jede Mitgliedschaft zeigt auf genau einen. Bei Erwachsenen ist der Zahler die Person selbst und unsichtbar. Dieselbe normalisierte IBAN heißt derselbe Zahler, daher teilen sich Geschwister mit einem Konto einen; ein Zahler ohne Mitgliedschaft wird automatisch gelöscht. Siehe [ADR-0021](docs/adr/0021-zahler-als-technische-entitaet.md).

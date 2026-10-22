@@ -1275,3 +1275,42 @@ func wiederAktiv(svc *service.MemberService, mitgliedID int64) error {
 
 	return nil
 }
+
+func TestNotiz_WirdAngelegtGeaendertUndNurAufWunschAngefasst(t *testing.T) {
+	svc := neuerService(t)
+
+	id, err := svc.Create(service.NeuesMitglied{
+		Vorname:      "Mira",
+		Nachname:     "Sommer",
+		Notiz:        "kommt nur mit Mutter\nAllergie: Latex",
+		BeitragCents: beitragImTest,
+		Eintritt:     datum(t, "2026-01-15"),
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	m, err := svc.Get(id)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if m.Notiz != "kommt nur mit Mutter\nAllergie: Latex" {
+		t.Errorf("Notiz = %q", m.Notiz)
+	}
+
+	// nil lässt die Notiz stehen.
+	if err := svc.Update(id, service.MitgliedPatch{Nachname: zeiger("Winter")}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if m, _ = svc.Get(id); m.Notiz != "kommt nur mit Mutter\nAllergie: Latex" {
+		t.Errorf("Notiz nach fremdem Patch = %q, erwartet unverändert", m.Notiz)
+	}
+
+	// Ein Zeiger auf den leeren Text leert sie.
+	if err := svc.Update(id, service.MitgliedPatch{Notiz: zeiger("")}); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if m, _ = svc.Get(id); m.Notiz != "" {
+		t.Errorf("Notiz nach Leeren = %q", m.Notiz)
+	}
+}

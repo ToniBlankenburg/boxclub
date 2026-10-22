@@ -226,6 +226,7 @@ type formularEingabe struct {
 	Ort          string
 	Email        string
 	Telefon      string
+	Notiz        string
 	// IBAN und Geschlecht sind freier Text und gehen unverändert weiter:
 	// geprüft wird an keinem der beiden etwas (ADR-0006).
 	IBAN       string
@@ -1213,6 +1214,7 @@ func (a *App) bearbeitenFormularRendern(w http.ResponseWriter, id int64, eingabe
 			Ort:                m.Anschrift.Ort,
 			Email:              m.Email,
 			Telefon:            m.Telefon,
+			Notiz:              m.Notiz,
 			IBAN:               m.IBAN,
 			Geschlecht:         m.Geschlecht,
 			GoogleBewertung:    bool(m.GoogleBewertung),
@@ -1705,6 +1707,7 @@ func formularEingabeLesen(r *http.Request) formularEingabe {
 		Ort:          r.FormValue("ort"),
 		Email:        r.FormValue("email"),
 		Telefon:      r.FormValue("telefon"),
+		Notiz:        r.FormValue("notiz"),
 		IBAN:         r.FormValue("iban"),
 		Geschlecht:   r.FormValue("geschlecht"),
 		// Ein Kontrollkästchen schickt seinen Wert nur, wenn es gesetzt ist.
@@ -1807,6 +1810,7 @@ func (e formularEingabe) alsNeuesMitglied() (service.NeuesMitglied, []string) {
 		Anschrift:          e.alsAnschrift(),
 		Email:              e.Email,
 		Telefon:            e.Telefon,
+		Notiz:              e.Notiz,
 		IBAN:               e.IBAN,
 		Geschlecht:         e.Geschlecht,
 		GoogleBewertung:    service.GoogleBewertung(e.GoogleBewertung),
@@ -1880,6 +1884,7 @@ func (e formularEingabe) alsPatch() (service.MitgliedPatch, []string) {
 		Anschrift:       &anschrift,
 		Email:           &e.Email,
 		Telefon:         &e.Telefon,
+		Notiz:           &e.Notiz,
 		IBAN:            &e.IBAN,
 		Geschlecht:      &e.Geschlecht,
 		GoogleBewertung: &googleBewertung,
