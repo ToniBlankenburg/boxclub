@@ -188,6 +188,32 @@
         </div>
     </form>
 
+    {{/* Daten: Sicherung, Wiederherstellen, Export (CONTEXT.md → Sicherung).
+         Jeder Knopf ist ein eigener Vorgang außerhalb des Formulars; die
+         Dialoge laufen serverseitig (app.Speicherziel, app.Oeffnenziel). */}}
+    <div class="mt-5 rounded-lg border border-slate-300 bg-white p-4">
+        <p class="mb-3 text-sm font-semibold">{{t "verein.daten_titel"}}</p>
+        <p class="mb-3 max-w-2xl text-sm">{{t "verein.sicherung_beschreibung"}}</p>
+        <div class="mb-4 flex flex-wrap gap-3">
+            <button type="button"
+                    class="rounded-md border border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    hx-post="/api/verein/sicherung" hx-target="#inhalt" hx-swap="innerHTML">
+                {{t "verein.sicherung_knopf"}}
+            </button>
+            <button type="button"
+                    class="rounded-md border border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                    hx-post="/api/verein/wiederherstellen" hx-target="#inhalt" hx-swap="innerHTML">
+                {{t "verein.wiederherstellen_knopf"}}
+            </button>
+        </div>
+        <p class="mb-3 max-w-2xl text-sm">{{t "verein.export_beschreibung"}}</p>
+        <button type="button"
+                class="rounded-md border border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 focus:ring-2 focus:ring-[var(--akzent-ring-40)] focus:outline-none"
+                hx-post="/api/verein/mitgliederexport" hx-target="#inhalt" hx-swap="innerHTML">
+            {{t "verein.export_knopf"}}
+        </button>
+    </div>
+
     {{/* Die Gefahrenzone steht außerhalb des Formulars wie der
          Sprachumschalter oben — ein eigener Vorgang, der nicht mit
          "Speichern" vermischt werden soll. Bestätigt wird serverseitig über

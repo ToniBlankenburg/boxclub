@@ -40,6 +40,11 @@ type App struct {
 	// (siehe RueckfrageSetzen und datenbankLoeschen).
 	rueckfrage Rueckfrage
 
+	// oeffnenziel und beenden kommen wie speicherziel aus main.go und dienen
+	// der Wiederherstellung einer Sicherung (siehe sicherung.go).
+	oeffnenziel Oeffnenziel
+	beenden     func()
+
 	// sprache ist die aktuelle Anzeigesprache der Oberfläche (ADR-0017).
 	// spracheMu schützt sie, weil der Assetserver Anfragen aus mehreren
 	// Goroutinen bedient. einstellungenPfad ist der Ort, an dem ein
@@ -135,6 +140,9 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/verein", a.vereinSpeichern)
 	mux.HandleFunc("GET /api/verein/logo", a.vereinLogo)
 	mux.HandleFunc("POST /api/verein/datenbank-loeschen", a.datenbankLoeschen)
+	mux.HandleFunc("POST /api/verein/sicherung", a.sicherungErstellen)
+	mux.HandleFunc("POST /api/verein/wiederherstellen", a.sicherungWiederherstellen)
+	mux.HandleFunc("POST /api/verein/mitgliederexport", a.mitgliederExportieren)
 	mux.HandleFunc("POST /api/einstellungen/sprache", a.spracheAendern)
 
 	return mux

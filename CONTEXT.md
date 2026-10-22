@@ -210,6 +210,14 @@ Eine CSV-Datei, mit der der Verein den Lastschrifteinzug eines Monats über Mone
 
 Der Verwendungszweck ist zum Teil überschreibbar: die *Vereinsdaten* tragen dafür ein eigenes, optionales Textfeld ([ADR-0016](docs/adr/0016-eigener-verwendungszweck-in-vereinsdaten.md)). Leer heißt automatisch wie oben; gesetzt ersetzt es nur den Vereinsname-und-Monat-Teil — der Anmeldegebühr-Hinweis bleibt davon unberührt und immer automatisch, weil er Faktenstand der einzelnen Zeile ist, kein Stiltext.
 
+## Sicherung
+
+Eine vollständige Kopie der Datenbank in einer Datei, die der Verein selbst irgendwohin legt (USB-Stick, Cloud-Ordner). Sie enthält alles, auch die *Dokumente* und die *Vereinsdaten*, und lässt sich in der App wieder *wiederherstellen*. Sie wird von Hand ausgelöst, nie automatisch.
+
+*Wiederherstellen* ersetzt die gesamte aktuelle Datenbank durch die Sicherung — kein Zusammenführen. Vorher bleibt eine Kopie des bisherigen Stands neben der Datenbank liegen.
+
+**Nicht zu verwechseln mit:** dem *Export der Mitgliederliste* — jener ist eine Excel-Datei nur mit den Mitgliedern und ihren Mitgliedschaften, ohne *Dokumente*, und dient dem Weitergeben und Auswerten. Aus ihm lässt sich nichts wiederherstellen. _Vermeiden:_ Backup, Restore (in der UI).
+
 ## Monatssoll
 
 Die Summe der Beiträge, die im laufenden Monat eingezogen werden: alle aktiven Mitgliedschaften **einschließlich** derer in der Kündigungsfrist, **ohne** Mitgliedschaften, für die der laufende Monat ein *Stilllegungsmonat* ist, und ohne solche, deren Eintritt noch bevorsteht.

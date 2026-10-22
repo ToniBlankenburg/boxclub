@@ -94,6 +94,15 @@ func main() {
 				// beschriftet sind.
 				return antwort == ja || antwort == "Yes", err
 			})
+			anwendung.OeffnenzielSetzen(func(filterBeschriftung, filterMuster string) (string, error) {
+				return runtime.OpenFileDialog(ctx, runtime.OpenDialogOptions{
+					Title: "Datei auswählen",
+					Filters: []runtime.FileFilter{
+						{DisplayName: filterBeschriftung, Pattern: filterMuster},
+					},
+				})
+			})
+			anwendung.BeendenSetzen(func() { runtime.Quit(ctx) })
 			anwendung.SpeicherzielSetzen(func(vorschlag, filterBeschriftung, filterMuster string) (string, error) {
 				return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{
 					Title:                "Datei speichern",

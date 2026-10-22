@@ -514,6 +514,26 @@ var deutsch = map[string]string{
 	"verein.formular_zu_gross": "Die Formulardaten ließen sich nicht entgegennehmen — das Logo ist " +
 		"größer als %s.",
 
+	// Daten: Sicherung, Wiederherstellung und Export (CONTEXT.md → Sicherung).
+	"verein.daten_titel": "Daten",
+	"verein.sicherung_beschreibung": "Die Sicherung ist eine vollständige Kopie der Datenbank mit Dokumenten " +
+		"und Vereinsdaten. Lege sie regelmäßig an einem anderen Ort ab, zum Beispiel auf einem USB-Stick.",
+	"verein.sicherung_knopf":        "Sicherung erstellen",
+	"verein.sicherung_erstellt":     "Die Sicherung wurde nach %s geschrieben.",
+	"verein.sicherung_fehler":       "Die Sicherung ließ sich nicht erstellen: %v",
+	"verein.wiederherstellen_knopf": "Sicherung wiederherstellen",
+	"verein.wiederherstellen_bestaetigung": "Alle aktuellen Daten werden durch die Sicherung ersetzt. Der bisherige " +
+		"Stand bleibt als Datei „boxclub.db.vor-restore“ neben der Datenbank liegen. Die App beendet sich danach.",
+	"verein.wiederhergestellt":                "Die Sicherung wurde wiederhergestellt. Die App beendet sich gleich — bitte danach neu starten.",
+	"verein.wiederherstellen_keine_sicherung": "Die gewählte Datei ist keine Sicherung dieser App. Es wurde nichts verändert.",
+	"verein.wiederherstellen_fehler":          "Die Wiederherstellung ist fehlgeschlagen: %v",
+	"verein.export_beschreibung": "Die Mitgliederliste als Excel-Datei zum Weitergeben und Auswerten: eine Zeile " +
+		"je Mitgliedschaft, ohne Dokumente. Daraus lässt sich nichts wiederherstellen.",
+	"verein.export_knopf":       "Mitgliederliste exportieren",
+	"verein.export_gespeichert": "%d Zeilen wurden nach %s exportiert.",
+	"verein.export_fehler":      "Der Export ließ sich nicht speichern: %v",
+	"verein.dialog_fehlt":       "Der Datei-Dialog steht nicht zur Verfügung — es wurde nichts verändert.",
+
 	// Die Gefahrenzone: ein Testwerkzeug, kein Teil der eigentlichen
 	// Vereinsverwaltung.
 	"verein.gefahrenzone_titel": "Gefahrenzone",

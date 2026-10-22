@@ -316,6 +316,10 @@ var ErrBereitsAktiv = errors.New("bereits aktives mitglied")
 // Mitgliedschaften.
 type MemberService struct {
 	db *sql.DB
+
+	// dbPath ist die Datei hinter db. Sie braucht nur die Wiederherstellung
+	// (siehe sicherung.go), um die Datei auszutauschen.
+	dbPath string
 }
 
 // Open öffnet die SQLite-Datei unter dbPath und legt sie bei Bedarf samt Schema
@@ -331,7 +335,7 @@ func Open(dbPath string) (*MemberService, error) {
 		return nil, fmt.Errorf("datenbank öffnen: %w", err)
 	}
 
-	svc := &MemberService{db: db}
+	svc := &MemberService{db: db, dbPath: dbPath}
 	if err := svc.migrate(); err != nil {
 		db.Close()
 		return nil, err

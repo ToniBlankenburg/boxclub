@@ -421,6 +421,24 @@ var englisch = map[string]string{
 	"verein.formular_zu_gross": "The form data could not be accepted — the logo is larger than %s.",
 
 	"verein.gefahrenzone_titel": "Danger zone",
+	"verein.daten_titel":        "Data",
+	"verein.sicherung_beschreibung": "The backup is a complete copy of the database including documents " +
+		"and club details. Keep it somewhere else regularly, for example on a USB stick.",
+	"verein.sicherung_knopf":        "Create backup",
+	"verein.sicherung_erstellt":     "The backup was written to %s.",
+	"verein.sicherung_fehler":       "The backup could not be created: %v",
+	"verein.wiederherstellen_knopf": "Restore backup",
+	"verein.wiederherstellen_bestaetigung": "All current data will be replaced by the backup. The previous " +
+		"state stays next to the database as the file \"boxclub.db.vor-restore\". The app quits afterwards.",
+	"verein.wiederhergestellt":                "The backup was restored. The app quits shortly — please start it again afterwards.",
+	"verein.wiederherstellen_keine_sicherung": "The chosen file is not a backup of this app. Nothing was changed.",
+	"verein.wiederherstellen_fehler":          "Restoring failed: %v",
+	"verein.export_beschreibung": "The member list as an Excel file for sharing and analysis: one row per " +
+		"membership, without documents. Nothing can be restored from it.",
+	"verein.export_knopf":       "Export member list",
+	"verein.export_gespeichert": "%d rows were exported to %s.",
+	"verein.export_fehler":      "The export could not be saved: %v",
+	"verein.dialog_fehlt":       "The file dialog is not available — nothing was changed.",
 	"verein.datenbank_loeschen_beschreibung": "Deletes all members, memberships, documents, training " +
 		"sessions and club data irrevocably and recreates an empty database — for testing purposes only.",
 	"verein.datenbank_loeschen_knopf":        "Delete database",
